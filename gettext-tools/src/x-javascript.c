@@ -56,9 +56,6 @@
 
 #define _(s) gettext(s)
 
-#undef max /* clean up after MSVC's <stdlib.h> */
-#define max(a,b) ((a) > (b) ? (a) : (b))
-
 #define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 /* The JavaScript aka ECMA-Script syntax is defined in ECMA-262
@@ -251,11 +248,14 @@ phase2_getc ()
          interactive behaviour when fp is connected to an interactive tty.  */
       unsigned char buf[MAX_PHASE1_PUSHBACK];
       size_t bufcount;
-      int c = phase1_getc ();
-      if (c == EOF)
-        return UEOF;
-      buf[0] = (unsigned char) c;
-      bufcount = 1;
+
+      {
+        int c = phase1_getc ();
+        if (c == EOF)
+          return UEOF;
+        buf[0] = (unsigned char) c;
+        bufcount = 1;
+      }
 
       for (;;)
         {
@@ -441,7 +441,7 @@ Please specify the source encoding through --from-code\n"),
     }
 }
 
-/* Supports max (9, UNINAME_MAX + 3) pushback characters.  */
+/* Supports 9 pushback characters.  */
 static void
 phase2_ungetc (int c)
 {

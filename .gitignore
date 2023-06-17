@@ -333,6 +333,7 @@
 /gettext-tools/libgrep/regex_internal.h
 /gettext-tools/libgrep/regexec.c
 /gettext-tools/libgrep/stdbool.in.h
+/gettext-tools/libgrep/stdckdint.in.h
 /gettext-tools/libgrep/stddef.in.h
 /gettext-tools/libgrep/stdint.in.h
 /gettext-tools/libgrep/stdlib.in.h
@@ -772,6 +773,8 @@ autom4te.cache/
 /gettext-tools/tests/intl-5-prg.exe
 /gettext-tools/tests/intl-6-prg
 /gettext-tools/tests/intl-6-prg.exe
+/gettext-tools/tests/intl-7-prg
+/gettext-tools/tests/intl-7-prg.exe
 /gettext-tools/tests/intl-setlocale-1-prg
 /gettext-tools/tests/intl-setlocale-1-prg.exe
 /gettext-tools/tests/intl-setlocale-2-prg
@@ -880,6 +883,7 @@ core
 /gettext-tools/libgrep/limits.h
 /gettext-tools/libgrep/locale.h
 /gettext-tools/libgrep/stdbool.h
+/gettext-tools/libgrep/stdckdint.h
 /gettext-tools/libgrep/stddef.h
 /gettext-tools/libgrep/stdint.h
 /gettext-tools/libgrep/stdlib.h

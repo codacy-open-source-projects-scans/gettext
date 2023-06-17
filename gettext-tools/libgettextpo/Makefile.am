@@ -42,6 +42,9 @@ AM_CPPFLAGS = \
 
 DEFS = -DIN_LIBGETTEXTPO=1 -DOMIT_SETLOCALE_LOCK=1 @DEFS@
 
+# Enable more warning options in this directory.
+AM_CFLAGS = @WARN_CFLAGS@
+
 # libgettextpo contains the public API for PO files.
 libgettextpo_la_SOURCES = \
   gettext-po.c \
@@ -66,6 +69,7 @@ libgettextpo_la_AUXSOURCES = \
   ../src/read-catalog.c \
   ../src/plural-table.c \
   ../src/format-c.c \
+  ../src/format-c++-brace.c \
   ../src/format-python.c \
   ../src/format-python-brace.c \
   ../src/format-java.c \
@@ -102,7 +106,7 @@ libgettextpo_la_AUXSOURCES = \
 # Libtool's library version information for libgettextpo.
 # See the libtool documentation, section "Library interface versions".
 LTV_CURRENT=5
-LTV_REVISION=8
+LTV_REVISION=9
 LTV_AGE=5
 
 # How to build libgettextpo.la.
@@ -177,7 +181,7 @@ config.h: $(BUILT_SOURCES)
 	          sf=`echo "$$f" | sed -e 's,\\.[^.]*$$,,'`.c; \
 	          test -f $$sf || sf=$(srcdir)/$$sf; \
 	          of=`echo "$$f" | sed -e 's,^.*/,,' -e 's,\\.[^.]*$$,,'`.$(OBJEXT); \
-	          $(COMPILE) $(DEFS) -c $$sf || { rm -f config.h; exit 1; }; \
+	          $(COMPILE) $(DEFS) $(GL_CFLAG_INHIBIT_WARNINGS) -c $$sf || { rm -f config.h; exit 1; }; \
 	          sh ./exported.sh $$of 1>&5; \
 	          rm -f $$of `echo "$$of" | sed -e 's,\\.$(OBJEXT)$$,.lo,'`; \
 	          ;; \

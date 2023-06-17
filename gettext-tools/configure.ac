@@ -92,6 +92,9 @@ gtpo_EARLY
 
 dnl Check for build configuration.
 
+gt_MORE_WARNINGS
+gl_CC_INHIBIT_WARNINGS
+
 gl_WOE32_DLL
 
 LT_INIT([win32-dll])
@@ -296,12 +299,16 @@ if test "$ac_cv_lib_error_at_line" = no; then
 fi
 AC_SUBST([GETTEXTLIB_EXPORTS_FLAGS])
 
-dnl Tell the source files that the error facility is replaced by
-dnl gnulib, to make sure to prepend "rpl_" prefix to the error_*
-dnl symbols.
+dnl Tell the source files that the error facility is overridden by gnulib,
+dnl to make sure to prepend "rpl_" prefix to the error_* symbols.
+dnl This is only necessary on Cygwin and on Android.
 if test "$ac_cv_lib_error_at_line" = no; then
-  AC_DEFINE([GNULIB_REPLACE_ERROR], [1],
-    [Define when the error facility is replaced by gnulib.])
+  case "$host_os" in
+    cygwin* | linux*-android*)
+      AC_DEFINE([GNULIB_REPLACE_ERROR], [1],
+        [Define when the error facility is replaced by gnulib.])
+      ;;
+  esac
 fi
 
 dnl Put some default definitions into config.h.
@@ -502,7 +509,7 @@ changequote([,])dnl
 fi
 AC_SUBST([ARCHIVE_FORMAT])
 
-ARCHIVE_VERSION=0.21.1
+ARCHIVE_VERSION=0.22
 AC_SUBST([ARCHIVE_VERSION])
 
 PACKAGE_SUFFIX="-$ARCHIVE_VERSION"

@@ -21,7 +21,7 @@ EXTRA_DIST =
 MOSTLYCLEANFILES = core *.stackdump
 
 TESTS = gettext-1 gettext-2 \
-	intl-1 intl-2 intl-3 intl-4 intl-5 intl-6 \
+	intl-1 intl-2 intl-3 intl-4 intl-5 intl-6 intl-7 \
 	intl-setlocale-1 intl-setlocale-2 \
 	intl-thread-1 intl-thread-2 intl-thread-3 \
 	intl-version \
@@ -51,7 +51,7 @@ TESTS = gettext-1 gettext-2 \
 	msgfilter-sr-latin-1 msgfilter-quote-1 \
 	msgfmt-1 msgfmt-2 msgfmt-3 msgfmt-4 msgfmt-5 msgfmt-6 msgfmt-7 \
 	msgfmt-8 msgfmt-9 msgfmt-10 msgfmt-11 msgfmt-12 msgfmt-13 msgfmt-14 \
-	msgfmt-15 msgfmt-16 msgfmt-17 msgfmt-18 msgfmt-19 \
+	msgfmt-15 msgfmt-16 msgfmt-17 msgfmt-18 msgfmt-19 msgfmt-20 \
 	msgfmt-properties-1 \
 	msgfmt-qt-1 msgfmt-qt-2 \
 	msgfmt-desktop-1 msgfmt-desktop-2 msgfmt-desktop-3 \
@@ -90,7 +90,7 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-c-comment-4 xgettext-c-comment-5 xgettext-c-comment-6 \
 	xgettext-c-escape-1 xgettext-c-escape-2 xgettext-c-escape-3 \
 	xgettext-c-format-1 xgettext-c-format-2 xgettext-c-format-3 \
-	xgettext-c-format-4 xgettext-c-format-5 \
+	xgettext-c-format-4 xgettext-c-format-5 xgettext-c-format-6 \
 	xgettext-c-ctxt-1 xgettext-c-ctxt-2 xgettext-c-ctxt-3 \
 	xgettext-c-c++-1 xgettext-c-c++-2 \
 	xgettext-c-stackovfl-1 xgettext-c-stackovfl-2 \
@@ -143,6 +143,7 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-rst-1 xgettext-rst-2 \
 	xgettext-python-1 xgettext-python-2 xgettext-python-3 \
 	xgettext-python-4 xgettext-python-5 xgettext-python-6 \
+	xgettext-python-7 \
 	xgettext-python-stackovfl-1 xgettext-python-stackovfl-2 \
 	xgettext-python-stackovfl-3 xgettext-python-stackovfl-4 \
 	xgettext-ruby-1 \
@@ -161,6 +162,7 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-tcl-stackovfl-1 xgettext-tcl-stackovfl-2 \
 	xgettext-tcl-stackovfl-3 xgettext-tcl-stackovfl-4 \
 	xgettext-vala-1 xgettext-vala-2 xgettext-vala-3 xgettext-vala-4 \
+	xgettext-vala-5 \
 	xgettext-vala-stackovfl-1 xgettext-vala-stackovfl-2 \
 	xgettext-ycp-1 xgettext-ycp-2 xgettext-ycp-3 xgettext-ycp-4 \
 	xgettext-ycp-stackovfl-1 xgettext-ycp-stackovfl-2 \
@@ -168,6 +170,7 @@ TESTS = gettext-1 gettext-2 \
 	format-awk-1 format-awk-2 \
 	format-boost-1 format-boost-2 \
 	format-c-1 format-c-2 format-c-3 format-c-4 format-c-5 \
+	format-c++-brace-1 format-c++-brace-2 \
 	format-csharp-1 format-csharp-2 \
 	format-elisp-1 format-elisp-2 \
 	format-gcc-internal-1 format-gcc-internal-2 \
@@ -197,7 +200,7 @@ TESTS = gettext-1 gettext-2 \
 	plural-1 plural-2 \
 	gettextpo-1 sentence-1 \
 	lang-po \
-	lang-c lang-c++ lang-objc \
+	lang-c lang-c++ lang-c++20 lang-objc \
 	lang-python-1 lang-python-2 \
 	lang-java \
 	lang-csharp \
@@ -291,7 +294,7 @@ DEFS = -DLOCALEDIR=$(localedir_c_make) @DEFS@
 LDADD = $(LDADD_@USE_INCLUDED_LIBINTL@) @INTL_MACOSX_LIBS@
 LDADD_yes = ../../gettext-runtime/intl/libintl.la @LTLIBTHREAD@
 LDADD_no = ../../gettext-runtime/intl/libgnuintl.la @LTLIBTHREAD@ @LTLIBINTL@
-check_PROGRAMS = tstgettext tstngettext testlocale intl-1-prg intl-3-prg intl-4-prg intl-5-prg intl-6-prg intl-setlocale-1-prg intl-setlocale-2-prg intl-thread-1-prg intl-thread-2-prg intl-thread-3-prg intl-version-prg cake fc3 fc4 fc5 gettextpo-1-prg sentence-1-prg
+check_PROGRAMS = tstgettext tstngettext testlocale intl-1-prg intl-3-prg intl-4-prg intl-5-prg intl-6-prg intl-7-prg intl-setlocale-1-prg intl-setlocale-2-prg intl-thread-1-prg intl-thread-2-prg intl-thread-3-prg intl-version-prg cake fc3 fc4 fc5 gettextpo-1-prg sentence-1-prg
 tstgettext_SOURCES = \
   tstgettext.c ../../gettext-runtime/src/escapes.h \
   setlocale.c
@@ -311,6 +314,8 @@ intl_5_prg_SOURCES = intl-5-prg.c
 intl_5_prg_LDADD = ../gnulib-lib/libgettextlib.la $(LDADD)
 intl_6_prg_SOURCES = intl-6-prg.c
 intl_6_prg_LDADD = ../gnulib-lib/libgettextlib.la $(LDADD)
+intl_7_prg_SOURCES = intl-7-prg.c
+intl_7_prg_LDADD = ../gnulib-lib/libgettextlib.la $(LDADD)
 intl_setlocale_1_prg_SOURCES = intl-setlocale-1-prg.c
 intl_setlocale_1_prg_LDADD = ../gnulib-lib/libgettextlib.la $(LDADD)
 intl_setlocale_2_prg_SOURCES = intl-setlocale-2-prg.c

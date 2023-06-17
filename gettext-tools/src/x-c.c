@@ -297,6 +297,30 @@ init_flag_table_c ()
   xgettext_record_flag ("argp_failure:2:c-format");
 #endif
 
+  xgettext_record_flag ("gettext:1:pass-c++-format");
+  xgettext_record_flag ("dgettext:2:pass-c++-format");
+  xgettext_record_flag ("dcgettext:2:pass-c++-format");
+  xgettext_record_flag ("ngettext:1:pass-c++-format");
+  xgettext_record_flag ("ngettext:2:pass-c++-format");
+  xgettext_record_flag ("dngettext:2:pass-c++-format");
+  xgettext_record_flag ("dngettext:3:pass-c++-format");
+  xgettext_record_flag ("dcngettext:2:pass-c++-format");
+  xgettext_record_flag ("dcngettext:3:pass-c++-format");
+  xgettext_record_flag ("gettext_noop:1:pass-c++-format");
+  xgettext_record_flag ("pgettext:2:pass-c++-format");
+  xgettext_record_flag ("dpgettext:3:pass-c++-format");
+  xgettext_record_flag ("dcpgettext:3:pass-c++-format");
+  xgettext_record_flag ("npgettext:2:pass-c++-format");
+  xgettext_record_flag ("npgettext:3:pass-c++-format");
+  xgettext_record_flag ("dnpgettext:3:pass-c++-format");
+  xgettext_record_flag ("dnpgettext:4:pass-c++-format");
+  xgettext_record_flag ("dcnpgettext:3:pass-c++-format");
+  xgettext_record_flag ("dcnpgettext:4:pass-c++-format");
+
+  /* C++ <format> */
+  xgettext_record_flag ("vformat:1:c++-format");
+  xgettext_record_flag ("vformat_to:2:c++-format");
+
   xgettext_record_flag ("gettext:1:pass-qt-format");
   xgettext_record_flag ("dgettext:2:pass-qt-format");
   xgettext_record_flag ("dcgettext:2:pass-qt-format");
@@ -970,7 +994,6 @@ struct token_ty
 
 /* Return value of phase7_getc when EOF is reached.  */
 #define P7_EOF (-1)
-#define P7_STRING_END (-2)
 
 /* Replace escape sequences within character strings with their single
    character equivalents.  */
@@ -998,6 +1021,9 @@ phase7_getc ()
 
   /* Use phase 3, because phase 4 elides comments.  */
   c = phase3_getc ();
+
+  if (c == EOF)
+    return P7_EOF;
 
   /* Return a magic newline indicator, so that we can distinguish
      between the user requesting a newline in the string (e.g. using
@@ -1681,7 +1707,7 @@ phase5_get (token_ty *tp)
               phase7_ungetc ('\n');
               break;
             }
-          if (c == EOF || c == P7_QUOTE)
+          if (c == P7_EOF || c == P7_QUOTE)
             break;
         }
       tp->type = token_type_character_constant;
@@ -1718,7 +1744,7 @@ phase5_get (token_ty *tp)
                 phase7_ungetc ('\n');
                 break;
               }
-            if (c == EOF || c == P7_QUOTES)
+            if (c == P7_EOF || c == P7_QUOTES)
               break;
             if (c == P7_QUOTE)
               c = '\'';

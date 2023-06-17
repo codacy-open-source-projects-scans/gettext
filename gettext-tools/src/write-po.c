@@ -1,6 +1,5 @@
 /* GNU gettext - internationalization aids
-   Copyright (C) 1995-1998, 2000-2010, 2012, 2014-2015, 2018-2021 Free Software
-   Foundation, Inc.
+   Copyright (C) 1995-1998, 2000-2010, 2012, 2014-2015, 2018-2021, 2023 Free Software Foundation, Inc.
 
    This file was written by Peter Miller <millerp@canb.auug.org.au>
 
@@ -49,16 +48,12 @@
 #include "xmalloca.h"
 #include "c-strstr.h"
 #include "xvasprintf.h"
+#include "verify.h"
 #include "po-xerror.h"
 #include "gettext.h"
 
 /* Our regular abbreviation.  */
 #define _(str) gettext (str)
-
-#if HAVE_DECL_PUTC_UNLOCKED
-# undef putc
-# define putc putc_unlocked
-#endif
 
 
 /* =================== Putting together a #, flags line. =================== */
@@ -126,7 +121,9 @@ has_significant_format_p (const enum is_format is_format[NFORMATS])
 char *
 make_range_description_string (struct argument_range range)
 {
-  return xasprintf ("range: %d..%d", range.min, range.max);
+  char *result = xasprintf ("range: %d..%d", range.min, range.max);
+  assume (result != NULL);
+  return result;
 }
 
 
@@ -161,6 +158,7 @@ make_c_width_description_string (enum is_wrap do_wrap)
 #ifdef GETTEXTDATADIR
 
 /* All ostream_t instances are in fact styled_ostream_t instances.  */
+#define is_stylable(stream) true
 
 /* Start a run of text belonging to a given CSS class.  */
 static inline void
@@ -371,6 +369,7 @@ message_print_comment_filepos (const message_ty *mp, ostream_t stream,
                  Solaris.  Use the Solaris form here.  */
               str = xasprintf ("File: %s, line: %ld",
                                cp, (long) pp->line_number);
+              assume (str != NULL);
               ostream_write_str (stream, str);
               end_css_class (stream, class_reference);
               ostream_write_str (stream, "\n");
@@ -390,7 +389,7 @@ message_print_comment_filepos (const message_ty *mp, ostream_t stream,
           for (j = 0; j < filepos_count; ++j)
             {
               lex_pos_ty *pp;
-              char buffer[21];
+              char buffer[22];
               const char *cp;
               size_t width;
 

@@ -147,7 +147,7 @@ void
 arglist_parser_remember (struct arglist_parser *ap,
                          int argnum, mixed_string_ty *string,
                          flag_context_ty context,
-                         char *file_name, size_t line_number,
+                         const char *file_name, size_t line_number,
                          refcounted_string_list_ty *comment,
                          bool comment_is_utf8)
 {
@@ -207,7 +207,7 @@ void
 arglist_parser_remember_msgctxt (struct arglist_parser *ap,
                                  mixed_string_ty *string,
                                  flag_context_ty context,
-                                 char *file_name, size_t line_number)
+                                 const char *file_name, size_t line_number)
 {
   bool stored_string = false;
   size_t nalternatives = ap->nalternatives;
@@ -411,8 +411,8 @@ arglist_parser_done (struct arglist_parser *ap, int argnum)
           if (recognize_qt_formatstrings ()
               && best_cp->msgid_plural == best_cp->msgid)
             {
-              msgid_context.is_format3 = yes_according_to_context;
-              msgid_plural_context.is_format3 = yes_according_to_context;
+              msgid_context.is_format4 = yes_according_to_context;
+              msgid_plural_context.is_format4 = yes_according_to_context;
             }
 
           best_msgctxt =
@@ -518,19 +518,19 @@ arglist_parser_done (struct arglist_parser *ap, int argnum)
             {
               /* Add best_cp->xcomments to mp->comment_dot, unless already
                  present.  */
-              size_t i;
+              size_t j;
 
-              for (i = 0; i < best_cp->xcomments.nitems; i++)
+              for (j = 0; j < best_cp->xcomments.nitems; j++)
                 {
-                  const char *xcomment = best_cp->xcomments.item[i];
+                  const char *xcomment = best_cp->xcomments.item[j];
                   bool found = false;
 
                   if (mp != NULL && mp->comment_dot != NULL)
                     {
-                      size_t j;
+                      size_t k;
 
-                      for (j = 0; j < mp->comment_dot->nitems; j++)
-                        if (strcmp (xcomment, mp->comment_dot->item[j]) == 0)
+                      for (k = 0; k < mp->comment_dot->nitems; k++)
+                        if (strcmp (xcomment, mp->comment_dot->item[k]) == 0)
                           {
                             found = true;
                             break;

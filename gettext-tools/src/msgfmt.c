@@ -1,6 +1,5 @@
 /* Converts Uniforum style .po files to binary .mo files
-   Copyright (C) 1995-1998, 2000-2007, 2009-2010, 2012, 2014-2016, 2018-2022 Free Software
-   Foundation, Inc.
+   Copyright (C) 1995-1998, 2000-2007, 2009-2010, 2012, 2014-2016, 2018-2023 Free Software Foundation, Inc.
    Written by Ulrich Drepper <drepper@gnu.ai.mit.edu>, April 1995.
 
    This program is free software: you can redistribute it and/or modify
@@ -70,8 +69,6 @@
 #include "gettext.h"
 
 #define _(str) gettext (str)
-
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 /* Contains exit status for case in which no premature exit occurs.  */
 static int exit_status;
@@ -198,7 +195,9 @@ static const struct option long_options[] =
   { "keyword", optional_argument, NULL, 'k' },
   { "language", required_argument, NULL, 'L' },
   { "locale", required_argument, NULL, 'l' },
+  { "no-convert", no_argument, NULL, CHAR_MAX + 17 },
   { "no-hash", no_argument, NULL, CHAR_MAX + 6 },
+  { "no-redundancy", no_argument, NULL, CHAR_MAX + 18 },
   { "output-file", required_argument, NULL, 'o' },
   { "properties-input", no_argument, NULL, 'P' },
   { "qt", no_argument, NULL, CHAR_MAX + 9 },
@@ -425,6 +424,12 @@ main (int argc, char *argv[])
         desktop_template_name = optarg;
         xml_template_name = optarg;
         break;
+      case CHAR_MAX + 17: /* --no-convert */
+        no_convert_to_utf8 = true;
+        break;
+      case CHAR_MAX + 18: /* --no-redundancy */
+        no_redundancy = true;
+        break;
       default:
         usage (EXIT_FAILURE);
         break;
@@ -441,7 +446,7 @@ License GPLv3+: GNU GPL version 3 or later <%s>\n\
 This is free software: you are free to change and redistribute it.\n\
 There is NO WARRANTY, to the extent permitted by law.\n\
 "),
-              "1995-2022", "https://gnu.org/licenses/gpl.html");
+              "1995-2023", "https://gnu.org/licenses/gpl.html");
       printf (_("Written by %s.\n"), proper_name ("Ulrich Drepper"));
       exit (EXIT_SUCCESS);
     }
@@ -774,6 +779,20 @@ There is NO WARRANTY, to the extent permitted by law.\n\
       }
   }
 
+  /* Compose the input file name(s).
+     This is used for statistics and error messages.  */
+  char *all_input_file_names;
+  {
+    string_list_ty input_file_names;
+
+    string_list_init (&input_file_names);;
+    for (arg_i = optind; arg_i < argc; arg_i++)
+      string_list_append (&input_file_names, argv[arg_i]);
+    all_input_file_names =
+      string_list_join (&input_file_names, ", ", '\0', false);
+    string_list_destroy (&input_file_names);
+  }
+
   /* Now write out all domains.  */
   for (domain = domain_list; domain != NULL; domain = domain->next)
     {
@@ -832,7 +851,7 @@ There is NO WARRANTY, to the extent permitted by law.\n\
       else
         {
           if (msgdomain_write_mo (domain->mlp, domain->domain_name,
-                                  domain->file_name))
+                                  domain->file_name, all_input_file_names))
             exit_status = EXIT_FAILURE;
         }
 
@@ -846,23 +865,9 @@ There is NO WARRANTY, to the extent permitted by law.\n\
       if (do_statistics + verbose >= 2 && optind < argc)
         {
           /* Print the input file name(s) in front of the statistics line.  */
-          char *all_input_file_names;
-
-          {
-            string_list_ty input_file_names;
-
-            string_list_init (&input_file_names);;
-            for (arg_i = optind; arg_i < argc; arg_i++)
-              string_list_append (&input_file_names, argv[arg_i]);
-            all_input_file_names =
-              string_list_join (&input_file_names, ", ", '\0', false);
-            string_list_destroy (&input_file_names);
-          }
-
           /* TRANSLATORS: The prefix before a statistics message.  The argument
              is a file name or a comma separated list of file names.  */
           fprintf (stderr, _("%s: "), all_input_file_names);
-          free (all_input_file_names);
         }
       fprintf (stderr,
                ngettext ("%d translated message", "%d translated messages",
@@ -1047,6 +1052,11 @@ Input file interpretation:\n"));
       printf ("\n");
       printf (_("\
 Output details:\n"));
+      printf (_("\
+      --no-convert            don't convert the messages to UTF-8 encoding\n"));
+      printf (_("\
+      --no-redundancy         don't pre-expand ISO C 99 <inttypes.h>\n\
+                                format string directive macros\n"));
       printf (_("\
   -a, --alignment=NUMBER      align strings to NUMBER bytes (default: %d)\n"), DEFAULT_OUTPUT_ALIGNMENT);
       printf (_("\

@@ -128,24 +128,25 @@ init_keywords ()
 void
 init_flag_table_vala ()
 {
-  xgettext_record_flag ("dgettext:2:pass-c-format");
-  xgettext_record_flag ("dcgettext:2:pass-c-format");
-  xgettext_record_flag ("ngettext:1:pass-c-format");
-  xgettext_record_flag ("ngettext:2:pass-c-format");
-  xgettext_record_flag ("dngettext:2:pass-c-format");
-  xgettext_record_flag ("dngettext:3:pass-c-format");
-  xgettext_record_flag ("dpgettext:2:pass-c-format");
-  xgettext_record_flag ("dpgettext2:3:pass-c-format");
-  xgettext_record_flag ("_:1:pass-c-format");
-  xgettext_record_flag ("Q_:1:pass-c-format");
-  xgettext_record_flag ("N_:1:pass-c-format");
-  xgettext_record_flag ("NC_:2:pass-c-format");
-
   /* Vala leaves string formatting to Glib functions and thus the
      format string is exactly same as C.  See also
      vapi/glib-2.0.vapi.  */
-  xgettext_record_flag ("printf:1:c-format");
-  xgettext_record_flag ("vprintf:1:c-format");
+
+  xgettext_record_flag ("dgettext:2:pass-c-format!Vala");
+  xgettext_record_flag ("dcgettext:2:pass-c-format!Vala");
+  xgettext_record_flag ("ngettext:1:pass-c-format!Vala");
+  xgettext_record_flag ("ngettext:2:pass-c-format!Vala");
+  xgettext_record_flag ("dngettext:2:pass-c-format!Vala");
+  xgettext_record_flag ("dngettext:3:pass-c-format!Vala");
+  xgettext_record_flag ("dpgettext:2:pass-c-format!Vala");
+  xgettext_record_flag ("dpgettext2:3:pass-c-format!Vala");
+  xgettext_record_flag ("_:1:pass-c-format!Vala");
+  xgettext_record_flag ("Q_:1:pass-c-format!Vala");
+  xgettext_record_flag ("N_:1:pass-c-format!Vala");
+  xgettext_record_flag ("NC_:2:pass-c-format!Vala");
+
+  xgettext_record_flag ("printf:1:c-format!Vala");
+  xgettext_record_flag ("vprintf:1:c-format!Vala");
 }
 
 
@@ -388,7 +389,6 @@ free_token (token_ty *tp)
 
 /* Return value of phase7_getc when EOF is reached.  */
 #define P7_EOF (-1)
-#define P7_STRING_END (-2)
 
 /* Replace escape sequences within character strings with their single
    character equivalents.  */
@@ -416,6 +416,9 @@ phase7_getc ()
 
   /* Use phase 1, because phase 2 elides comments.  */
   c = phase1_getc ();
+
+  if (c == EOF)
+    return P7_EOF;
 
   /* Return a magic newline indicator, so that we can distinguish
      between the user requesting a newline in the string (e.g. using
@@ -839,7 +842,7 @@ phase3_get (token_ty *tp)
                   phase7_ungetc ('\n');
                   break;
                 }
-              if (c == EOF || c == P7_QUOTE)
+              if (c == P7_EOF || c == P7_QUOTE)
                 break;
             }
           tp->type = last_token_type = token_type_character_constant;
@@ -877,21 +880,23 @@ phase3_get (token_ty *tp)
         case '"':
           {
             struct mixed_string_buffer msb;
-            int c2 = phase1_getc ();
+            {
+              int c2 = phase1_getc ();
 
-            if (c2 == '"')
-              {
-                int c3 = phase1_getc ();
-                if (c3 == '"')
-                  verbatim = true;
-                else
-                  {
-                    phase1_ungetc (c3);
-                    phase1_ungetc (c2);
-                  }
-              }
-            else
-              phase2_ungetc (c2);
+              if (c2 == '"')
+                {
+                  int c3 = phase1_getc ();
+                  if (c3 == '"')
+                    verbatim = true;
+                  else
+                    {
+                      phase1_ungetc (c3);
+                      phase1_ungetc (c2);
+                    }
+                }
+              else
+                phase2_ungetc (c2);
+            }
 
             /* Start accumulating the string.  */
             mixed_string_buffer_init (&msb, lc_string,
@@ -940,7 +945,7 @@ phase3_get (token_ty *tp)
                     }
                   if (c == P7_QUOTES)
                     break;
-                  if (c == EOF)
+                  if (c == P7_EOF)
                     break;
                   if (c == P7_QUOTE)
                     c = '\'';
