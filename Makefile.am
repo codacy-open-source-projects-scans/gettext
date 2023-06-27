@@ -73,18 +73,8 @@ distcheck-hook:
 	cmp -s $(srcdir)/gettext-runtime/po/remove-potcdate.sin $(srcdir)/gettext-tools/po/remove-potcdate.sin
 	cmp -s $(srcdir)/gettext-runtime/po/remove-potcdate.sin $(srcdir)/gettext-tools/examples/po/remove-potcdate.sin
 	cmp -s $(srcdir)/gettext-runtime/m4/build-to-host.m4 $(srcdir)/gettext-tools/gnulib-m4/build-to-host.m4
-	cmp -s $(srcdir)/gettext-runtime/m4/fcntl-o.m4 $(srcdir)/gettext-tools/gnulib-m4/fcntl-o.m4
-	cmp -s $(srcdir)/gettext-runtime/m4/flexmember.m4 $(srcdir)/gettext-tools/gnulib-m4/flexmember.m4
 	cmp -s $(srcdir)/gettext-runtime/m4/gettext.m4 $(srcdir)/gettext-tools/gnulib-m4/gettext.m4
-	cmp -s $(srcdir)/gettext-runtime/m4/iconv.m4 $(srcdir)/gettext-tools/gnulib-m4/iconv.m4
-	cmp -s $(srcdir)/gettext-runtime/m4/intlmacosx.m4 $(srcdir)/gettext-tools/gnulib-m4/intlmacosx.m4
-	cmp -s $(srcdir)/gettext-runtime/m4/inttypes_h.m4 $(srcdir)/gettext-tools/gnulib-m4/inttypes_h.m4
-	cmp -s $(srcdir)/gettext-runtime/m4/nls.m4 $(srcdir)/gettext-tools/gnulib-m4/nls.m4
 	cmp -s $(srcdir)/gettext-runtime/m4/po.m4 $(srcdir)/gettext-tools/gnulib-m4/po.m4
-	cmp -s $(srcdir)/gettext-runtime/m4/progtest.m4 $(srcdir)/gettext-tools/gnulib-m4/progtest.m4
-	cmp -s $(srcdir)/gettext-runtime/m4/size_max.m4 $(srcdir)/gettext-tools/gnulib-m4/size_max.m4
-	cmp -s $(srcdir)/gettext-runtime/m4/stdint_h.m4 $(srcdir)/gettext-tools/gnulib-m4/stdint_h.m4
-	cmp -s $(srcdir)/gettext-runtime/m4/xsize.m4 $(srcdir)/gettext-tools/gnulib-m4/xsize.m4
 	cmp -s $(srcdir)/gettext-runtime/man/help2man $(srcdir)/gettext-tools/man/help2man
 	cmp -s $(srcdir)/gettext-runtime/man/x-to-1.in $(srcdir)/gettext-tools/man/x-to-1.in
 	cmp -s $(srcdir)/libtextstyle/m4/libtextstyle.m4 $(srcdir)/gettext-tools/gnulib-m4/libtextstyle.m4

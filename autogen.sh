@@ -115,6 +115,7 @@ if ! $skip_gnulib; then
     filename
     flexmember
     havelib
+    iconv
     lib-symbol-visibility
     localcharset
     localename
@@ -174,7 +175,6 @@ if ! $skip_gnulib; then
     getaddrinfo
     getline
     getopt-gnu
-    gettext
     gettext-h
     iconv
     javacomp
@@ -424,7 +424,7 @@ dir0=`pwd`
 
 echo "$0: generating configure in gettext-runtime/intl..."
 cd gettext-runtime/intl
-aclocal -I ../../m4 -I ../m4 -I gnulib-m4 \
+aclocal -I ../../m4 -I ../m4 -I m4 -I gnulib-m4 \
   && autoconf \
   && autoheader && touch config.h.in \
   && touch ChangeLog \
@@ -486,11 +486,15 @@ cp -p gettext-runtime/po/remove-potcdate.sin gettext-tools/po/remove-potcdate.si
 sed_extract_serial='s/^#.* serial \([^ ]*\).*/\1/p
 1q'
 for file in po.m4; do
-  existing_serial=`sed -n -e "$sed_extract_serial" < "gettext-tools/gnulib-m4/$file"`
-  gettext_serial=`sed -n -e "$sed_extract_serial" < "gettext-runtime/m4/$file"`
-  if test -n "$existing_serial" && test -n "$gettext_serial" \
-        && test "$existing_serial" -ge "$gettext_serial" 2> /dev/null; then
-    :
+  if test -f "gettext-tools/gnulib-m4/$file"; then
+    existing_serial=`sed -n -e "$sed_extract_serial" < "gettext-tools/gnulib-m4/$file"`
+    gettext_serial=`sed -n -e "$sed_extract_serial" < "gettext-runtime/m4/$file"`
+    if test -n "$existing_serial" && test -n "$gettext_serial" \
+          && test "$existing_serial" -ge "$gettext_serial" 2> /dev/null; then
+      :
+    else
+      cp -p "gettext-runtime/m4/$file" "gettext-tools/gnulib-m4/$file"
+    fi
   else
     cp -p "gettext-runtime/m4/$file" "gettext-tools/gnulib-m4/$file"
   fi
