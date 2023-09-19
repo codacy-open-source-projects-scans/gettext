@@ -186,7 +186,7 @@ EXTRA_DIST           += libtextstyle.sym.in declared.sh
 libtextstyle.sym : $(srcdir)/libtextstyle.sym.in
 	cat $(srcdir)/libtextstyle.sym.in \
 	  | case "@host_os@" in \
-	      mingw*) cat ;; \
+	      mingw* | windows*) cat ;; \
 	      *) grep -v '^libtextstyle_isatty$$' ;; \
 	    esac \
 	  > $@-t
@@ -216,9 +216,6 @@ config.h: $(BUILT_SOURCES) libtextstyle.sym
 	  echo '#include "../config.h"'; \
 	  echo; \
 	  echo '#endif /* LIBTEXTSTYLE_CONFIG_H */'; \
-	  case "@host_os@" in \
-	    mingw*) echo '#define isatty libtextstyle_isatty' ;; \
-	  esac; \
 	} > config.h && \
 	if test -n "$(NAMESPACING)" && test -n "$(HAVE_GLOBAL_SYMBOL_PIPE)"; then \
 	  { \
@@ -286,7 +283,7 @@ AM_CPPFLAGS += -DDEPENDS_ON_LIBICONV=1
 # Libtool's library version information for libtextstyle.
 # See the libtool documentation, section "Library interface versions".
 LTV_CURRENT=2
-LTV_REVISION=0
+LTV_REVISION=1
 LTV_AGE=2
 
 # How to build libtextstyle.la.

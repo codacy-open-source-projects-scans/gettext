@@ -60,6 +60,7 @@
    <https://perldoc.perl.org/perldelta.html#Defined-or-operator>.  */
 
 #define DEBUG_PERL 0
+#define DEBUG_NESTING_DEPTH 0
 
 
 /* ====================== Keyword set customization.  ====================== */
@@ -545,7 +546,7 @@ enum token_type_ty
   token_type_lbracket,          /* [ */
   token_type_rbracket,          /* ] */
   token_type_string,            /* quote-like */
-  token_type_number,            /* starting with a digit o dot */
+  token_type_number,            /* starting with a digit or dot */
   token_type_named_op,          /* if, unless, while, ... */
   token_type_variable,          /* $... */
   token_type_object,            /* A dereferenced variable, maybe a blessed
@@ -556,7 +557,8 @@ enum token_type_ty
   token_type_other,             /* regexp, misc. operator */
   /* The following are not really token types, but variants used by
      the parser.  */
-  token_type_keyword_symbol     /* keyword symbol */
+  token_type_keyword_symbol,    /* keyword symbol */
+  token_type_r_any              /* rparen rbrace rbracket */
 };
 typedef enum token_type_ty token_type_ty;
 
@@ -722,9 +724,9 @@ extract_quotelike_pass1 (int delim)
       if (c == counter_delim || c == EOF)
         {
           buffer[bufpos++] = counter_delim; /* will be stripped off later */
-#if DEBUG_PERL
+          #if DEBUG_PERL
           fprintf (stderr, "PASS1: %.*s\n", bufpos, buffer);
-#endif
+          #endif
           return string_desc_new_addr (bufpos, buffer);
         }
 
@@ -807,6 +809,7 @@ static token_ty *x_perl_lex (message_list_ty *mlp);
 static void x_perl_unlex (token_ty *tp);
 static bool extract_balanced (message_list_ty *mlp,
                               token_type_ty delim, bool eat_delim,
+                              bool semicolon_delim, bool eat_semicolon_delim,
                               bool comma_delim,
                               flag_context_ty outer_context,
                               flag_context_list_iterator_ty context_iter,
@@ -940,7 +943,7 @@ extract_quotelike_pass3 (token_ty *tp, int error_level)
   bool lowercase;
   bool quotemeta;
 
-#if DEBUG_PERL
+  #if DEBUG_PERL
   switch (tp->sub_type)
     {
     case string_type_verbatim:
@@ -959,7 +962,7 @@ extract_quotelike_pass3 (token_ty *tp, int error_level)
   fprintf (stderr, "%s\n", tp->string);
   if (tp->sub_type == string_type_verbatim)
     fprintf (stderr, "---> %s\n", tp->string);
-#endif
+  #endif
 
   if (tp->sub_type == string_type_verbatim)
     return;
@@ -1307,9 +1310,9 @@ extract_quotelike_pass3 (token_ty *tp, int error_level)
 
   buffer[bufpos++] = '\0';
 
-#if DEBUG_PERL
+  #if DEBUG_PERL
   fprintf (stderr, "---> %s\n", buffer);
-#endif
+  #endif
 
   /* Replace tp->string.  */
   free (tp->string);
@@ -1333,10 +1336,10 @@ extract_variable (message_list_ty *mlp, token_ty *tp, int first)
 
   tp->type = token_type_variable;
 
-#if DEBUG_PERL
+  #if DEBUG_PERL
   fprintf (stderr, "%s:%d: extracting variable type '%c'\n",
            real_file_name, line_number, first);
-#endif
+  #endif
 
   /*
    * 1) Consume dollars and so on (not euros ...).  Unconditionally
@@ -1384,10 +1387,10 @@ extract_variable (message_list_ty *mlp, token_ty *tp, int first)
                   }
                 buffer[bufpos++] = '\0';
                 tp->string = xstrdup (buffer);
-#if DEBUG_PERL
+                #if DEBUG_PERL
                 fprintf (stderr, "%s:%d: is PID ($$)\n",
                          real_file_name, line_number);
-#endif
+                #endif
 
                 phase1_ungetc (c);
                 return;
@@ -1415,12 +1418,14 @@ extract_variable (message_list_ty *mlp, token_ty *tp, int first)
          * debugging purposes it is also harmless, that we suppress the
          * real name of the variable.
          */
-#if DEBUG_PERL
+        #if DEBUG_PERL
         fprintf (stderr, "%s:%d: braced {variable_name}\n",
                  real_file_name, line_number);
-#endif
+        #endif
 
-        if (extract_balanced (mlp, token_type_rbrace, true, false,
+        if (extract_balanced (mlp,
+                              token_type_rbrace, true,
+                              false, false, false,
                               null_context, null_context_list_iterator,
                               1, arglist_parser_alloc (mlp, NULL)))
           {
@@ -1428,6 +1433,13 @@ extract_variable (message_list_ty *mlp, token_ty *tp, int first)
             return;
           }
         buffer[bufpos++] = c;
+        ++varbody_length;
+        if (bufpos >= bufmax)
+          {
+            bufmax = 2 * bufmax + 10;
+            buffer = xrealloc (buffer, bufmax);
+          }
+        buffer[bufpos++] = '}';
       }
     else
       {
@@ -1474,10 +1486,10 @@ extract_variable (message_list_ty *mlp, token_ty *tp, int first)
 
   tp->string = xstrdup (buffer);
 
-#if DEBUG_PERL
+  #if DEBUG_PERL
   fprintf (stderr, "%s:%d: complete variable name: %s\n",
            real_file_name, line_number, tp->string);
-#endif
+  #endif
 
   /*
    * 3) If the following looks strange to you, this is valid Perl syntax:
@@ -1525,10 +1537,10 @@ extract_variable (message_list_ty *mlp, token_ty *tp, int first)
       if (maybe_hash_value && is_dereference)
         {
           tp->type = token_type_object;
-#if DEBUG_PERL
+          #if DEBUG_PERL
           fprintf (stderr, "%s:%d: first keys preceded by \"->\"\n",
                    real_file_name, line_number);
-#endif
+          #endif
         }
       else if (maybe_hash_value)
         {
@@ -1541,10 +1553,10 @@ extract_variable (message_list_ty *mlp, token_ty *tp, int first)
         {
           void *keyword_value;
 
-#if DEBUG_PERL
+          #if DEBUG_PERL
           fprintf (stderr, "%s:%d: first keys preceded by '{'\n",
                    real_file_name, line_number);
-#endif
+          #endif
 
           if (hash_find_entry (&keywords, tp->string, strlen (tp->string),
                                &keyword_value) == 0)
@@ -1577,10 +1589,10 @@ extract_variable (message_list_ty *mlp, token_ty *tp, int first)
                       tp->string, strlen (tp->string)));
                 token_ty *t1 = x_perl_lex (mlp);
 
-#if DEBUG_PERL
+                #if DEBUG_PERL
                 fprintf (stderr, "%s:%d: extracting string key\n",
                          real_file_name, line_number);
-#endif
+                #endif
 
                 if (t1->type == token_type_symbol
                     || t1->type == token_type_named_op)
@@ -1613,7 +1625,9 @@ extract_variable (message_list_ty *mlp, token_ty *tp, int first)
                 else
                   {
                     x_perl_unlex (t1);
-                    if (extract_balanced (mlp, token_type_rbrace, true, false,
+                    if (extract_balanced (mlp,
+                                          token_type_rbrace, true,
+                                          false, false, false,
                                           null_context, context_iter,
                                           1, arglist_parser_alloc (mlp, &shapes)))
                       return;
@@ -1640,21 +1654,25 @@ extract_variable (message_list_ty *mlp, token_ty *tp, int first)
       switch (c)
         {
         case '{':
-#if DEBUG_PERL
+          #if DEBUG_PERL
           fprintf (stderr, "%s:%d: extracting balanced '{' after varname\n",
                    real_file_name, line_number);
-#endif
-          extract_balanced (mlp, token_type_rbrace, true, false,
+          #endif
+          extract_balanced (mlp,
+                            token_type_rbrace, true,
+                            false, false, false,
                             null_context, null_context_list_iterator,
                             1, arglist_parser_alloc (mlp, NULL));
           break;
 
         case '[':
-#if DEBUG_PERL
+          #if DEBUG_PERL
           fprintf (stderr, "%s:%d: extracting balanced '[' after varname\n",
                    real_file_name, line_number);
-#endif
-          extract_balanced (mlp, token_type_rbracket, true, false,
+          #endif
+          extract_balanced (mlp,
+                            token_type_rbracket, true,
+                            false, false, false,
                             null_context, null_context_list_iterator,
                             1, arglist_parser_alloc (mlp, NULL));
           break;
@@ -1663,10 +1681,10 @@ extract_variable (message_list_ty *mlp, token_ty *tp, int first)
           c2 = phase1_getc ();
           if (c2 == '>')
             {
-#if DEBUG_PERL
+              #if DEBUG_PERL
               fprintf (stderr, "%s:%d: another \"->\" after varname\n",
                        real_file_name, line_number);
-#endif
+              #endif
               break;
             }
           else if (c2 != '\n')
@@ -1680,10 +1698,10 @@ extract_variable (message_list_ty *mlp, token_ty *tp, int first)
           FALLTHROUGH;
 
         default:
-#if DEBUG_PERL
+          #if DEBUG_PERL
           fprintf (stderr, "%s:%d: variable finished\n",
                    real_file_name, line_number);
-#endif
+          #endif
           phase2_ungetc (c);
           return;
         }
@@ -2146,14 +2164,17 @@ prefer_regexp_over_division (token_type_ty type)
       case token_type_other:
         retval = true;
         break;
+      case token_type_r_any:
+        retval = false;
+        break;
   }
 
-#if DEBUG_PERL
+  #if DEBUG_PERL
   token_ty ty;
   ty.type = type;
   fprintf (stderr, "Prefer regexp over division after %s: %s\n",
            token2string (&ty), retval ? "true" : "false");
-#endif
+  #endif
 
   return retval;
 }
@@ -2518,15 +2539,15 @@ x_perl_prelex (message_list_ty *mlp, token_ty *tp)
                    && ((c >= 'A' && c <='Z')
                        || (c >= 'a' && c <= 'z')))
             {
-#if DEBUG_PERL
+              #if DEBUG_PERL
               fprintf (stderr, "%s:%d: start pod section\n",
                        real_file_name, line_number);
-#endif
+              #endif
               skip_pod ();
-#if DEBUG_PERL
+              #if DEBUG_PERL
               fprintf (stderr, "%s:%d: end pod section\n",
                        real_file_name, line_number);
-#endif
+              #endif
               continue;
             }
           phase1_ungetc (c);
@@ -2781,9 +2802,9 @@ x_perl_lex (message_list_ty *mlp)
              logical_file_name, line_number);
     }
 
-#if DEBUG_PERL
+  #if DEBUG_PERL
   int dummy = token_stack_dump (&token_stack);
-#endif
+  #endif
   token_ty *tp = token_stack_pop (&token_stack);
 
   if (!tp)
@@ -2793,10 +2814,10 @@ x_perl_lex (message_list_ty *mlp)
       tp->last_type = last_token_type;
       last_token_type = tp->type;
 
-#if DEBUG_PERL
+      #if DEBUG_PERL
       fprintf (stderr, "%s:%d: x_perl_prelex returned %s\n",
                real_file_name, line_number, token2string (tp));
-#endif
+      #endif
 
       /* The interpretation of a slash or question mark after a function call
          depends on the prototype of that function.  If the function expects
@@ -2854,13 +2875,13 @@ x_perl_lex (message_list_ty *mlp)
             }
         }
     }
-#if DEBUG_PERL
+  #if DEBUG_PERL
   else
     {
       fprintf (stderr, "%s:%d: %s recycled from stack\n",
                real_file_name, line_number, token2string (tp));
     }
-#endif
+  #endif
 
   /* A symbol followed by a fat comma is really a single-quoted string.
      Function definitions or forward declarations also need a special
@@ -2872,33 +2893,33 @@ x_perl_lex (message_list_ty *mlp)
 
       if (!next)
         {
-#if DEBUG_PERL
+          #if DEBUG_PERL
           fprintf (stderr, "%s:%d: pre-fetching next token\n",
                    real_file_name, line_number);
-#endif
+          #endif
           next = x_perl_lex (mlp);
           x_perl_unlex (next);
-#if DEBUG_PERL
+          #if DEBUG_PERL
           fprintf (stderr, "%s:%d: unshifted next token\n",
                    real_file_name, line_number);
-#endif
+          #endif
         }
 
-#if DEBUG_PERL
+      #if DEBUG_PERL
       fprintf (stderr, "%s:%d: next token is %s\n",
                real_file_name, line_number, token2string (next));
-#endif
+      #endif
 
       if (next->type == token_type_fat_comma)
         {
           tp->type = token_type_string;
           tp->sub_type = string_type_q;
           tp->comment = add_reference (savable_comment);
-#if DEBUG_PERL
+          #if DEBUG_PERL
           fprintf (stderr,
                    "%s:%d: token %s mutated to token_type_string\n",
                    real_file_name, line_number, token2string (tp));
-#endif
+          #endif
         }
       else if (tp->type == token_type_symbol && tp->sub_type == symbol_type_sub
                && next->type == token_type_symbol)
@@ -2906,10 +2927,10 @@ x_perl_lex (message_list_ty *mlp)
           /* Start of a function declaration or definition.  Mark this
              symbol as a function name, so that we can later eat up
              possible prototype information.  */
-#if DEBUG_PERL
+          #if DEBUG_PERL
           fprintf (stderr, "%s:%d: subroutine declaration/definition '%s'\n",
                    real_file_name, line_number, next->string);
-#endif
+          #endif
           next->sub_type = symbol_type_function;
         }
       else if (tp->type == token_type_symbol
@@ -2924,17 +2945,17 @@ x_perl_lex (message_list_ty *mlp)
              future extensions to the Perl syntax.  */
           int c;
 
-#if DEBUG_PERL
+          #if DEBUG_PERL
           fprintf (stderr, "%s:%d: consuming prototype information\n",
                    real_file_name, line_number);
-#endif
+          #endif
 
           do
             {
               c = phase1_getc ();
-#if DEBUG_PERL
+              #if DEBUG_PERL
               fprintf (stderr, "  consuming character '%c'\n", c);
-#endif
+              #endif
             }
           while (c != EOF && c != ')');
           phase1_ungetc (c);
@@ -3076,8 +3097,11 @@ collect_message (message_list_ty *mlp, token_ty *tp, int error_level)
    Extracted messages are added to MLP.
 
    DELIM can be either token_type_rbrace, token_type_rbracket,
-   token_type_rparen.  Additionally, if COMMA_DELIM is true, parsing
-   stops at the next comma outside parentheses.
+   token_type_rparen, or token_type_r_any.
+   Additionally, if SEMICOLON_DELIM is true, parsing stops at the next
+   semicolon outside parentheses.
+   Similarly, if COMMA_DELIM is true, parsing stops at the next comma
+   outside parentheses.
 
    ARG is the current argument list position, starts with 1.
    ARGPARSER is the corresponding argument list parser.
@@ -3086,11 +3110,18 @@ collect_message (message_list_ty *mlp, token_ty *tp, int error_level)
 
 static bool
 extract_balanced (message_list_ty *mlp,
-                  token_type_ty delim, bool eat_delim, bool comma_delim,
+                  token_type_ty delim, bool eat_delim,
+                  bool semicolon_delim, bool eat_semicolon_delim,
+                  bool comma_delim,
                   flag_context_ty outer_context,
                   flag_context_list_iterator_ty context_iter,
                   int arg, struct arglist_parser *argparser)
 {
+  /* Whether we are at the first token.  */
+  bool first = true;
+  /* Whether the first token was a "sub".  */
+  bool sub_seen = false;
+
   /* Whether to implicitly assume the next tokens are arguments even without
      a '('.  */
   bool next_is_argument = false;
@@ -3110,11 +3141,11 @@ extract_balanced (message_list_ty *mlp,
     inherited_context (outer_context,
                        flag_context_list_iterator_advance (&context_iter));
 
-#if DEBUG_PERL
+  #if DEBUG_PERL
   static int nesting_level = 0;
 
   ++nesting_level;
-#endif
+  #endif
 
   if (nesting_depth > MAX_NESTING_DEPTH)
     {
@@ -3130,19 +3161,46 @@ extract_balanced (message_list_ty *mlp,
 
       tp = x_perl_lex (mlp);
 
-      if (delim == tp->type)
+      if (first)
+        {
+          sub_seen = (tp->type == token_type_symbol
+                      && tp->sub_type == symbol_type_sub);
+        }
+
+      if (delim == tp->type
+          || (delim == token_type_r_any
+              && (tp->type == token_type_rparen
+                  || tp->type == token_type_rbrace
+                  || tp->type == token_type_rbracket)))
         {
           arglist_parser_done (argparser, arg);
           if (next_argparser != NULL)
             free (next_argparser);
-#if DEBUG_PERL
+          #if DEBUG_PERL
           fprintf (stderr, "%s:%d: extract_balanced finished (%d)\n",
                    logical_file_name, tp->line_number, --nesting_level);
-#endif
+          #endif
           if (eat_delim)
             free_token (tp);
           else
             /* Preserve the delimiter for the caller.  */
+            x_perl_unlex (tp);
+          return false;
+        }
+
+      if (semicolon_delim && tp->type == token_type_semicolon)
+        {
+          arglist_parser_done (argparser, arg);
+          if (next_argparser != NULL)
+            free (next_argparser);
+          #if DEBUG_PERL
+          fprintf (stderr, "%s:%d: extract_balanced finished at semicolon (%d)\n",
+                   logical_file_name, tp->line_number, --nesting_level);
+          #endif
+          if (eat_semicolon_delim)
+            free_token (tp);
+          else
+            /* Preserve the semicolon for the caller.  */
             x_perl_unlex (tp);
           return false;
         }
@@ -3152,10 +3210,10 @@ extract_balanced (message_list_ty *mlp,
           arglist_parser_done (argparser, arg);
           if (next_argparser != NULL)
             free (next_argparser);
-#if DEBUG_PERL
+          #if DEBUG_PERL
           fprintf (stderr, "%s:%d: extract_balanced finished at comma (%d)\n",
                    logical_file_name, tp->line_number, --nesting_level);
-#endif
+          #endif
           x_perl_unlex (tp);
           return false;
         }
@@ -3196,110 +3254,297 @@ extract_balanced (message_list_ty *mlp,
             next_comma_delim = true;
 
           ++nesting_depth;
-          if (extract_balanced (mlp, delim, false, next_comma_delim,
+          #if DEBUG_NESTING_DEPTH
+          fprintf (stderr, "extract_balanced %d>> @%d\n", nesting_depth, line_number);
+          #endif
+          if (extract_balanced (mlp,
+                                delim, false,
+                                true, false, next_comma_delim,
                                 inner_context, next_context_iter,
                                 1, next_argparser))
             {
               arglist_parser_done (argparser, arg);
               return true;
             }
+          #if DEBUG_NESTING_DEPTH
+          fprintf (stderr, "extract_balanced %d<< @%d\n", nesting_depth, line_number);
+          #endif
           nesting_depth--;
 
           next_is_argument = false;
           next_argparser = NULL;
           next_context_iter = null_context_list_iterator;
-          continue;
         }
-
-      switch (tp->type)
+      else
         {
-        case token_type_symbol:
-        case token_type_keyword_symbol:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type symbol (%d) \"%s\"\n",
-                   logical_file_name, tp->line_number, nesting_level,
-                   tp->string);
-#endif
-
-          {
-            void *keyword_value;
-
-            if (hash_find_entry (&keywords, tp->string, strlen (tp->string),
-                                 &keyword_value) == 0)
-              {
-                const struct callshapes *shapes =
-                  (const struct callshapes *) keyword_value;
-
-                next_shapes = shapes;
-                next_argparser = arglist_parser_alloc (mlp, shapes);
-              }
-            else
-              {
-                next_shapes = NULL;
-                next_argparser = arglist_parser_alloc (mlp, NULL);
-              }
-          }
-          next_is_argument = true;
-          next_context_iter =
-            flag_context_list_iterator (
-              flag_context_list_table_lookup (
-                flag_context_list_table,
-                tp->string, strlen (tp->string)));
-          break;
-
-        case token_type_variable:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type variable (%d) \"%s\"\n",
-                   logical_file_name, tp->line_number, nesting_level,
-                   tp->string);
-#endif
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_object:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type object (%d) \"%s->\"\n",
-                   logical_file_name, tp->line_number, nesting_level,
-                   tp->string);
-#endif
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_lparen:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type left parenthesis (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-          if (next_is_argument)
+          switch (tp->type)
             {
-              /* Parse the argument list of a function call.  */
-              ++nesting_depth;
-              if (extract_balanced (mlp, token_type_rparen, true, false,
-                                    inner_context, next_context_iter,
-                                    1, next_argparser))
+            case token_type_symbol:
+              if (sub_seen)
+                break;
+              FALLTHROUGH;
+            case token_type_keyword_symbol:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type symbol (%d) \"%s\"\n",
+                       logical_file_name, tp->line_number, nesting_level,
+                       tp->string);
+              #endif
+
+              {
+                void *keyword_value;
+
+                if (hash_find_entry (&keywords, tp->string, strlen (tp->string),
+                                     &keyword_value) == 0)
+                  {
+                    const struct callshapes *shapes =
+                      (const struct callshapes *) keyword_value;
+
+                    next_shapes = shapes;
+                    next_argparser = arglist_parser_alloc (mlp, shapes);
+                  }
+                else
+                  {
+                    next_shapes = NULL;
+                    next_argparser = arglist_parser_alloc (mlp, NULL);
+                  }
+              }
+              next_is_argument = true;
+              next_context_iter =
+                flag_context_list_iterator (
+                  flag_context_list_table_lookup (
+                    flag_context_list_table,
+                    tp->string, strlen (tp->string)));
+              break;
+
+            case token_type_variable:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type variable (%d) \"%s\"\n",
+                       logical_file_name, tp->line_number, nesting_level,
+                       tp->string);
+              #endif
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            case token_type_object:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type object (%d) \"%s->\"\n",
+                       logical_file_name, tp->line_number, nesting_level,
+                       tp->string);
+              #endif
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            case token_type_lparen:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type left parenthesis (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
+              if (next_is_argument)
+                {
+                  /* Parse the argument list of a function call.  */
+                  ++nesting_depth;
+                  #if DEBUG_NESTING_DEPTH
+                  fprintf (stderr, "extract_balanced %d>> @%d\n", nesting_depth, line_number);
+                  #endif
+                  if (extract_balanced (mlp,
+                                        token_type_rparen, true,
+                                        false, false, false,
+                                        inner_context, next_context_iter,
+                                        1, next_argparser))
+                    {
+                      arglist_parser_done (argparser, arg);
+                      return true;
+                    }
+                  #if DEBUG_NESTING_DEPTH
+                  fprintf (stderr, "extract_balanced %d<< @%d\n", nesting_depth, line_number);
+                  #endif
+                  nesting_depth--;
+                  next_is_argument = false;
+                  next_argparser = NULL;
+                }
+              else
+                {
+                  /* Parse a parenthesized expression or comma expression.  */
+                  ++nesting_depth;
+                  #if DEBUG_NESTING_DEPTH
+                  fprintf (stderr, "extract_balanced %d>> @%d\n", nesting_depth, line_number);
+                  #endif
+                  if (extract_balanced (mlp,
+                                        token_type_rparen, true,
+                                        false, false, false,
+                                        inner_context, next_context_iter,
+                                        arg, arglist_parser_clone (argparser)))
+                    {
+                      arglist_parser_done (argparser, arg);
+                      if (next_argparser != NULL)
+                        free (next_argparser);
+                      free_token (tp);
+                      return true;
+                    }
+                  #if DEBUG_NESTING_DEPTH
+                  fprintf (stderr, "extract_balanced %d<< @%d\n", nesting_depth, line_number);
+                  #endif
+                  nesting_depth--;
+                  next_is_argument = false;
+                  if (next_argparser != NULL)
+                    free (next_argparser);
+                  next_argparser = NULL;
+                }
+              skip_until_comma = true;
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            case token_type_rparen:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type right parenthesis (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              skip_until_comma = true;
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            case token_type_comma:
+            case token_type_fat_comma:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type comma (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
+              if (arglist_parser_decidedp (argparser, arg))
+                {
+                  /* We have missed the argument.  */
+                  arglist_parser_done (argparser, arg);
+                  argparser = arglist_parser_alloc (mlp, NULL);
+                  arg = 0;
+                }
+              arg++;
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: arg: %d\n",
+                       real_file_name, tp->line_number, arg);
+              #endif
+              inner_context =
+                inherited_context (outer_context,
+                                   flag_context_list_iterator_advance (
+                                     &context_iter));
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              skip_until_comma = false;
+              next_context_iter = passthrough_context_list_iterator;
+              break;
+
+            case token_type_string:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type string (%d): \"%s\"\n",
+                       logical_file_name, tp->line_number, nesting_level,
+                       tp->string);
+              #endif
+
+              if (extract_all)
+                {
+                  char *string = collect_message (mlp, tp, EXIT_SUCCESS);
+                  lex_pos_ty pos;
+
+                  pos.file_name = logical_file_name;
+                  pos.line_number = tp->line_number;
+                  remember_a_message (mlp, NULL, string, true, false, inner_context,
+                                      &pos, NULL, tp->comment, true);
+                }
+              else if (!skip_until_comma)
+                {
+                  /* Need to collect the complete string, with error checking,
+                     only if the argument ARG is used in ARGPARSER.  */
+                  bool must_collect = false;
+                  {
+                    size_t nalternatives = argparser->nalternatives;
+                    size_t i;
+
+                    for (i = 0; i < nalternatives; i++)
+                      {
+                        struct partial_call *cp = &argparser->alternative[i];
+
+                        if (arg == cp->argnumc
+                            || arg == cp->argnum1 || arg == cp->argnum2)
+                          must_collect = true;
+                      }
+                  }
+
+                  if (must_collect)
+                    {
+                      char *string = collect_message (mlp, tp, EXIT_FAILURE);
+                      mixed_string_ty *ms =
+                        mixed_string_alloc_utf8 (string, lc_string,
+                                                 logical_file_name, tp->line_number);
+                      free (string);
+                      arglist_parser_remember (argparser, arg, ms, inner_context,
+                                               logical_file_name, tp->line_number,
+                                               tp->comment, true);
+                    }
+                }
+
+              if (arglist_parser_decidedp (argparser, arg))
                 {
                   arglist_parser_done (argparser, arg);
-                  return true;
+                  argparser = arglist_parser_alloc (mlp, NULL);
                 }
-              nesting_depth--;
+
               next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
               next_argparser = NULL;
-            }
-          else
-            {
-              /* Parse a parenthesized expression or comma expression.  */
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            case token_type_number:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type number (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            case token_type_eof:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type EOF (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
+              arglist_parser_done (argparser, arg);
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              free_token (tp);
+              return true;
+
+            case token_type_lbrace:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type lbrace (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
               ++nesting_depth;
-              if (extract_balanced (mlp, token_type_rparen, true, false,
-                                    inner_context, next_context_iter,
-                                    arg, arglist_parser_clone (argparser)))
+              #if DEBUG_NESTING_DEPTH
+              fprintf (stderr, "extract_balanced %d>> @%d\n", nesting_depth, line_number);
+              #endif
+              if (extract_balanced (mlp,
+                                    token_type_rbrace, true,
+                                    false, false, false,
+                                    null_context, null_context_list_iterator,
+                                    1, arglist_parser_alloc (mlp, NULL)))
                 {
                   arglist_parser_done (argparser, arg);
                   if (next_argparser != NULL)
@@ -3307,311 +3552,178 @@ extract_balanced (message_list_ty *mlp,
                   free_token (tp);
                   return true;
                 }
+              #if DEBUG_NESTING_DEPTH
+              fprintf (stderr, "extract_balanced %d<< @%d\n", nesting_depth, line_number);
+              #endif
               nesting_depth--;
               next_is_argument = false;
               if (next_argparser != NULL)
                 free (next_argparser);
               next_argparser = NULL;
-            }
-          skip_until_comma = true;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_rparen:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type right parenthesis (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          skip_until_comma = true;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_comma:
-        case token_type_fat_comma:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type comma (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-          if (arglist_parser_decidedp (argparser, arg))
-            {
-              /* We have missed the argument.  */
-              arglist_parser_done (argparser, arg);
-              argparser = arglist_parser_alloc (mlp, NULL);
-              arg = 0;
-            }
-          arg++;
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: arg: %d\n",
-                   real_file_name, tp->line_number, arg);
-#endif
-          inner_context =
-            inherited_context (outer_context,
-                               flag_context_list_iterator_advance (
-                                 &context_iter));
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          skip_until_comma = false;
-          next_context_iter = passthrough_context_list_iterator;
-          break;
-
-        case token_type_string:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type string (%d): \"%s\"\n",
-                   logical_file_name, tp->line_number, nesting_level,
-                   tp->string);
-#endif
-
-          if (extract_all)
-            {
-              char *string = collect_message (mlp, tp, EXIT_SUCCESS);
-              lex_pos_ty pos;
-
-              pos.file_name = logical_file_name;
-              pos.line_number = tp->line_number;
-              remember_a_message (mlp, NULL, string, true, false, inner_context,
-                                  &pos, NULL, tp->comment, true);
-            }
-          else if (!skip_until_comma)
-            {
-              /* Need to collect the complete string, with error checking,
-                 only if the argument ARG is used in ARGPARSER.  */
-              bool must_collect = false;
-              {
-                size_t nalternatives = argparser->nalternatives;
-                size_t i;
-
-                for (i = 0; i < nalternatives; i++)
-                  {
-                    struct partial_call *cp = &argparser->alternative[i];
-
-                    if (arg == cp->argnumc
-                        || arg == cp->argnum1 || arg == cp->argnum2)
-                      must_collect = true;
-                  }
-              }
-
-              if (must_collect)
+              if (sub_seen)
                 {
-                  char *string = collect_message (mlp, tp, EXIT_FAILURE);
-                  mixed_string_ty *ms =
-                    mixed_string_alloc_utf8 (string, lc_string,
-                                             logical_file_name, tp->line_number);
-                  free (string);
-                  arglist_parser_remember (argparser, arg, ms, inner_context,
-                                           logical_file_name, tp->line_number,
-                                           tp->comment, true);
+                  /* Go back to the caller.  We don't want to recurse each time we
+                     parsed a    sub name... { ... }    definition.  */
+                  arglist_parser_done (argparser, arg);
+                  free_token (tp);
+                  return false;
                 }
-            }
+              next_context_iter = null_context_list_iterator;
+              break;
 
-          if (arglist_parser_decidedp (argparser, arg))
-            {
+            case token_type_rbrace:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type rbrace (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            case token_type_lbracket:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type lbracket (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
+              ++nesting_depth;
+              #if DEBUG_NESTING_DEPTH
+              fprintf (stderr, "extract_balanced %d>> @%d\n", nesting_depth, line_number);
+              #endif
+              if (extract_balanced (mlp,
+                                    token_type_rbracket, true,
+                                    false, false, false,
+                                    null_context, null_context_list_iterator,
+                                    1, arglist_parser_alloc (mlp, NULL)))
+                {
+                  arglist_parser_done (argparser, arg);
+                  if (next_argparser != NULL)
+                    free (next_argparser);
+                  free_token (tp);
+                  return true;
+                }
+              #if DEBUG_NESTING_DEPTH
+              fprintf (stderr, "extract_balanced %d<< @%d\n", nesting_depth, line_number);
+              #endif
+              nesting_depth--;
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            case token_type_rbracket:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type rbracket (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            case token_type_semicolon:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type semicolon (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
+
+              /* The ultimate sign.  */
               arglist_parser_done (argparser, arg);
               argparser = arglist_parser_alloc (mlp, NULL);
+
+              /* FIXME: Instead of resetting outer_context here, it may be better
+                 to recurse in the next_is_argument handling above, waiting for
+                 the next semicolon or other statement terminator.  */
+              outer_context = null_context;
+              context_iter = null_context_list_iterator;
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              next_context_iter = passthrough_context_list_iterator;
+              inner_context =
+                inherited_context (outer_context,
+                                   flag_context_list_iterator_advance (
+                                     &context_iter));
+              break;
+
+            case token_type_dereference:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type dereference (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            case token_type_dot:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type dot (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            case token_type_named_op:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type named operator (%d): %s\n",
+                       logical_file_name, tp->line_number, nesting_level,
+                       tp->string);
+              #endif
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            case token_type_regex_op:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type regex operator (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            case token_type_other:
+              #if DEBUG_PERL
+              fprintf (stderr, "%s:%d: type other (%d)\n",
+                       logical_file_name, tp->line_number, nesting_level);
+              #endif
+              next_is_argument = false;
+              if (next_argparser != NULL)
+                free (next_argparser);
+              next_argparser = NULL;
+              next_context_iter = null_context_list_iterator;
+              break;
+
+            default:
+              fprintf (stderr, "%s:%d: unknown token type %d\n",
+                       real_file_name, tp->line_number, (int) tp->type);
+              abort ();
             }
 
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_number:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type number (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_eof:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type EOF (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-          arglist_parser_done (argparser, arg);
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
           free_token (tp);
-          return true;
-
-        case token_type_lbrace:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type lbrace (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-          ++nesting_depth;
-          if (extract_balanced (mlp, token_type_rbrace, true, false,
-                                null_context, null_context_list_iterator,
-                                1, arglist_parser_alloc (mlp, NULL)))
-            {
-              arglist_parser_done (argparser, arg);
-              if (next_argparser != NULL)
-                free (next_argparser);
-              free_token (tp);
-              return true;
-            }
-          nesting_depth--;
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_rbrace:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type rbrace (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_lbracket:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type lbracket (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-          ++nesting_depth;
-          if (extract_balanced (mlp, token_type_rbracket, true, false,
-                                null_context, null_context_list_iterator,
-                                1, arglist_parser_alloc (mlp, NULL)))
-            {
-              arglist_parser_done (argparser, arg);
-              if (next_argparser != NULL)
-                free (next_argparser);
-              free_token (tp);
-              return true;
-            }
-          nesting_depth--;
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_rbracket:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type rbracket (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_semicolon:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type semicolon (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-
-          /* The ultimate sign.  */
-          arglist_parser_done (argparser, arg);
-          argparser = arglist_parser_alloc (mlp, NULL);
-
-          /* FIXME: Instead of resetting outer_context here, it may be better
-             to recurse in the next_is_argument handling above, waiting for
-             the next semicolon or other statement terminator.  */
-          outer_context = null_context;
-          context_iter = null_context_list_iterator;
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = passthrough_context_list_iterator;
-          inner_context =
-            inherited_context (outer_context,
-                               flag_context_list_iterator_advance (
-                                 &context_iter));
-          break;
-
-        case token_type_dereference:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type dereference (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_dot:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type dot (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_named_op:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type named operator (%d): %s\n",
-                   logical_file_name, tp->line_number, nesting_level,
-                   tp->string);
-#endif
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_regex_op:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type regex operator (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        case token_type_other:
-#if DEBUG_PERL
-          fprintf (stderr, "%s:%d: type other (%d)\n",
-                   logical_file_name, tp->line_number, nesting_level);
-#endif
-          next_is_argument = false;
-          if (next_argparser != NULL)
-            free (next_argparser);
-          next_argparser = NULL;
-          next_context_iter = null_context_list_iterator;
-          break;
-
-        default:
-          fprintf (stderr, "%s:%d: unknown token type %d\n",
-                   real_file_name, tp->line_number, (int) tp->type);
-          abort ();
         }
 
-      free_token (tp);
+      first = false;
     }
 }
 
@@ -3647,9 +3759,12 @@ extract_perl (FILE *f, const char *real_filename, const char *logical_filename,
 
   init_keywords ();
 
-  /* Eat tokens until eof is seen.  When extract_balanced returns
-     due to an unbalanced closing brace, just restart it.  */
-  while (!extract_balanced (mlp, token_type_rbrace, true, false,
+  /* Eat tokens until eof is seen.  When extract_balanced returns due to an
+     unbalanced closing paren / brace / bracket or due to a semicolon, just
+     restart it.  */
+  while (!extract_balanced (mlp,
+                            token_type_r_any, true,
+                            true, true, false,
                             null_context, null_context_list_iterator,
                             1, arglist_parser_alloc (mlp, NULL)))
     ;

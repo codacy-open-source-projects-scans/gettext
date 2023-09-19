@@ -31,12 +31,13 @@ DISTCLEANFILES =
 MAINTAINERCLEANFILES =
 SUFFIXES =
 
-# -DBUILDING_LIBINTL: Change expansion of LIBINTL_DLL_EXPORTED macro.
-# -DBUILDING_DLL: Change expansion of RELOCATABLE_DLL_EXPORTED macro.
+# -DBUILDING_LIBINTL: Change expansion of LIBINTL_SHLIB_EXPORTED macro.
+# -DBUILDING_LIBRARY: Change expansion of SHLIB_EXPORTED macro. We're compiling
+#                     a library. Exporting the relevant symbols is desired.
 AM_CPPFLAGS = \
   -Ignulib-lib -I$(srcdir)/gnulib-lib \
-  -DLOCALEDIR=$(localedir_c_make) -DLOCALE_ALIAS_PATH=\"$(aliaspath)\" \
-  -DLIBDIR=\"$(libdir)\" -DBUILDING_LIBINTL
+  -DLOCALEDIR=$(localedir_c_make) \
+  -DLIBDIR=\"$(libdir)\" -DBUILDING_LIBINTL -DBUILDING_LIBRARY
 
 if WOE32
 # On mingw, disable the declarations of *printf functions as aliases to the
@@ -114,7 +115,7 @@ EXTRA_DIST += \
 #                       libintl_freelocale
 #   setlocale.c:        libintl_newlocale
 #                       libintl_setlocale
-#   relocatable.c:      libintl_set_relocation_prefix
+#   compat.c:           libintl_set_relocation_prefix
 #
 # The following files implement private API.
 #   gettextP.h:     dcigettext.c:       libintl_dcigettext
@@ -203,7 +204,8 @@ LIBINTLSOURCES = \
   setlocale.c \
   version.c \
   osdep.c \
-  intl-compat.c
+  intl-compat.c \
+  compat.c
 
 # We must not install the libintl.h/libintl.la files if we are on a
 # system which has the GNU gettext() function in its C library or in a
@@ -230,15 +232,16 @@ libgnuintl.h: $(srcdir)/libgnuintl.in.h $(srcdir)/export.h
 	    -e 's,@''HAVE_NEWLOCALE''@,@HAVE_NEWLOCALE@,g' \
 	    -e 's,@''ENHANCE_LOCALE_FUNCS''@,@ENHANCE_LOCALE_FUNCS@,g' \
 	  < $(srcdir)/libgnuintl.in.h \
-	| if test '@WOE32DLL@' = yes; then \
+	| if test '@WOE32DLL@' = 1; then \
 	    sed -e 's/extern \([^()]*\);/extern __declspec (dllimport) \1;/'; \
 	  else \
 	    cat; \
 	  fi \
-	| sed -e 's/extern \([^"]\)/extern LIBINTL_DLL_EXPORTED \1/' \
+	| sed -e 's/extern \([^"]\)/extern LIBINTL_SHLIB_EXPORTED \1/' \
 	      -e "/#define _LIBINTL_H/r $(srcdir)/export.h" \
 	| sed -e '/#define _LIBINTL_H/,/[*][/]$$/{/#define _LIBINTL_H/!d;}' \
 	| sed -e 's,@''HAVE_VISIBILITY''@,@HAVE_VISIBILITY@,g' \
+	| sed -e 's,@''WOE32DLL''@,@WOE32DLL@,g' \
 	  > libgnuintl.h
 MOSTLYCLEANFILES += libgnuintl.h
 
@@ -360,6 +363,8 @@ osdep.lo: $(srcdir)/osdep.c
 	$(AM_V_CC)$(LTCOMPILE) -c -o $@ $(srcdir)/osdep.c
 intl-compat.lo: $(srcdir)/intl-compat.c
 	$(AM_V_CC)$(LTCOMPILE) -c -o $@ $(srcdir)/intl-compat.c
+compat.lo: $(srcdir)/compat.c
+	$(AM_V_CC)$(LTCOMPILE) -c -o $@ $(srcdir)/compat.c
 
 # Dependencies.
 
@@ -386,13 +391,14 @@ dngettext.lo:        ../config.h $(srcdir)/gettextP.h libgnuintl.h $(srcdir)/gmo
 ngettext.lo:         ../config.h $(srcdir)/gettextP.h libgnuintl.h $(srcdir)/gmo.h $(srcdir)/loadinfo.h
 plural.lo:           ../config.h $(srcdir)/plural-exp.h $(PLURAL_DEPS)
 plural-exp.lo:       ../config.h $(srcdir)/plural-exp.h
-langprefs.lo:        ../config.h
-log.lo:              ../config.h
+langprefs.lo:        ../config.h $(srcdir)/gettextP.h libgnuintl.h $(srcdir)/gmo.h $(srcdir)/loadinfo.h
+log.lo:              ../config.h $(srcdir)/gettextP.h libgnuintl.h $(srcdir)/gmo.h $(srcdir)/loadinfo.h
 printf.lo:           ../config.h
 setlocale.lo:        ../config.h $(srcdir)/gettextP.h libgnuintl.h $(srcdir)/gmo.h $(srcdir)/loadinfo.h
 version.lo:          ../config.h libgnuintl.h
 osdep.lo:            ../config.h $(srcdir)/intl-exports.c $(srcdir)/os2compat.c
 intl-compat.lo:      ../config.h $(srcdir)/gettextP.h libgnuintl.h $(srcdir)/gmo.h $(srcdir)/loadinfo.h
+compat.lo:           ../config.h libgnuintl.h
 
 # Version information according to Woe32 conventions.
 EXTRA_DIST += libintl.rc
@@ -437,9 +443,9 @@ endif
 # Libtool's library version information for libintl.
 # Before making a gettext release, you must change this according to the
 # libtool documentation, section "Library interface versions".
-LTV_CURRENT=11
+LTV_CURRENT=12
 LTV_REVISION=0
-LTV_AGE=3
+LTV_AGE=4
 
 # How to build libintl.la and libgnuintl.la.
 # Limit the exported symbols: Don't export _libintl_* (from gnulib modules).
@@ -502,57 +508,6 @@ installdirs-preloadable:
 uninstall-local: uninstall-preloadable
 uninstall-preloadable:
 	rm -f $(DESTDIR)$(libdir)/preloadable_libintl.so
-
-endif
-
-
-# Installation of locale.alias.
-
-EXTRA_DIST += locale.alias ref-add.sin ref-del.sin
-
-if USE_INCLUDED_LIBINTL
-
-all-local: ref-add.sed ref-del.sed
-
-ref-add.sed: $(srcdir)/ref-add.sin
-	sed -e '/^#/d' -e 's/@''PACKAGE''@/@PACKAGE@/g' $(srcdir)/ref-add.sin > t-ref-add.sed
-	mv t-ref-add.sed ref-add.sed
-MOSTLYCLEANFILES += ref-add.sed
-
-ref-del.sed: $(srcdir)/ref-del.sin
-	sed -e '/^#/d' -e 's/@''PACKAGE''@/@PACKAGE@/g' $(srcdir)/ref-del.sin > t-ref-del.sed
-	mv t-ref-del.sed ref-del.sed
-MOSTLYCLEANFILES += ref-del.sed
-
-install-data-local: install-data-aliasfile
-install-data-aliasfile: ref-add.sed
-	$(mkdir_p) $(DESTDIR)$(localedir)
-	test -f $(DESTDIR)$(localedir)/locale.alias \
-	  && orig=$(DESTDIR)$(localedir)/locale.alias \
-	  || orig=$(srcdir)/locale.alias; \
-	temp=$(DESTDIR)$(localedir)/t-locale.alias; \
-	dest=$(DESTDIR)$(localedir)/locale.alias; \
-	sed -f ref-add.sed $$orig > $$temp; \
-	$(INSTALL_DATA) $$temp $$dest; \
-	rm -f $$temp
-
-installdirs-local: installdirs-aliasfile
-installdirs-aliasfile:
-	$(mkdir_p) $(DESTDIR)$(localedir)
-
-uninstall-local: uninstall-aliasfile
-uninstall-aliasfile: ref-del.sed
-	if test -f $(DESTDIR)$(localedir)/locale.alias; then \
-	  temp=$(DESTDIR)$(localedir)/t-locale.alias; \
-	  dest=$(DESTDIR)$(localedir)/locale.alias; \
-	  sed -f ref-del.sed $$dest > $$temp; \
-	  if grep '^# Packages using this file: $$' $$temp > /dev/null; then \
-	    rm -f $$dest; \
-	  else \
-	    $(INSTALL_DATA) $$temp $$dest; \
-	  fi; \
-	  rm -f $$temp; \
-	fi
 
 endif
 

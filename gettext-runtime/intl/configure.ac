@@ -42,10 +42,6 @@ gl_PROG_AR_RANLIB
 dnl Set preferences for the gnulib module 'threadlib'.
 gl_AVOID_WINPTHREAD
 
-dnl Set preferences for the gnulib module 'relocatable-lib-lgpl':
-dnl Enable relocatability unconditionally.
-enable_relocatable=yes
-
 dnl Early checks, assembled by gnulib.
 gl_EARLY
 
@@ -229,21 +225,26 @@ if test "$enable_shared" = yes; then
 else
   is_woe32dll=no
 fi
-WOE32DLL=$is_woe32dll
+if test $is_woe32dll = yes; then
+  WOE32DLL=1
+else
+  WOE32DLL=0
+fi
 AC_SUBST([WOE32DLL])
 AM_CONDITIONAL([WOE32DLL], [test $is_woe32dll = yes])
-if test $is_woe32dll = yes; then
-  AC_DEFINE([WOE32DLL], [1],
-    [Define when --enable-shared is used on Windows.])
-fi
 
 dnl Put some default definitions into config.h.
 AH_BOTTOM([
 /* Tweak gnulib code according to the needs of this library.  */
 #define IN_LIBINTL 1
 
-/* On Windows, variables that may be in a DLL must be marked specially.  */
-#if (defined _MSC_VER && defined _DLL) && !defined IN_RELOCWRAPPER
+/* On Windows, variables that may be in a DLL must be marked specially.
+   The symbols marked with DLL_VARIABLE should be exported if and only if the
+   object file gets included in a DLL.  Libtool, on Windows platforms, defines
+   the C macro DLL_EXPORT (together with PIC) when compiling for a shared
+   library (called DLL under Windows) and does not define it when compiling
+   an object file meant to be linked statically into some executable.  */
+#if (defined _MSC_VER && defined DLL_EXPORT) && !defined IN_RELOCWRAPPER
 # define DLL_VARIABLE __declspec (dllimport)
 #else
 # define DLL_VARIABLE
@@ -296,6 +297,8 @@ AH_VERBATIM([znoexport], [
 #define hard_locale                _libintl_hard_locale
 /* Symbols defined by gnulib module 'isnand-nolibm'.  */
 #define rpl_isnand                 _libintl_isnand
+/* Symbols defined by gnulib module 'isnanf-nolibm'.  */
+#define rpl_isnanf                 _libintl_isnanf
 /* Symbols defined by gnulib module 'isnanl-nolibm'.  */
 #define rpl_isnanl                 _libintl_isnanl
 /* Symbols defined by gnulib module 'localename'.  */
@@ -339,13 +342,12 @@ AH_VERBATIM([znoexport], [
 #define glthread_recursive_lock_destroy_multithreaded _libintl_recursive_lock_destroy_multithreaded
 #define glthread_once_singlethreaded                  _libintl_once_singlethreaded
 #define glthread_once_multithreaded                   _libintl_once_multithreaded
+/* Symbols defined by gnulib module 'mbszero'.  */
+#define mbszero                    _libintl_mbszero
 /* Symbols defined by gnulib module 'printf-frexp'.  */
 #define printf_frexp               _libintl_printf_frexp
 /* Symbols defined by gnulib module 'printf-frexpl'.  */
 #define printf_frexpl              _libintl_printf_frexpl
-/* Symbols defined by gnulib module 'relocatable-lib-lgpl'.  */
-#define relocate                   _libintl_relocate
-#define relocate2                  _libintl_relocate2
 /* Symbols defined by gnulib module 'setlocale-null'.  */
 #define setlocale_null             _libintl_setlocale_null
 #define setlocale_null_r           _libintl_setlocale_null_r
@@ -394,13 +396,19 @@ AH_VERBATIM([znoexport], [
 ])
 dnl Symbols defined by gnulib module 'frexp-nolibm'.
 if test $gl_func_frexp_no_libm != yes; then
-  AC_DEFINE([frexp],            [_libintl_frexp],    [Hidden symbol.])
-  AC_DEFINE([rpl_frexp],        [_libintl_frexp],    [Hidden symbol.])
+  if test $REPLACE_FREXP = 1; then
+    AC_DEFINE([rpl_frexp],      [_libintl_frexp],    [Hidden symbol.])
+  else
+    AC_DEFINE([frexp],          [_libintl_frexp],    [Hidden symbol.])
+  fi
 fi
 dnl Symbols defined by gnulib module 'frexpl-nolibm'.
 if test $HAVE_DECL_FREXPL = 0 || test $gl_func_frexpl_no_libm = no; then
-  AC_DEFINE([frexpl],           [_libintl_frexpl],    [Hidden symbol.])
-  AC_DEFINE([rpl_frexpl],       [_libintl_frexpl],    [Hidden symbol.])
+  if test $REPLACE_FREXPL = 1; then
+    AC_DEFINE([rpl_frexpl],     [_libintl_frexpl],    [Hidden symbol.])
+  else
+    AC_DEFINE([frexpl],         [_libintl_frexpl],    [Hidden symbol.])
+  fi
 fi
 dnl Symbols defined by gnulib module 'mbrtowc'.
 if test $REPLACE_MBRTOWC = 1; then

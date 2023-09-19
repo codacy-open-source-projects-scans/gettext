@@ -21,7 +21,7 @@ EXTRA_DIST =
 MOSTLYCLEANFILES = core *.stackdump
 
 TESTS = gettext-1 gettext-2 \
-	intl-1 intl-2 intl-3 intl-4 intl-5 intl-6 intl-7 \
+	intl-0 intl-1 intl-2 intl-3 intl-4 intl-5 intl-6 intl-7 \
 	intl-setlocale-1 intl-setlocale-2 \
 	intl-thread-1 intl-thread-2 intl-thread-3 \
 	intl-version \
@@ -81,6 +81,7 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-7 xgettext-8 xgettext-9 xgettext-10 xgettext-11 xgettext-12 \
 	xgettext-13 xgettext-14 xgettext-15 xgettext-16 xgettext-17 \
 	xgettext-18 \
+	xgettext-combine-1 xgettext-combine-2 xgettext-combine-3 \
 	xgettext-appdata-1 \
 	xgettext-awk-1 xgettext-awk-2 xgettext-awk-3 \
 	xgettext-awk-stackovfl-1 xgettext-awk-stackovfl-2 \
@@ -133,6 +134,7 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-perl-9 xgettext-perl-10 \
 	xgettext-perl-stackovfl-1 xgettext-perl-stackovfl-2 \
 	xgettext-perl-stackovfl-3 xgettext-perl-stackovfl-4 \
+	xgettext-perl-stackovfl-5 \
 	xgettext-php-1 xgettext-php-2 xgettext-php-3 xgettext-php-4 \
 	xgettext-php-5 \
 	xgettext-php-stackovfl-1 xgettext-php-stackovfl-2 \
@@ -237,6 +239,7 @@ EXTRA_DIST += init.sh init.cfg $(TESTS) \
 	xgettext-c-1 xg-c-comment-6.c xg-c-escape-3.c xg-vala-2.vala \
 	common/supplemental/plurals.xml \
 	testdata/xg-el-so-3.el testdata/xg-el-so-4.el \
+	testdata/xg-pl-so-5.pl \
 	testdata/xg-po-3.po testdata/xg-po-4.po
 
 XGETTEXT = ../src/xgettext
