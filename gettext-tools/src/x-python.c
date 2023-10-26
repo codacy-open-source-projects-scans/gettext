@@ -42,7 +42,8 @@
 #include "xg-arglist-parser.h"
 #include "xg-message.h"
 #include "error.h"
-#include "error-progname.h"
+#include "if-error.h"
+#include "xstrerror.h"
 #include "progname.h"
 #include "basename-lgpl.h"
 #include "xerror.h"
@@ -355,8 +356,9 @@ comment as specified in https://www.python.org/peps/pep-0263.html.\n"),
                   buf[bufcount++] = (unsigned char) c;
                 }
               else
-                error (EXIT_FAILURE, errno, _("%s:%d: iconv failure"),
-                       real_file_name, line_number);
+                if_error (IF_SEVERITY_FATAL_ERROR,
+                          real_file_name, line_number, (size_t)(-1), false,
+                          "%s", xstrerror (_("iconv failure"), errno));
             }
           else
             {
@@ -892,10 +894,9 @@ phase7_getuc (int quote_char,
               return UNICODE ('\n');
             }
           phase2_ungetc (c);
-          error_with_progname = false;
-          error (0, 0, _("%s:%d: warning: unterminated string"),
-                 logical_file_name, line_number);
-          error_with_progname = true;
+          if_error (IF_SEVERITY_WARNING,
+                    logical_file_name, line_number, (size_t)(-1), false,
+                    _("unterminated string"));
           return P7_STRING_END;
         }
 
@@ -1099,10 +1100,9 @@ phase7_getuc (int quote_char,
                       return UNICODE (n);
                     }
 
-                  error_with_progname = false;
-                  error (0, 0, _("%s:%d: warning: invalid Unicode character"),
-                         logical_file_name, line_number);
-                  error_with_progname = true;
+                  if_error (IF_SEVERITY_WARNING,
+                            logical_file_name, line_number, (size_t)(-1), false,
+                            _("invalid Unicode character"));
 
                   while (--i >= 0)
                     phase2_ungetc (buf[i]);
@@ -1597,11 +1597,9 @@ extract_balanced (message_list_ty *mlp,
 
         case token_type_lparen:
           if (++paren_nesting_depth > MAX_NESTING_DEPTH)
-            {
-              error_with_progname = false;
-              error (EXIT_FAILURE, 0, _("%s:%d: error: too many open parentheses"),
-                     logical_file_name, line_number);
-            }
+            if_error (IF_SEVERITY_FATAL_ERROR,
+                      logical_file_name, line_number, (size_t)(-1), false,
+                      _("too many open parentheses"));
           if (extract_balanced (mlp, token_type_rparen,
                                 inner_context, next_context_iter,
                                 arglist_parser_alloc (mlp,
@@ -1637,11 +1635,9 @@ extract_balanced (message_list_ty *mlp,
 
         case token_type_lbracket:
           if (++bracket_nesting_depth > MAX_NESTING_DEPTH)
-            {
-              error_with_progname = false;
-              error (EXIT_FAILURE, 0, _("%s:%d: error: too many open brackets"),
-                     logical_file_name, line_number);
-            }
+            if_error (IF_SEVERITY_FATAL_ERROR,
+                      logical_file_name, line_number, (size_t)(-1), false,
+                      _("too many open brackets"));
           if (extract_balanced (mlp, token_type_rbracket,
                                 null_context, null_context_list_iterator,
                                 arglist_parser_alloc (mlp, NULL)))

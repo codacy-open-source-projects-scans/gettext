@@ -17,6 +17,7 @@
 ## Process this file with automake to produce Makefile.in.
 
 AUTOMAKE_OPTIONS = 1.11 gnits no-dependencies color-tests
+SUBDIRS = gnulib-lib
 EXTRA_DIST =
 MOSTLYCLEANFILES = core *.stackdump
 
@@ -199,7 +200,7 @@ TESTS = gettext-1 gettext-2 \
 	format-sh-1 format-sh-2 \
 	format-tcl-1 format-tcl-2 \
 	format-ycp-1 format-ycp-2 \
-	plural-1 plural-2 \
+	plural-1 plural-2 plural-3 plural-4 \
 	gettextpo-1 sentence-1 \
 	lang-po \
 	lang-c lang-c++ lang-c++20 lang-objc \
@@ -287,8 +288,10 @@ xg-c-1.ok.po: $(top_srcdir)/src/xgettext.c $(top_srcdir)/src/msgfmt.c
 	  $(top_srcdir)/src/xgettext.c $(top_srcdir)/src/msgfmt.c
 
 # Auxiliary programs used by the tests.
+# Note that Automake's $(DEFAULT_INCLUDES) already contains
+# -I. -I$(srcdir) -I$(top_builddir).
 AM_CPPFLAGS = \
-  -I.. \
+  -Ignulib-lib -I$(srcdir)/gnulib-lib \
   -I../gnulib-lib -I$(top_srcdir)/gnulib-lib \
   -I../../gettext-runtime/intl
 DEFS = -DLOCALEDIR=$(localedir_c_make) @DEFS@
@@ -302,10 +305,10 @@ tstgettext_SOURCES = \
   tstgettext.c ../../gettext-runtime/src/escapes.h \
   setlocale.c
 tstgettext_CFLAGS = -DINSTALLDIR=\".\"
-tstgettext_LDADD = ../gnulib-lib/libgettextlib.la $(LDADD)
+tstgettext_LDADD = gnulib-lib/libtestsgnu.a ../gnulib-lib/libgettextlib.la $(LDADD) $(LIBMULTITHREAD)
 tstngettext_SOURCES = tstngettext.c setlocale.c
 tstngettext_CFLAGS = -DINSTALLDIR=\".\"
-tstngettext_LDADD = ../gnulib-lib/libgettextlib.la $(LDADD)
+tstngettext_LDADD = gnulib-lib/libtestsgnu.a ../gnulib-lib/libgettextlib.la $(LDADD) $(LIBMULTITHREAD)
 testlocale_SOURCES = testlocale.c
 intl_1_prg_SOURCES = intl-1-prg.c
 intl_1_prg_LDADD = ../gnulib-lib/libgettextlib.la $(LDADD)
@@ -361,6 +364,11 @@ gettextpo_1_prg_LDADD = ../libgettextpo/libgettextpo.la $(LDADD)
 sentence_1_prg_SOURCES = sentence-1-prg.c
 sentence_1_prg_CPPFLAGS = $(AM_CPPFLAGS) -I../src -I$(top_srcdir)/src
 sentence_1_prg_LDADD = ../src/libgettextsrc.la $(LDADD)
+
+
+# Allow users to use "gnulib-tool --update".
+EXTRA_DIST += gnulib-m4/gnulib-cache.m4
+
 
 # Clean up after Solaris cc.
 clean-local:

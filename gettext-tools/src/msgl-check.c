@@ -1,5 +1,5 @@
 /* Checking of messages in PO files.
-   Copyright (C) 1995-1998, 2000-2008, 2010-2016, 2019 Free Software Foundation, Inc.
+   Copyright (C) 1995-2023 Free Software Foundation, Inc.
    Written by Ulrich Drepper <drepper@gnu.ai.mit.edu>, April 1995.
 
    This program is free software: you can redistribute it and/or modify
@@ -23,8 +23,6 @@
 #include "msgl-check.h"
 
 #include <limits.h>
-#include <setjmp.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -69,20 +67,14 @@ plural_expression_histogram (const struct plural_distribution *self,
       unsigned long n;
       unsigned int count;
 
-      /* Protect against arithmetic exceptions.  */
-      install_sigfpe_handler ();
-
       count = 0;
       for (n = min; n <= max; n++)
         {
-          unsigned long val = plural_eval (expr, n);
+          struct eval_result res = plural_eval (expr, n);
 
-          if (val == j)
+          if (res.status == PE_OK && res.value == j)
             count++;
         }
-
-      /* End of protection against arithmetic exceptions.  */
-      uninstall_sigfpe_handler ();
 
       return count;
     }
@@ -105,7 +97,7 @@ check_plural_eval (const struct expression *plural_expr,
   /* Do as if the plural formula assumes a value N infinitely often if it
      assumes it at least 5 times.  */
 #define OFTEN 5
-  unsigned char * volatile array;
+  unsigned char *array;
 
   /* Allocate a distribution array.  */
   if (nplurals_value <= 100)
@@ -114,99 +106,69 @@ check_plural_eval (const struct expression *plural_expr,
     /* nplurals_value is nonsense.  Don't risk an out-of-memory.  */
     array = NULL;
 
-  if (sigsetjmp (sigfpe_exit, 1) == 0)
+  unsigned long n;
+
+  for (n = 0; n <= 1000; n++)
     {
-      unsigned long n;
-
-      /* Protect against arithmetic exceptions.  */
-      install_sigfpe_handler ();
-
-      for (n = 0; n <= 1000; n++)
+      struct eval_result res = plural_eval (plural_expr, n);
+      if (res.status != PE_OK)
         {
-          unsigned long val = plural_eval (plural_expr, n);
+          if (res.status == PE_INTDIV)
+            po_xerror (PO_SEVERITY_ERROR, header, NULL, 0, 0, false,
+                       _("plural expression can produce division by zero"));
+          else if (res.status == PE_INTOVF)
+            po_xerror (PO_SEVERITY_ERROR, header, NULL, 0, 0, false,
+                       _("plural expression can produce integer overflow"));
+          else if (res.status == PE_STACKOVF)
+            po_xerror (PO_SEVERITY_ERROR, header, NULL, 0, 0, false,
+                       _("plural expression can produce stack overflow"));
+          else
+            /* Other res.status values should not occur.  */
+            abort ();
 
-          if ((long) val < 0)
-            {
-              /* End of protection against arithmetic exceptions.  */
-              uninstall_sigfpe_handler ();
-
-              po_xerror (PO_SEVERITY_ERROR, header, NULL, 0, 0, false,
-                         _("plural expression can produce negative values"));
-              free (array);
-              return 1;
-            }
-          else if (val >= nplurals_value)
-            {
-              char *msg;
-
-              /* End of protection against arithmetic exceptions.  */
-              uninstall_sigfpe_handler ();
-
-              msg = xasprintf (_("nplurals = %lu but plural expression can produce values as large as %lu"),
-                               nplurals_value, val);
-              po_xerror (PO_SEVERITY_ERROR, header, NULL, 0, 0, false, msg);
-              free (msg);
-              free (array);
-              return 1;
-            }
-
-          if (array != NULL && array[val] < OFTEN)
-            array[val]++;
+          free (array);
+          return 1;
         }
 
-      /* End of protection against arithmetic exceptions.  */
-      uninstall_sigfpe_handler ();
+      unsigned long val = res.value;
 
-      /* Normalize the array[val] statistics.  */
-      if (array != NULL)
+      if ((long) val < 0)
         {
-          unsigned long val;
-
-          for (val = 0; val < nplurals_value; val++)
-            array[val] = (array[val] == OFTEN ? 1 : 0);
+          po_xerror (PO_SEVERITY_ERROR, header, NULL, 0, 0, false,
+                     _("plural expression can produce negative values"));
+          free (array);
+          return 1;
+        }
+      else if (val >= nplurals_value)
+        {
+          char *msg =
+            xasprintf (_("nplurals = %lu but plural expression can produce values as large as %lu"),
+                       nplurals_value, val);
+          po_xerror (PO_SEVERITY_ERROR, header, NULL, 0, 0, false, msg);
+          free (msg);
+          free (array);
+          return 1;
         }
 
-      distribution->expr = plural_expr;
-      distribution->often = array;
-      distribution->often_length = (array != NULL ? nplurals_value : 0);
-      distribution->histogram = plural_expression_histogram;
-
-      return 0;
+      if (array != NULL && array[val] < OFTEN)
+        array[val]++;
     }
-  else
+
+  /* Normalize the array[val] statistics.  */
+  if (array != NULL)
     {
-      /* Caught an arithmetic exception.  */
-      const char *msg;
+      unsigned long val;
 
-      /* End of protection against arithmetic exceptions.  */
-      uninstall_sigfpe_handler ();
-
-#if USE_SIGINFO
-      switch (sigfpe_code)
-#endif
-        {
-#if USE_SIGINFO
-# ifdef FPE_INTDIV
-        case FPE_INTDIV:
-          msg = _("plural expression can produce division by zero");
-          break;
-# endif
-# ifdef FPE_INTOVF
-        case FPE_INTOVF:
-          msg = _("plural expression can produce integer overflow");
-          break;
-# endif
-        default:
-#endif
-          msg = _("plural expression can produce arithmetic exceptions, possibly division by zero");
-        }
-
-      po_xerror (PO_SEVERITY_ERROR, header, NULL, 0, 0, false, msg);
-
-      free (array);
-
-      return 1;
+      for (val = 0; val < nplurals_value; val++)
+        array[val] = (array[val] == OFTEN ? 1 : 0);
     }
+
+  distribution->expr = plural_expr;
+  distribution->often = array;
+  distribution->often_length = (array != NULL ? nplurals_value : 0);
+  distribution->histogram = plural_expression_histogram;
+
+  return 0;
 #undef OFTEN
 }
 

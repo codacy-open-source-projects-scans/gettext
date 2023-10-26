@@ -1,5 +1,5 @@
 /* xgettext RST/RSJ backend.
-   Copyright (C) 2001-2003, 2005-2009, 2018-2019 Free Software Foundation, Inc.
+   Copyright (C) 2001-2023 Free Software Foundation, Inc.
 
    This file was written by Bruno Haible <haible@clisp.cons.org>, 2001.
 
@@ -38,7 +38,7 @@
 #include "xg-mixed-string.h"
 #include "xg-message.h"
 #include "error.h"
-#include "error-progname.h"
+#include "if-error.h"
 #include "xalloc.h"
 #include "gettext.h"
 
@@ -111,12 +111,9 @@ extract_rst (FILE *f,
       for (;;)
         {
           if (c == EOF || c == '\n')
-            {
-              error_with_progname = false;
-              error (EXIT_FAILURE, 0, _("%s:%d: invalid string definition"),
-                     logical_filename, line_number);
-              error_with_progname = true;
-            }
+            if_error (IF_SEVERITY_FATAL_ERROR,
+                      logical_filename, line_number, (size_t)(-1), false,
+                      _("invalid string definition"));
           if (bufpos >= bufmax)
             {
               bufmax = 2 * bufmax + 10;
@@ -175,12 +172,9 @@ extract_rst (FILE *f,
               if (c == EOF && ferror (f))
                 goto bomb;
               if (c == EOF || !c_isdigit (c))
-                {
-                  error_with_progname = false;
-                  error (EXIT_FAILURE, 0, _("%s:%d: missing number after #"),
-                         logical_filename, line_number);
-                  error_with_progname = true;
-                }
+                if_error (IF_SEVERITY_FATAL_ERROR,
+                          logical_filename, line_number, (size_t)(-1), false,
+                          _("missing number after #"));
               n = (c - '0');
               for (;;)
                 {
@@ -210,12 +204,9 @@ extract_rst (FILE *f,
                 ungetc (c, f);
             }
           else
-            {
-              error_with_progname = false;
-              error (EXIT_FAILURE, 0, _("%s:%d: invalid string expression"),
-                     logical_filename, line_number);
-              error_with_progname = true;
-            }
+            if_error (IF_SEVERITY_FATAL_ERROR,
+                      logical_filename, line_number, (size_t)(-1), false,
+                      _("invalid string expression"));
         }
       if (bufpos >= bufmax)
         {
@@ -673,24 +664,20 @@ extract_rsj (FILE *f,
   return;
 
  invalid_json:
-  error_with_progname = false;
-  error (EXIT_FAILURE, 0, _("%s:%d: invalid JSON syntax"),
-         logical_filename, line_number);
-  error_with_progname = true;
+  if_error (IF_SEVERITY_FATAL_ERROR,
+            logical_filename, line_number, (size_t)(-1), false,
+            _("invalid JSON syntax"));
   return;
 
  invalid_rsj:
-  error_with_progname = false;
-  error (EXIT_FAILURE, 0, _("%s:%d: invalid RSJ syntax"),
-         logical_filename, line_number);
-  error_with_progname = true;
+  if_error (IF_SEVERITY_FATAL_ERROR,
+            logical_filename, line_number, (size_t)(-1), false,
+            _("invalid RSJ syntax"));
   return;
 
  invalid_rsj_version:
-  error_with_progname = false;
-  error (EXIT_FAILURE, 0,
-         _("%s:%d: invalid RSJ version. Only version 1 is supported."),
-         logical_filename, line_number);
-  error_with_progname = true;
+  if_error (IF_SEVERITY_FATAL_ERROR,
+            logical_filename, line_number, (size_t)(-1), false,
+            _("invalid RSJ version. Only version 1 is supported."));
   return;
 }

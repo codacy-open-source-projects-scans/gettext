@@ -18,12 +18,11 @@
 ## Process this file with automake to produce Makefile.in.
 
 AUTOMAKE_OPTIONS = 1.10 gnu no-dependencies
-ACLOCAL_AMFLAGS = -I ../../m4 -I ../m4 -I m4 -I gnulib-m4
+ACLOCAL_AMFLAGS = -I ../../m4 -I ../m4 -I gnulib-m4
 
 SUBDIRS = gnulib-lib
 
-EXTRA_DIST = \
-  m4/intdiv0.m4
+EXTRA_DIST =
 BUILT_SOURCES =
 MOSTLYCLEANFILES = core *.stackdump
 CLEANFILES =
@@ -31,6 +30,8 @@ DISTCLEANFILES =
 MAINTAINERCLEANFILES =
 SUFFIXES =
 
+# Note that Automake's $(DEFAULT_INCLUDES) already contains
+# -I. -I$(srcdir) -I$(top_builddir).
 # -DBUILDING_LIBINTL: Change expansion of LIBINTL_SHLIB_EXPORTED macro.
 # -DBUILDING_LIBRARY: Change expansion of SHLIB_EXPORTED macro. We're compiling
 #                     a library. Exporting the relevant symbols is desired.

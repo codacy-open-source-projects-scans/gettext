@@ -43,7 +43,8 @@
 #include "xg-arglist-parser.h"
 #include "xg-message.h"
 #include "error.h"
-#include "error-progname.h"
+#include "if-error.h"
+#include "xstrerror.h"
 #include "progname.h"
 #include "xerror.h"
 #include "xvasprintf.h"
@@ -328,8 +329,9 @@ Please specify the correct source encoding through --from-code\n"),
                   buf[bufcount++] = (unsigned char) c;
                 }
               else
-                error (EXIT_FAILURE, errno, _("%s:%d: iconv failure"),
-                       real_file_name, line_number);
+                if_error (IF_SEVERITY_FATAL_ERROR,
+                          real_file_name, line_number, (size_t)(-1), false,
+                          "%s", xstrerror (_("iconv failure"), errno));
             }
           else
             {
@@ -762,10 +764,9 @@ phase7_getuc (int quote_char)
           else
             {
               phase2_ungetc (c);
-              error_with_progname = false;
-              error (0, 0, _("%s:%d: warning: unterminated string"),
-                     logical_file_name, line_number);
-              error_with_progname = true;
+              if_error (IF_SEVERITY_WARNING,
+                        logical_file_name, line_number, (size_t)(-1), false,
+                        _("unterminated string"));
               return P7_STRING_END;
             }
         }
@@ -976,11 +977,9 @@ phase5_scan_regexp (void)
         }
       if (c == UEOF)
         {
-          error_with_progname = false;
-          error (0, 0,
-                 _("%s:%d: warning: RegExp literal terminated too early"),
-                 logical_file_name, line_number);
-          error_with_progname = true;
+          if_error (IF_SEVERITY_WARNING,
+                    logical_file_name, line_number, (size_t)(-1), false,
+                    _("RegExp literal terminated too early"));
           return;
         }
     }
@@ -1105,12 +1104,9 @@ phase5_scan_xml_markup (token_ty *tp)
                   goto eof;
                 if (c != '>')
                   {
-                    error_with_progname = false;
-                    error (0, 0,
-                           _("%s:%d: warning: %s is not allowed"),
-                           logical_file_name, line_number,
-                           end);
-                    error_with_progname = true;
+                    if_error (IF_SEVERITY_WARNING,
+                              logical_file_name, line_number, (size_t)(-1), false,
+                              _("%s is not allowed"), end);
                     return -1;
                   }
                 return i;
@@ -1120,11 +1116,9 @@ phase5_scan_xml_markup (token_ty *tp)
   return -1;
 
  eof:
-  error_with_progname = false;
-  error (0, 0,
-         _("%s:%d: warning: unterminated XML markup"),
-         logical_file_name, line_number);
-  error_with_progname = true;
+  if_error (IF_SEVERITY_WARNING,
+            logical_file_name, line_number, (size_t)(-1), false,
+            _("unterminated XML markup"));
   return -1;
 }
 
@@ -1364,13 +1358,9 @@ phase5_get (token_ty *tp)
                     /* Ignore them all, since they are not part of JSX.
                        But warn about CDATA.  */
                     if (xml_markup_type == 1)
-                      {
-                        error_with_progname = false;
-                        error (0, 0,
-                               _("%s:%d: warning: ignoring CDATA section"),
-                               logical_file_name, line_number);
-                        error_with_progname = true;
-                      }
+                      if_error (IF_SEVERITY_WARNING,
+                                logical_file_name, line_number, (size_t)(-1), false,
+                                _("ignoring CDATA section"));
                     continue;
                   }
 
@@ -1684,11 +1674,9 @@ extract_balanced (message_list_ty *mlp,
 
         case token_type_lparen:
           if (++paren_nesting_depth > MAX_NESTING_DEPTH)
-            {
-              error_with_progname = false;
-              error (EXIT_FAILURE, 0, _("%s:%d: error: too many open parentheses"),
-                     logical_file_name, line_number);
-            }
+            if_error (IF_SEVERITY_FATAL_ERROR,
+                      logical_file_name, line_number, (size_t)(-1), false,
+                      _("too many open parentheses"));
           if (extract_balanced (mlp, token_type_rparen,
                                 inner_context, next_context_iter,
                                 arglist_parser_alloc (mlp,
@@ -1724,11 +1712,9 @@ extract_balanced (message_list_ty *mlp,
 
         case token_type_lbracket:
           if (++bracket_nesting_depth > MAX_NESTING_DEPTH)
-            {
-              error_with_progname = false;
-              error (EXIT_FAILURE, 0, _("%s:%d: error: too many open brackets"),
-                     logical_file_name, line_number);
-            }
+            if_error (IF_SEVERITY_FATAL_ERROR,
+                      logical_file_name, line_number, (size_t)(-1), false,
+                      _("too many open brackets"));
           if (extract_balanced (mlp, token_type_rbracket,
                                 null_context, null_context_list_iterator,
                                 arglist_parser_alloc (mlp, NULL)))
@@ -1753,11 +1739,9 @@ extract_balanced (message_list_ty *mlp,
 
         case token_type_lbrace:
           if (++brace_nesting_depth > MAX_NESTING_DEPTH)
-            {
-              error_with_progname = false;
-              error (EXIT_FAILURE, 0, _("%s:%d: error: too many open braces"),
-                     logical_file_name, line_number);
-            }
+            if_error (IF_SEVERITY_FATAL_ERROR,
+                      logical_file_name, line_number, (size_t)(-1), false,
+                      _("too many open braces"));
           if (extract_balanced (mlp, token_type_rbrace,
                                 null_context, null_context_list_iterator,
                                 arglist_parser_alloc (mlp, NULL)))
@@ -1809,11 +1793,9 @@ extract_balanced (message_list_ty *mlp,
 
         case token_type_xml_element_start:
           if (++xml_element_nesting_depth > MAX_NESTING_DEPTH)
-            {
-              error_with_progname = false;
-              error (EXIT_FAILURE, 0, _("%s:%d: error: too many open XML elements"),
-                     logical_file_name, line_number);
-            }
+            if_error (IF_SEVERITY_FATAL_ERROR,
+                      logical_file_name, line_number, (size_t)(-1), false,
+                      _("too many open XML elements"));
           if (extract_balanced (mlp, token_type_xml_element_end,
                                 null_context, null_context_list_iterator,
                                 arglist_parser_alloc (mlp, NULL)))

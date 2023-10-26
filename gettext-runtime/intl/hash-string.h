@@ -16,6 +16,10 @@
 
 /* @@ end of prolog @@ */
 
+#ifndef attribute_hidden
+# define attribute_hidden
+#endif
+
 /* We assume to have `unsigned long int' value with at least 32 bits.  */
 #define HASHWORDBITS 32
 
@@ -31,4 +35,5 @@
 /* Defines the so called `hashpjw' function by P.J. Weinberger
    [see Aho/Sethi/Ullman, COMPILERS: Principles, Techniques and Tools,
    1986, 1987 Bell Telephone Laboratories, Inc.]  */
-extern unsigned long int __hash_string (const char *str_param);
+extern unsigned long int __hash_string (const char *str_param)
+     attribute_hidden;

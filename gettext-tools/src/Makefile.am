@@ -56,6 +56,7 @@ noinst_HEADERS = \
   write-xml.h \
   po-time.h plural-table.h lang-table.h format.h filters.h \
   xgettext.h \
+  if-error.h \
   rc-str-list.h xg-pos.h xg-encoding.h xg-mixed-string.h xg-arglist-context.h \
   xg-arglist-callshape.h xg-arglist-parser.h xg-message.h \
   x-po.h x-properties.h x-stringtable.h \
@@ -90,9 +91,11 @@ projectsdir = $(pkgdatadir)/projects
 pkglibdir = $(libdir)/gettext
 pkglibexecdir = $(libexecdir)/gettext
 
+# Note that Automake's $(DEFAULT_INCLUDES) already contains
+# -I. -I$(srcdir) -I$(top_builddir).
+# The option -I$(top_srcdir) is needed so that woe32dll/export.h is found.
 AM_CPPFLAGS = \
-  -I. -I$(srcdir) \
-  -I.. -I$(top_srcdir) \
+  -I$(top_srcdir) \
   -I$(top_srcdir)/libgrep \
   -I../gnulib-lib -I$(top_srcdir)/gnulib-lib \
   -I../../gettext-runtime/intl -I$(top_srcdir)/../gettext-runtime/intl
@@ -225,6 +228,7 @@ else
 xgettext_SOURCES = ../woe32dll/c++xgettext.cc
 endif
 xgettext_SOURCES += \
+  if-error.c \
   xg-pos.c \
   xg-encoding.c \
   xg-mixed-string.c \

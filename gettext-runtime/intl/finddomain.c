@@ -37,7 +37,7 @@
 
 /* Handle multi-threaded applications.  */
 #ifdef _LIBC
-# include <bits/libc-lock.h>
+# include <libc-lock.h>
 # define gl_rwlock_define_initialized __libc_rwlock_define_initialized
 # define gl_rwlock_rdlock __libc_rwlock_rdlock
 # define gl_rwlock_wrlock __libc_rwlock_wrlock
@@ -62,7 +62,6 @@ gl_rwlock_define_initialized (static, lock);
    the DIRNAME or WDIRNAME, LOCALE, and DOMAINNAME parameters with respect
    to the currently established bindings.  */
 struct loaded_l10nfile *
-internal_function
 _nl_find_domain (const char *dirname,
 #if defined _WIN32 && !defined __CYGWIN__
 		 const wchar_t *wdirname,
@@ -140,9 +139,12 @@ _nl_find_domain (const char *dirname,
   alias_value = _nl_expand_alias (locale);
   if (alias_value != NULL)
     {
-      locale = strdup (alias_value);
+      size_t len = strlen (alias_value) + 1;
+      locale = (char *) malloc (len);
       if (locale == NULL)
-	return NULL;
+        return NULL;
+
+      memcpy (locale, alias_value, len);
     }
 
   /* Now we determine the single parts of the locale name.  First
@@ -205,7 +207,7 @@ out:
 #ifdef _LIBC
 /* This is called from iconv/gconv_db.c's free_mem, as locales must
    be freed before freeing gconv steps arrays.  */
-void __libc_freeres_fn_section
+void
 _nl_finddomain_subfreeres (void)
 {
   struct loaded_l10nfile *runp = _nl_loaded_domains;

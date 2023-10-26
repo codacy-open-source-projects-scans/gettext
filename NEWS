@@ -8,20 +8,35 @@ Version 0.23 - October 2023
     now return the msgid untranslated. This is relevant for GNU systems,
     Linux with musl libc, FreeBSD, NetBSD, OpenBSD, Cygwin, and Android.
 
+* xgettext:
+  - Most of the diagnostics emitted by xgettext are now labelled as
+    "warning" or "error".
+
 * msgmerge:
   - The msgmerge option '--sorted-output' is now deprecated.
 
-Version 0.22.1 - September 2023
+Version 0.22.3 - October 2023
+
+* Portability:
+  - The libintl library now works on macOS 14.  (Older versions of libintl
+    crash on macOS 14, due to an incompatible change in macOS.)
+
+Version 0.22.2 - September 2023
 
 * Bug fixes:
   - The libintl shared library now exports again some symbols that were
     accidentally missing.
     <https://savannah.gnu.org/bugs/index.php?64323>
+    This bug was introduced in version 0.22.
+
+Version 0.22.1 - September 2023
+
+* Bug fixes:
   - xgettext's processing of large Perl files may have led to errors
     <https://savannah.gnu.org/bugs/index.php?64552>
   - "xgettext --join-existing" could encounter errors.
     <https://savannah.gnu.org/bugs/index.php?64490>
-  All these bugs were introduced in version 0.22.
+  These bugs were introduced in version 0.22.
 
 * Portability:
   - Building on Android is now supported.

@@ -114,6 +114,7 @@ if ! $skip_gnulib; then
     bison
     filename
     flexmember
+    getcwd-lgpl
     havelib
     iconv
     lib-symbol-visibility
@@ -124,6 +125,7 @@ if ! $skip_gnulib; then
     tsearch
     vasnprintf-posix
     vasnwprintf-posix
+    wgetcwd-lgpl
   '
   GNULIB_SETLOCALE_DEPENDENCIES=`$GNULIB_TOOL --extract-dependencies setlocale | sed -e 's/ .*//'`
   $GNULIB_TOOL --dir=gettext-runtime/intl --source-base=gnulib-lib --m4-base=gnulib-m4 --lgpl=2 --libtool --local-dir=gnulib-local --local-symlink \
@@ -248,6 +250,7 @@ if ! $skip_gnulib; then
     xmalloca
     xmemdup0
     xsetenv
+    xstrerror
     xstriconv
     xstriconveh
     xvasprintf
@@ -301,12 +304,13 @@ if ! $skip_gnulib; then
     unistr/u8-mbtouc-unsafe-tests
     uniwidth/width-tests
   '
+  GNULIB_MODULES_LIBGETTEXTLIB="$GNULIB_MODULES_TOOLS_FOR_SRC $GNULIB_MODULES_TOOLS_FOR_SRC_COMMON_DEPENDENCIES $GNULIB_MODULES_TOOLS_OTHER"
   $GNULIB_TOOL --dir=gettext-tools --lib=libgettextlib --source-base=gnulib-lib --m4-base=gnulib-m4 --tests-base=gnulib-tests --makefile-name=Makefile.gnulib --libtool --with-tests --local-dir=gnulib-local --local-symlink \
     --import \
     --avoid=fdutimensat-tests --avoid=futimens-tests --avoid=utime-tests --avoid=utimens-tests --avoid=utimensat-tests \
     --avoid=array-list-tests --avoid=linked-list-tests --avoid=linkedhash-list-tests \
     `for m in $GNULIB_MODULES_TOOLS_LIBUNISTRING_TESTS; do echo --avoid=$m; done` \
-    $GNULIB_MODULES_TOOLS_FOR_SRC $GNULIB_MODULES_TOOLS_FOR_SRC_COMMON_DEPENDENCIES $GNULIB_MODULES_TOOLS_OTHER || exit $?
+    $GNULIB_MODULES_LIBGETTEXTLIB || exit $?
   $GNULIB_TOOL --copy-file m4/libtextstyle.m4 gettext-tools/gnulib-m4/libtextstyle.m4 || exit $?
   # In gettext-tools/libgrep:
   GNULIB_MODULES_TOOLS_FOR_LIBGREP='
@@ -376,22 +380,41 @@ if ! $skip_gnulib; then
     xstriconv
     xvasprintf
   '
-  # Module 'fdopen' is enabled in gettext-tools/config.status, because
-  # it occurs as dependency of some module ('supersede') in
+  # Module 'fdopen' is enabled in gettext-tools/config.status,
+  # because it occurs as dependency of some module ('supersede') in
   # GNULIB_MODULES_TOOLS_FOR_SRC. Therefore on mingw, libgettextpo/stdio.h
   # contains '#define fdopen rpl_fdopen'. Therefore we need to include
   # fdopen.lo in libgettextpo.la.
-  # Module 'realloc-posix' is enabled in gettext-tools/config.status, because
-  # it occurs as dependency of some module ('read-file') in
+  # Module 'realloc-posix' is enabled in gettext-tools/config.status,
+  # because it occurs as dependency of some module ('read-file') in
   # GNULIB_MODULES_TOOLS_FOR_SRC. Therefore on mingw, libgettextpo/stdlib.h
   # contains '#define realloc rpl_realloc'. Therefore we need to include
   # realloc.lo in libgettextpo.la.
+  # Module 'strerror_r-posix' is enabled in gettext-tools/config.status,
+  # because it occurs as dependency of some module ('xstrerror') in
+  # GNULIB_MODULES_TOOLS_FOR_SRC. Therefore gettext-tools/config.h contains
+  # '#define GNULIB_STRERROR_R_POSIX 1'. Therefore on mingw,
+  # libgettextpo/error.o references strerror_r. Therefore we need to include
+  # strerror_r.lo in libgettextpo.la.
   GNULIB_MODULES_LIBGETTEXTPO_OTHER='
     fdopen
     realloc-posix
+    strerror_r-posix
   '
   $GNULIB_TOOL --dir=gettext-tools --source-base=libgettextpo --m4-base=libgettextpo/gnulib-m4 --macro-prefix=gtpo --makefile-name=Makefile.gnulib --libtool --local-dir=gnulib-local --local-symlink \
     --import --avoid=progname $GNULIB_MODULES_LIBGETTEXTPO $GNULIB_MODULES_LIBGETTEXTPO_OTHER || exit $?
+  # In gettext-tools/tests:
+  GNULIB_MODULES_TOOLS_TESTS='
+    thread
+  '
+  $GNULIB_TOOL --dir=gettext-tools --macro-prefix=gttgl --lib=libtestsgnu --source-base=tests/gnulib-lib --m4-base=tests/gnulib-m4 --makefile-name=Makefile.gnulib --local-dir=gnulib-local --local-symlink \
+    --import \
+    `for m in $GNULIB_MODULES_LIBGETTEXTLIB; do \
+       if test \`$GNULIB_TOOL --local-dir=gnulib-local --extract-applicability $m\` != all; then \
+         echo --avoid=$m; \
+       fi; \
+     done` \
+    $GNULIB_MODULES_TOOLS_TESTS || exit $?
   # Overwrite older versions of .m4 files with the up-to-date version.
   cp gettext-runtime/m4/gettext.m4 gettext-tools/gnulib-m4/gettext.m4
   # Import build tools.  We use --copy-file to avoid directory creation.
@@ -423,7 +446,7 @@ dir0=`pwd`
 
 echo "$0: generating configure in gettext-runtime/intl..."
 cd gettext-runtime/intl
-aclocal -I ../../m4 -I ../m4 -I m4 -I gnulib-m4 \
+aclocal -I ../../m4 -I ../m4 -I gnulib-m4 \
   && autoconf \
   && autoheader && touch config.h.in \
   && touch ChangeLog \
@@ -501,7 +524,7 @@ done
 
 echo "$0: generating configure in gettext-tools..."
 cd gettext-tools
-aclocal -I m4 -I ../gettext-runtime/m4 -I ../m4 -I gnulib-m4 -I libgrep/gnulib-m4 -I libgettextpo/gnulib-m4 \
+aclocal -I m4 -I ../gettext-runtime/m4 -I ../m4 -I gnulib-m4 -I libgrep/gnulib-m4 -I libgettextpo/gnulib-m4 -I tests/gnulib-m4 \
   && autoconf \
   && autoheader && touch config.h.in \
   && touch ChangeLog \

@@ -89,6 +89,7 @@ dnl Make sure we see all GNU and Solaris extensions.
 gl_EARLY
 grgl_EARLY
 gtpo_EARLY
+gttgl_EARLY
 
 dnl Check for build configuration.
 
@@ -212,6 +213,7 @@ dnl Checks for header files, functions and declarations.
 gl_INIT
 grgl_INIT
 gtpo_INIT
+gttgl_INIT
 
 dnl Allow libgrep/locale.h to use setlocale_null.h from gnulib-lib/.
 GL_GRGL_GNULIB_SETLOCALE_NULL=1
@@ -229,7 +231,6 @@ AC_TYPE_PID_T
 
 dnl Checks for library functions.
 AC_CHECK_FUNCS([select])
-gt_SIGINFO
 
 AC_C_BIGENDIAN([endianness=1], [endianness=0],
   [echo "AC-C-BIGENDIAN fails to work on your system." | sed -e 's,-,_,g' 1>&2
@@ -511,7 +512,7 @@ changequote([,])dnl
 fi
 AC_SUBST([ARCHIVE_FORMAT])
 
-ARCHIVE_VERSION=0.22.1
+ARCHIVE_VERSION=0.22.3
 AC_SUBST([ARCHIVE_VERSION])
 
 PACKAGE_SUFFIX="-$ARCHIVE_VERSION"
@@ -604,6 +605,7 @@ AC_CONFIG_FILES([m4/Makefile])
 
 AC_CONFIG_FILES([tests/Makefile])
 AC_CONFIG_FILES([tests/init-env])
+AC_CONFIG_FILES([tests/gnulib-lib/Makefile])
 
 AC_CONFIG_FILES([system-tests/Makefile])
 

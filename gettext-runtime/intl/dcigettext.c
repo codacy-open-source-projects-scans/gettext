@@ -59,27 +59,15 @@ extern int errno;
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+#include <wchar.h>
 
 #if defined HAVE_UNISTD_H || defined _LIBC
 # include <unistd.h>
 #endif
 
 #include <locale.h>
-
-#ifdef _LIBC
-  /* Guess whether integer division by zero raises signal SIGFPE.
-     Set to 1 only if you know for sure.  In case of doubt, set to 0.  */
-# if defined __alpha__ || defined __arm__ || defined __i386__ \
-     || defined __m68k__ || defined __s390__
-#  define INTDIV0_RAISES_SIGFPE 1
-# else
-#  define INTDIV0_RAISES_SIGFPE 0
-# endif
-#endif
-#if !INTDIV0_RAISES_SIGFPE
-# include <signal.h>
-#endif
 
 #if defined HAVE_SYS_PARAM_H || defined _LIBC
 # include <sys/param.h>
@@ -104,7 +92,7 @@ extern int errno;
 
 /* Handle multi-threaded applications.  */
 #ifdef _LIBC
-# include <bits/libc-lock.h>
+# include <libc-lock.h>
 # define gl_rwlock_define_initialized __libc_rwlock_define_initialized
 # define gl_rwlock_rdlock __libc_rwlock_rdlock
 # define gl_rwlock_wrlock __libc_rwlock_wrlock
@@ -132,6 +120,7 @@ extern int errno;
 /* Rename the non ANSI C functions.  This is required by the standard
    because some ANSI C functions will require linking with this object
    file and the name space must not be polluted.  */
+# define strdup __strdup
 # define getcwd __getcwd
 # ifndef stpcpy
 #  define stpcpy __stpcpy
@@ -169,7 +158,7 @@ static void *mempcpy (void *dest, const void *src, size_t n);
 #endif
 
 #if !defined PATH_MAX && defined _PC_PATH_MAX
-# define PATH_MAX (pathconf ("/", _PC_PATH_MAX) < 1 ? 1024 : pathconf ("/", _PC_PATH_MAX))
+# define PATH_MAX (__pathconf ("/", _PC_PATH_MAX) < 1 ? 1024 : __pathconf ("/", _PC_PATH_MAX))
 #endif
 
 /* Don't include sys/param.h if it already has been.  */
@@ -313,30 +302,25 @@ struct binding *_nl_domain_bindings;
 /* Prototypes for local functions.  */
 static char *plural_lookup (struct loaded_l10nfile *domain,
 			    unsigned long int n,
-			    const char *translation, size_t translation_len)
-     internal_function;
+			    const char *translation, size_t translation_len);
 
 #ifdef IN_LIBGLOCALE
 static const char *guess_category_value (int category,
 					 const char *categoryname,
-					 const char *localename)
-     internal_function;
+					 const char *localename);
 #else
 static const char *guess_category_value (int category,
-					 const char *categoryname)
-     internal_function;
+					 const char *categoryname);
 #endif
 
 #ifdef _LIBC
 # include "../locale/localeinfo.h"
-# define category_to_name(category) \
-  _nl_category_names.str + _nl_category_name_idxs[category]
+# define category_to_name(category) _nl_category_names_get (category)
 #else
-static const char *category_to_name (int category) internal_function;
+static const char *category_to_name (int category);
 #endif
 #if (defined _LIBC || HAVE_ICONV) && !defined IN_LIBGLOCALE
-static const char *get_output_charset (struct binding *domainbinding)
-     internal_function;
+static const char *get_output_charset (struct binding *domainbinding);
 #endif
 
 
@@ -462,6 +446,7 @@ DCIGETTEXT (const char *domainname, const char *msgid1, const char *msgid2,
   const char *categoryname;
   const char *categoryvalue;
   const char *dirname;
+  char *xdirname = NULL;
 #if defined _WIN32 && !defined __CYGWIN__
   const wchar_t *wdirname;
 #endif
@@ -521,7 +506,7 @@ DCIGETTEXT (const char *domainname, const char *msgid1, const char *msgid2,
 #ifdef HAVE_PER_THREAD_LOCALE
 # ifndef IN_LIBGLOCALE
 #  ifdef _LIBC
-  localename = strdupa (__current_locale_name (category));
+  localename = __current_locale_name (category);
 #  else
   categoryname = category_to_name (category);
 #   define CATEGORYNAME_INITIALIZED
@@ -609,10 +594,6 @@ DCIGETTEXT (const char *domainname, const char *msgid1, const char *msgid2,
 	{
 	  /* We have a relative path.  Make it absolute now.  */
 	  size_t wdirname_len;
-	  size_t path_max;
-	  wchar_t *resolved_wdirname;
-	  wchar_t *ret;
-	  wchar_t *p;
 
 	  if (wdirname != NULL)
 	    wdirname_len = wcslen (wdirname);
@@ -621,79 +602,77 @@ DCIGETTEXT (const char *domainname, const char *msgid1, const char *msgid2,
 	      wdirname_len = mbstowcs (NULL, dirname, 0);
 
 	      if (wdirname_len == (size_t)(-1))
-		/* dirname contains invalid multibyte characters.  Don't signal
-		   an error but simply return the default string.  */
+		/* dirname contains invalid multibyte characters.  Don't
+		   signal an error but simply return the default string.  */
 		goto return_untranslated;
 	    }
 	  wdirname_len++;
 
-	  path_max = (unsigned int) PATH_MAX;
-	  path_max += 2;		/* The getcwd docs say to do this.  */
-
-	  for (;;)
-	    {
-	      resolved_wdirname =
-		(wchar_t *)
-		alloca ((path_max + wdirname_len) * sizeof (wchar_t));
-	      ADD_BLOCK (block_list, resolved_wdirname);
-
-	      __set_errno (0);
-	      ret = _wgetcwd (resolved_wdirname, path_max);
-	      if (ret != NULL || errno != ERANGE)
-		break;
-
-	      path_max += path_max / 2;
-	      path_max += PATH_INCR;
-	    }
-
-	  if (ret == NULL)
-	    /* We cannot get the current working directory.  Don't signal an
-	       error but simply return the default string.  */
+	  wchar_t *wcwd = wgetcwd (NULL, 0);
+	  if (wcwd == NULL)
+	    /* We cannot get the current working directory.  Don't
+	       signal an error but simply return the default string.  */
 	    goto return_untranslated;
+	  size_t wcwd_len = wcslen (wcwd);
 
-	  p = wcschr (resolved_wdirname, L'\0');
-	  *p++ = L'/';
+	  wchar_t *resolved_wdirname =
+	    (wchar_t *)
+	    malloc ((wcwd_len + 1 + wdirname_len) * sizeof (wchar_t));
+	  if (resolved_wdirname == NULL)
+	    {
+	      /* Memory allocation failure.  Don't signal an error
+		 but simply return the default string.  */
+	      free (wcwd);
+	      goto return_untranslated;
+	    }
+	  wmemcpy (resolved_wdirname, wcwd, wcwd_len);
+	  resolved_wdirname[wcwd_len] = L'/';
 	  if (wdirname != NULL)
-	    wcscpy (p, wdirname);
+	    wmemcpy (resolved_wdirname + wcwd_len + 1, wdirname, wdirname_len);
 	  else
-	    mbstowcs (p, dirname, wdirname_len);
+	    mbstowcs (resolved_wdirname + wcwd_len + 1, dirname, wdirname_len);
+
+	  free (wcwd);
 
 	  wdirname = resolved_wdirname;
 	  dirname = NULL;
+	  xdirname = (char *) resolved_wdirname;
 	}
 #else
       if (IS_RELATIVE_FILE_NAME (dirname))
 	{
 	  /* We have a relative path.  Make it absolute now.  */
-	  size_t dirname_len = strlen (dirname) + 1;
-	  size_t path_max;
-	  char *resolved_dirname;
-	  char *ret;
-
-	  path_max = (unsigned int) PATH_MAX;
-	  path_max += 2;		/* The getcwd docs say to do this.  */
-
-	  for (;;)
-	    {
-	      resolved_dirname = (char *) alloca (path_max + dirname_len);
-	      ADD_BLOCK (block_list, resolved_dirname);
-
-	      __set_errno (0);
-	      ret = getcwd (resolved_dirname, path_max);
-	      if (ret != NULL || errno != ERANGE)
-		break;
-
-	      path_max += path_max / 2;
-	      path_max += PATH_INCR;
-	    }
-
-	  if (ret == NULL)
-	    /* We cannot get the current working directory.  Don't signal an
-	       error but simply return the default string.  */
+	  char *cwd = getcwd (NULL, 0);
+	  if (cwd == NULL)
+	    /* We cannot get the current working directory.  Don't
+	       signal an error but simply return the default
+	       string.  */
 	    goto return_untranslated;
+# ifdef _LIBC
+	  int ret = __asprintf (&xdirname, "%s/%s", cwd, dirname);
+	  free (cwd);
+	  if (ret < 0)
+	    goto return_untranslated;
+# else
+	  size_t cwd_len = strlen (cwd);
+	  size_t dirname_len = strlen (dirname) + 1;
+	  char *resolved_dirname = (char *) malloc (cwd_len + 1 + dirname_len);
+	  if (resolved_dirname == NULL)
+	    {
+	      /* Memory allocation failure.  Don't signal an error
+		 but simply return the default string.  */
+	      free (cwd);
+	      goto return_untranslated;
+	    }
+	  memcpy (resolved_dirname, cwd, cwd_len);
+	  resolved_dirname[cwd_len] = '/';
+	  memcpy (resolved_dirname + cwd_len + 1, dirname, dirname_len);
 
-	  stpcpy (stpcpy (strchr (resolved_dirname, '\0'), "/"), dirname);
-	  dirname = resolved_dirname;
+	  free (cwd);
+
+	  xdirname = resolved_dirname;
+# endif
+	  dirname = xdirname;
 	}
 #endif
 #ifndef IN_LIBGLOCALE
@@ -814,6 +793,7 @@ DCIGETTEXT (const char *domainname, const char *msgid1, const char *msgid2,
 	    {
 	      /* Found the translation of MSGID1 in domain DOMAIN:
 		 starting at RETVAL, RETLEN bytes.  */
+	      free (xdirname);
 	      FREE_BLOCKS (block_list);
 	      if (foundp == NULL)
 		{
@@ -897,6 +877,7 @@ DCIGETTEXT (const char *domainname, const char *msgid1, const char *msgid2,
 
  return_untranslated:
   /* Return the untranslated MSGID.  */
+  free (xdirname);
   FREE_BLOCKS (block_list);
   gl_rwlock_unlock (_nl_state_lock);
 #ifdef _LIBC
@@ -932,7 +913,6 @@ __libc_lock_define_initialized (static, lock)
    in case of a memory allocation failure during conversion (only if
    ENCODING != NULL resp. CONVERT == true).  */
 char *
-internal_function
 #ifdef IN_LIBGLOCALE
 _nl_find_msg (struct loaded_l10nfile *domain_file,
 	      struct binding *domainbinding, const char *encoding,
@@ -1194,11 +1174,19 @@ _nl_find_msg (struct loaded_l10nfile *domain_file,
 		      outcharset = encoding;
 
 # ifdef _LIBC
+
+		      struct gconv_spec conv_spec;
+
+                      __gconv_create_spec (&conv_spec, charset, outcharset);
+
 		      /* We always want to use transliteration.  */
-		      outcharset = norm_add_slashes (outcharset, "TRANSLIT");
-		      charset = norm_add_slashes (charset, "");
-		      int r = __gconv_open (outcharset, charset, &convd->conv,
-					    GCONV_AVOID_NOCONV);
+                      conv_spec.translit = true;
+
+		      int r = __gconv_open (&conv_spec, &convd->conv,
+		                            GCONV_AVOID_NOCONV);
+
+                      __gconv_destroy_spec (&conv_spec);
+
 		      if (__builtin_expect (r != __GCONV_OK, 0))
 			{
 			  /* If the output encoding is the same there is
@@ -1462,29 +1450,29 @@ _nl_find_msg (struct loaded_l10nfile *domain_file,
 
 /* Look up a plural variant.  */
 static char *
-internal_function
 plural_lookup (struct loaded_l10nfile *domain, unsigned long int n,
 	       const char *translation, size_t translation_len)
 {
   struct loaded_domain *domaindata = (struct loaded_domain *) domain->data;
+  struct eval_result result;
   unsigned long int index;
   const char *p;
 
-  index = plural_eval (domaindata->plural, n);
-  if (index >= domaindata->nplurals)
-    /* This should never happen.  It means the plural expression and the
-       given maximum value do not match.  */
+  result = plural_eval (domaindata->plural, n);
+  if (result.status != PE_OK)
+    /* The plural expression evaluation failed.  */
     index = 0;
+  else if (result.value >= domaindata->nplurals)
+    /* The plural expression and the given maximum value do not match.  */
+    index = 0;
+  else
+    index = result.value;
 
   /* Skip INDEX strings at TRANSLATION.  */
   p = translation;
   while (index-- > 0)
     {
-#ifdef _LIBC
-      p = __rawmemchr (p, '\0');
-#else
       p = strchr (p, '\0');
-#endif
       /* And skip over the NUL byte.  */
       p++;
 
@@ -1500,7 +1488,6 @@ plural_lookup (struct loaded_l10nfile *domain, unsigned long int n,
 #ifndef _LIBC
 /* Return string representation of locale CATEGORY.  */
 static const char *
-internal_function
 category_to_name (int category)
 {
   const char *retval;
@@ -1562,7 +1549,6 @@ category_to_name (int category)
    This uses values of the environment variables LC_ALL, LC_*, LANG, LANGUAGE,
    and/or system-dependent defaults.  */
 static const char *
-internal_function
 #ifdef IN_LIBGLOCALE
 guess_category_value (int category, const char *categoryname,
 		      const char *locale)
@@ -1657,7 +1643,6 @@ guess_category_value (int category, const char *categoryname)
 #if (defined _LIBC || HAVE_ICONV) && !defined IN_LIBGLOCALE
 /* Returns the output charset.  */
 static const char *
-internal_function
 get_output_charset (struct binding *domainbinding)
 {
   /* The output charset should normally be determined by the locale.  But
@@ -1735,7 +1720,8 @@ mempcpy (void *dest, const void *src, size_t n)
 #ifdef _LIBC
 /* If we want to free all resources we have to do some work at
    program's end.  */
-libc_freeres_fn (free_mem)
+void
+__intl_freemem (void)
 {
   void *old;
 
