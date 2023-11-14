@@ -54,7 +54,7 @@
 #include "propername.h"
 #include "message.h"
 #include "open-catalog.h"
-#include "read-catalog.h"
+#include "read-catalog-file.h"
 #include "read-po.h"
 #include "read-properties.h"
 #include "read-stringtable.h"
@@ -1188,10 +1188,11 @@ msgfmt_parse_debrief (abstract_catalog_reader_ty *that)
     {
       if (!this->has_header_entry)
         {
-          multiline_error (xasprintf ("%s: ", this->file_name),
-                           xasprintf (_("warning: PO file header missing or invalid\n")));
-          multiline_error (NULL,
-                           xasprintf (_("warning: charset conversion will not work\n")));
+          size_t prefix_width =
+            multiline_error (xasprintf ("%s: ", this->file_name),
+                             xasprintf (_("warning: PO file header missing or invalid\n")));
+          multiline_append (prefix_width,
+                            xasprintf (_("warning: charset conversion will not work\n")));
         }
     }
 }

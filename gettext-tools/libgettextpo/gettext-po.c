@@ -86,6 +86,19 @@ struct po_message_iterator
 int libgettextpo_version = LIBGETTEXTPO_VERSION;
 
 
+static void
+void_multiline_warning (char *prefix, char *message)
+{
+  multiline_warning (prefix, message);
+}
+
+static void
+void_multiline_error (char *prefix, char *message)
+{
+  multiline_error (prefix, message);
+}
+
+
 /* Create an empty PO file representation in memory.  */
 
 po_file_t
@@ -188,8 +201,8 @@ po_file_read_v2 (const char *filename, po_error_handler_t handler)
   /* Restore error handler.  */
   po_error             = orig_error;
   po_error_at_line     = orig_error_at_line;
-  po_multiline_warning = multiline_warning;
-  po_multiline_error   = multiline_error;
+  po_multiline_warning = void_multiline_warning;
+  po_multiline_error   = void_multiline_error;
   gram_max_allowed_errors = 20;
 
   if (fp != stdin)
@@ -274,8 +287,8 @@ po_file_write (po_file_t file, const char *filename, po_error_handler_t handler)
   /* Restore error handler.  */
   po_error             = orig_error;
   po_error_at_line     = orig_error_at_line;
-  po_multiline_warning = multiline_warning;
-  po_multiline_error   = multiline_error;
+  po_multiline_warning = void_multiline_warning;
+  po_multiline_error   = void_multiline_error;
 
   return file;
 }
@@ -1327,10 +1340,10 @@ po_message_check_format (po_message_t message, po_xerror_handler_t handler)
 
 /* An error logger based on the po_error function pointer.  */
 static void
-po_error_logger (const char *format, ...)
-     __attribute__ ((__format__ (__printf__, 1, 2)));
+po_error_logger (void *data, const char *format, ...)
+     __attribute__ ((__format__ (__printf__, 2, 3)));
 static void
-po_error_logger (const char *format, ...)
+po_error_logger (void *data, const char *format, ...)
 {
   va_list args;
   char *error_message;
@@ -1359,7 +1372,8 @@ po_message_check_format (po_message_t message, po_error_handler_t handler)
 
   check_msgid_msgstr_format (mp->msgid, mp->msgid_plural,
                              mp->msgstr, mp->msgstr_len,
-                             mp->is_format, mp->range, NULL, po_error_logger);
+                             mp->is_format, mp->range, NULL,
+                             po_error_logger, NULL);
 
   /* Restore error handler.  */
   po_error = orig_error;

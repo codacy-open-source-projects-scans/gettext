@@ -110,6 +110,8 @@ po-xerror.c
 |
 | read-catalog.h
 | read-catalog.c
+| read-catalog-file.h
+| read-catalog-file.c
 |               Reading of a PO file, returning a list-of-messages.
 |
 | read-desktop.h
@@ -321,6 +323,9 @@ msgl-check.c
 | xg-message.h
 | xg-message.c
 |               Extracting a message.  Accumulating the message list.
+| xg-check.h
+| xg-check.c
+|               Syntax checks on the extracted messages.
 | x-po.h
 | x-properties.h
 | x-stringtable.h
