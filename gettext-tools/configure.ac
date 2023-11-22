@@ -130,6 +130,13 @@ case "$host_os" in
 esac
 AM_CONDITIONAL([WINDOWS_NATIVE], [test $is_windows_native = yes])
 
+dnl Package-private libraries do not need to be installed when we build only
+dnl static libraries. Don't install them in this case. This avoids a build
+dnl error on AIX with --enable-shared, when some other version of GNU gettext,
+dnl built with --disable-shared, is already installed in the same $prefix and
+dnl the CFLAGS or LDFLAGS happen to contain "-L$prefix/lib".
+AM_CONDITIONAL([INSTALL_PRIVATE_LIBRARIES], [test "$enable_shared" = yes])
+
 dnl Checks for libraries.
 
 dnl These are the only lines required to internationalize the package.
@@ -207,7 +214,11 @@ fi
 AC_SUBST([MSGMERGE_LIBM])
 
 dnl Test whether msgmerge can make use of OpenMP.
-AC_OPENMP
+if test "$gl_use_threads" != no; then
+  AC_OPENMP
+else
+  OPENMP_CFLAGS=
+fi
 
 dnl Checks for header files, functions and declarations.
 gl_INIT
@@ -512,7 +523,7 @@ changequote([,])dnl
 fi
 AC_SUBST([ARCHIVE_FORMAT])
 
-ARCHIVE_VERSION=0.22.3
+ARCHIVE_VERSION=0.22.4
 AC_SUBST([ARCHIVE_VERSION])
 
 PACKAGE_SUFFIX="-$ARCHIVE_VERSION"
