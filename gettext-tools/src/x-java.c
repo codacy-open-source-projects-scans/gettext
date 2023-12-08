@@ -574,6 +574,7 @@ enum token_type_ty
   token_type_number,            /* 1.23 */
   token_type_symbol,            /* identifier, keyword, null */
   token_type_plus,              /* + */
+  token_type_semicolon,         /* ; */
   token_type_other              /* character literal, misc. operator */
 };
 typedef enum token_type_ty token_type_ty;
@@ -1312,6 +1313,11 @@ phase5_get (token_ty *tp)
             }
           return;
 
+        case ';':
+          /* Semicolon.  */
+          tp->type = token_type_semicolon;
+          return;
+
         default:
           /* Misc. operator.  */
           tp->type = token_type_other;
@@ -1458,7 +1464,7 @@ static int brace_nesting_depth;
    Return true upon eof, false upon closing parenthesis or brace.  */
 static bool
 extract_parenthesized (message_list_ty *mlp, token_type_ty terminator,
-                       flag_context_ty outer_context,
+                       flag_region_ty *outer_region,
                        flag_context_list_iterator_ty context_iter,
                        struct arglist_parser *argparser)
 {
@@ -1471,9 +1477,9 @@ extract_parenthesized (message_list_ty *mlp, token_type_ty terminator,
   /* Context iterator that will be used if the next token is a '('.  */
   flag_context_list_iterator_ty next_context_iter =
     passthrough_context_list_iterator;
-  /* Current context.  */
-  flag_context_ty inner_context =
-    inherited_context (outer_context,
+  /* Current region.  */
+  flag_region_ty *inner_region =
+    inheriting_region (outer_region,
                        flag_context_list_iterator_advance (&context_iter));
 
   /* Start state is 0.  */
@@ -1577,14 +1583,43 @@ extract_parenthesized (message_list_ty *mlp, token_type_ty terminator,
                       logical_file_name, line_number, (size_t)(-1), false,
                       _("too many open parentheses"));
           if (extract_parenthesized (mlp, token_type_rparen,
-                                     inner_context, next_context_iter,
+                                     inner_region, next_context_iter,
                                      arglist_parser_alloc (mlp,
                                                            state ? next_shapes : NULL)))
             {
               arglist_parser_done (argparser, arg);
+              unref_region (inner_region);
               return true;
             }
           paren_nesting_depth--;
+          /* Test whether the next tokens are '.' and 'formatted'.  */
+          {
+            token_ty token2;
+            x_java_lex (&token2);
+            if (token2.type == token_type_dot)
+              {
+                token_ty token3;
+                x_java_lex (&token3);
+                if (token3.type == token_type_symbol
+                    && strcmp (token3.string, "formatted") == 0)
+                  {
+                    /* Mark the messages found in the region as java-printf-format
+                       a posteriori.  */
+                    inner_region->for_formatstring[XFORMAT_SECONDARY].is_format = yes_according_to_context;
+                    struct remembered_message_list_ty *rmlp =
+                      inner_region->for_formatstring[XFORMAT_SECONDARY].remembered;
+                    size_t i;
+                    for (i = 0; i < rmlp->nitems; i++)
+                      {
+                        struct remembered_message_ty *rmp = &rmlp->item[i];
+                        set_format_flag_from_context (rmp->mp, rmp->plural, &rmp->pos,
+                                                      XFORMAT_SECONDARY, inner_region);
+                      }
+                  }
+                x_java_unlex (&token3);
+              }
+            x_java_unlex (&token2);
+          }
           next_context_iter = null_context_list_iterator;
           state = 0;
           continue;
@@ -1593,6 +1628,7 @@ extract_parenthesized (message_list_ty *mlp, token_type_ty terminator,
           if (terminator == token_type_rparen)
             {
               arglist_parser_done (argparser, arg);
+              unref_region (inner_region);
               return false;
             }
           if (terminator == token_type_rbrace)
@@ -1609,10 +1645,12 @@ extract_parenthesized (message_list_ty *mlp, token_type_ty terminator,
                       logical_file_name, line_number, (size_t)(-1), false,
                       _("too many open braces"));
           if (extract_parenthesized (mlp, token_type_rbrace,
-                                     null_context, null_context_list_iterator,
+                                     null_context_region (),
+                                     null_context_list_iterator,
                                      arglist_parser_alloc (mlp, NULL)))
             {
               arglist_parser_done (argparser, arg);
+              unref_region (inner_region);
               return true;
             }
           brace_nesting_depth--;
@@ -1624,6 +1662,7 @@ extract_parenthesized (message_list_ty *mlp, token_type_ty terminator,
           if (terminator == token_type_rbrace)
             {
               arglist_parser_done (argparser, arg);
+              unref_region (inner_region);
               return false;
             }
           if (terminator == token_type_rparen)
@@ -1636,8 +1675,9 @@ extract_parenthesized (message_list_ty *mlp, token_type_ty terminator,
 
         case token_type_comma:
           arg++;
-          inner_context =
-            inherited_context (outer_context,
+          unref_region (inner_region);
+          inner_region =
+            inheriting_region (outer_region,
                                flag_context_list_iterator_advance (
                                  &context_iter));
           next_context_iter = passthrough_context_list_iterator;
@@ -1656,12 +1696,12 @@ extract_parenthesized (message_list_ty *mlp, token_type_ty terminator,
                 char *string = mixed_string_contents (token.mixed_string);
                 mixed_string_free (token.mixed_string);
                 remember_a_message (mlp, NULL, string, true, false,
-                                    inner_context, &pos,
+                                    inner_region, &pos,
                                     NULL, token.comment, true);
               }
             else
               arglist_parser_remember (argparser, arg, token.mixed_string,
-                                       inner_context,
+                                       inner_region,
                                        pos.file_name, pos.line_number,
                                        token.comment, true);
           }
@@ -1670,8 +1710,14 @@ extract_parenthesized (message_list_ty *mlp, token_type_ty terminator,
           state = 0;
           continue;
 
+        case token_type_semicolon:
+          arglist_parser_done (argparser, arg);
+          unref_region (inner_region);
+          return false;
+
         case token_type_eof:
           arglist_parser_done (argparser, arg);
+          unref_region (inner_region);
           return true;
 
         case token_type_dot:
@@ -1722,7 +1768,8 @@ extract_java (FILE *f,
   /* Eat tokens until eof is seen.  When extract_parenthesized returns
      due to an unbalanced closing parenthesis, just restart it.  */
   while (!extract_parenthesized (mlp, token_type_eof,
-                                 null_context, null_context_list_iterator,
+                                 null_context_region (),
+                                 null_context_list_iterator,
                                  arglist_parser_alloc (mlp, NULL)))
     ;
 

@@ -33,6 +33,7 @@
 #include "verify.h"
 
 #include "xgettext.h"
+#include "xg-formatstring.h"
 
 #include "gettext.h"
 #define _(str) gettext (str)
@@ -43,61 +44,90 @@
                                          pos->line_number);
 
 
-/* Update the is_format[] flags depending on the information given in the
-   context.  */
+/* Validates the modified value of mp->is_format[i].  */
 static void
-set_format_flags_from_context (enum is_format is_format[NFORMATS],
-                               flag_context_ty context, const char *string,
-                               lex_pos_ty *pos, const char *pretty_msgstr)
+validate_is_format (message_ty *mp, bool plural, lex_pos_ty *pos, size_t i)
 {
-  size_t i;
+  if (possible_format_p (mp->is_format[i]))
+    {
+      const char *string = (plural ? mp->msgid_plural : mp->msgid);
+      const char *pretty_msgstr = (plural ? "msgid_plural" : "msgid");
+      struct formatstring_parser *parser = formatstring_parsers[i];
+      char *invalid_reason = NULL;
+      void *descr = parser->parse (string, false, NULL, &invalid_reason);
 
-  if (context.is_format1 != undecided
-      || context.is_format2 != undecided
-      || context.is_format3 != undecided
-      || context.is_format4 != undecided)
-    for (i = 0; i < NFORMATS; i++)
+      if (descr != NULL)
+        parser->free (descr);
+      else
+        {
+          /* The string is not a valid format string.  */
+          if (mp->is_format[i] != possible)
+            if_error (IF_SEVERITY_WARNING,
+                      pos->file_name, pos->line_number, (size_t)(-1), true,
+                      mp->is_format[i] == yes_according_to_context
+                      ? _("Although being used in a format string position, the %s is not a valid %s format string. Reason: %s\n")
+                      : _("Although declared as such, the %s is not a valid %s format string. Reason: %s\n"),
+                      pretty_msgstr, format_language_pretty[i],
+                      invalid_reason);
+
+          mp->is_format[i] = impossible;
+          free (invalid_reason);
+        }
+    }
+}
+
+/* Update the is_format[] flags depending on the information given in the
+   region's context.  */
+static void
+set_format_flags_from_context (message_ty *mp, bool plural, lex_pos_ty *pos,
+                               flag_region_ty const *region)
+{
+  bool some_undecided = false;
+  for (size_t fi = 0; fi < NXFORMATS; fi++)
+    some_undecided |= (region->for_formatstring[fi].is_format != undecided);
+
+  if (some_undecided)
+    for (size_t i = 0; i < NFORMATS; i++)
       {
-        if (is_format[i] == undecided)
-          {
-            if (formatstring_parsers[i] == current_formatstring_parser1
-                && context.is_format1 != undecided)
-              is_format[i] = (enum is_format) context.is_format1;
-            if (formatstring_parsers[i] == current_formatstring_parser2
-                && context.is_format2 != undecided)
-              is_format[i] = (enum is_format) context.is_format2;
-            if (formatstring_parsers[i] == current_formatstring_parser3
-                && context.is_format3 != undecided)
-              is_format[i] = (enum is_format) context.is_format3;
-            if (formatstring_parsers[i] == current_formatstring_parser4
-                && context.is_format4 != undecided)
-              is_format[i] = (enum is_format) context.is_format4;
-          }
-        if (possible_format_p (is_format[i]))
-          {
-            struct formatstring_parser *parser = formatstring_parsers[i];
-            char *invalid_reason = NULL;
-            void *descr = parser->parse (string, false, NULL, &invalid_reason);
-
-            if (descr != NULL)
-              parser->free (descr);
-            else
-              {
-                /* The string is not a valid format string.  */
-                if (is_format[i] != possible)
-                  if_error (IF_SEVERITY_WARNING,
-                            pos->file_name, pos->line_number, (size_t)(-1), true,
-                            is_format[i] == yes_according_to_context
-                            ? _("Although being used in a format string position, the %s is not a valid %s format string. Reason: %s\n")
-                            : _("Although declared as such, the %s is not a valid %s format string. Reason: %s\n"),
-                            pretty_msgstr, format_language_pretty[i],
-                            invalid_reason);
-
-                is_format[i] = impossible;
-                free (invalid_reason);
-              }
-          }
+        if (mp->is_format[i] == undecided)
+          for (size_t fi = 0; fi < NXFORMATS; fi++)
+            if (formatstring_parsers[i] == current_formatstring_parser[fi]
+                && region->for_formatstring[fi].is_format != undecided)
+              mp->is_format[i] = region->for_formatstring[fi].is_format;
+        validate_is_format (mp, plural, pos, i);
       }
+
+  /* Prepare for doing the same thing in a delayed manner.
+     This is useful for methods named 'printf' on a class 'String'.  */
+  for (size_t fi = 0; fi < NXFORMATS; fi++)
+    if (current_formatstring_parser[fi] != NULL
+        && region->for_formatstring[fi].remembered != NULL)
+      remembered_message_list_append (region->for_formatstring[fi].remembered,
+                                      (struct remembered_message_ty) { mp, plural, *pos });
+}
+
+void
+set_format_flag_from_context (message_ty *mp, bool plural, lex_pos_ty *pos,
+                              size_t fi, flag_region_ty const *region)
+{
+  if (region->for_formatstring[fi].is_format != undecided)
+    for (size_t i = 0; i < NFORMATS; i++)
+      if (formatstring_parsers[i] == current_formatstring_parser[fi])
+        {
+          mp->is_format[i] = region->for_formatstring[fi].is_format;
+          validate_is_format (mp, plural, pos, i);
+        }
+}
+
+
+/* Returns true if PARSER is relevant for the current language.  */
+static bool
+is_relevant (struct formatstring_parser *parser)
+{
+  for (size_t fi = 0; fi < NXFORMATS; fi++)
+    if (parser == current_formatstring_parser[fi])
+      return true;
+  return false;
 }
 
 
@@ -111,10 +141,7 @@ decide_is_format (message_ty *mp)
   for (i = 0; i < NFORMATS; i++)
     {
       if (mp->is_format[i] == undecided
-          && (formatstring_parsers[i] == current_formatstring_parser1
-              || formatstring_parsers[i] == current_formatstring_parser2
-              || formatstring_parsers[i] == current_formatstring_parser3
-              || formatstring_parsers[i] == current_formatstring_parser4)
+          && is_relevant (formatstring_parsers[i])
           /* But avoid redundancy: objc-format is stronger than c-format.  */
           && !(i == format_c && possible_format_p (mp->is_format[format_objc]))
           && !(i == format_objc && possible_format_p (mp->is_format[format_c]))
@@ -224,15 +251,12 @@ and a mapping instead of a tuple for the arguments.\n"),
 
 message_ty *
 remember_a_message (message_list_ty *mlp, char *msgctxt, char *msgid,
-                    bool is_utf8, bool pluralp, flag_context_ty context,
+                    bool is_utf8, bool pluralp, flag_region_ty *region,
                     lex_pos_ty *pos,
                     const char *extracted_comment,
                     refcounted_string_list_ty *comment, bool comment_is_utf8)
 {
-  enum is_format is_format[NFORMATS];
   struct argument_range range;
-  enum is_wrap do_wrap;
-  enum is_syntax_check do_syntax_check[NSYNTAXCHECKS];
   message_ty *mp;
   size_t i;
 
@@ -253,13 +277,8 @@ remember_a_message (message_list_ty *mlp, char *msgctxt, char *msgid,
 
   savable_comment_to_xgettext_comment (comment);
 
-  for (i = 0; i < NFORMATS; i++)
-    is_format[i] = undecided;
   range.min = -1;
   range.max = -1;
-  do_wrap = undecided;
-  for (i = 0; i < NSYNTAXCHECKS; i++)
-    do_syntax_check[i] = undecided;
 
   if (!is_utf8)
     {
@@ -320,11 +339,6 @@ meta information, not the empty string.\n"));
       if (msgctxt != NULL)
         free (msgctxt);
       free (msgid);
-      for (i = 0; i < NFORMATS; i++)
-        is_format[i] = mp->is_format[i];
-      do_wrap = mp->do_wrap;
-      for (i = 0; i < NSYNTAXCHECKS; i++)
-        do_syntax_check[i] = mp->do_syntax_check[i];
     }
   else
     {
@@ -349,7 +363,7 @@ meta information, not the empty string.\n"));
 
   /* Determine whether the context specifies that the msgid is a format
      string.  */
-  set_format_flags_from_context (is_format, context, mp->msgid, pos, "msgid");
+  set_format_flags_from_context (mp, false, pos, region);
 
   /* Ask the lexer for the comments it has seen.  */
   {
@@ -422,7 +436,7 @@ meta information, not the empty string.\n"));
             for (i = 0; i < NFORMATS; i++)
               if (tmp_format[i] != undecided)
                 {
-                  is_format[i] = tmp_format[i];
+                  mp->is_format[i] = tmp_format[i];
                   interesting = true;
                 }
             if (has_range_p (tmp_range))
@@ -432,18 +446,18 @@ meta information, not the empty string.\n"));
               }
             if (tmp_wrap != undecided)
               {
-                do_wrap = tmp_wrap;
+                mp->do_wrap = tmp_wrap;
                 interesting = true;
               }
             for (i = 0; i < NSYNTAXCHECKS; i++)
               if (tmp_syntax_check[i] != undecided)
                 {
-                  do_syntax_check[i] = tmp_syntax_check[i];
+                  mp->do_syntax_check[i] = tmp_syntax_check[i];
                   interesting = true;
                 }
 
             /* If the "xgettext:" marker was followed by an interesting
-               keyword, and we updated our is_format/do_wrap variables,
+               keyword, and we updated our mp->is_format/mp->do_wrap variables,
                we don't print the comment as a #. comment.  */
             if (interesting)
               continue;
@@ -500,22 +514,17 @@ meta information, not the empty string.\n"));
       }
   }
 
-  for (i = 0; i < NFORMATS; i++)
-    mp->is_format[i] = is_format[i];
   decide_is_format (mp);
 
   intersect_range (mp, &range);
 
-  mp->do_wrap = do_wrap;
   decide_do_wrap (mp);
 
-  for (i = 0; i < NSYNTAXCHECKS; i++)
-    mp->do_syntax_check[i] = do_syntax_check[i];
   decide_syntax_check (mp);
 
   /* Warn about the use of non-reorderable format strings when the programming
      language also provides reorderable format strings.  */
-  warn_format_string (is_format, mp->msgid, pos, "msgid");
+  warn_format_string (mp->is_format, mp->msgid, pos, "msgid");
 
   /* Remember where we saw this msgid.  */
   message_comment_filepos (mp, pos->file_name, pos->line_number);
@@ -531,7 +540,7 @@ meta information, not the empty string.\n"));
 
 void
 remember_a_message_plural (message_ty *mp, char *string, bool is_utf8,
-                           flag_context_ty context, lex_pos_ty *pos,
+                           flag_region_ty *region, lex_pos_ty *pos,
                            refcounted_string_list_ty *comment,
                            bool comment_is_utf8)
 {
@@ -577,17 +586,13 @@ remember_a_message_plural (message_ty *mp, char *string, bool is_utf8,
 
       /* Determine whether the context specifies that the msgid_plural is a
          format string.  */
-      set_format_flags_from_context (mp->is_format, context, mp->msgid_plural,
-                                     pos, "msgid_plural");
+      set_format_flags_from_context (mp, true, pos, region);
 
       /* If it is not already decided, through programmer comments or
          the msgid, whether the msgid is a format string, examine the
          msgid_plural.  This is a heuristic.  */
       for (i = 0; i < NFORMATS; i++)
-        if ((formatstring_parsers[i] == current_formatstring_parser1
-             || formatstring_parsers[i] == current_formatstring_parser2
-             || formatstring_parsers[i] == current_formatstring_parser3
-             || formatstring_parsers[i] == current_formatstring_parser4)
+        if (is_relevant (formatstring_parsers[i])
             && (mp->is_format[i] == undecided || mp->is_format[i] == possible)
             /* But avoid redundancy: objc-format is stronger than c-format.  */
             && !(i == format_c

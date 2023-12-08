@@ -110,7 +110,8 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-gsettings-1 \
 	xgettext-its-1 xgettext-its-2 \
 	xgettext-java-1 xgettext-java-2 xgettext-java-3 xgettext-java-4 \
-	xgettext-java-5 xgettext-java-6 xgettext-java-7 \
+	xgettext-java-5 xgettext-java-6 xgettext-java-7 xgettext-java-8 \
+	xgettext-java-9 \
 	xgettext-java-stackovfl-1 xgettext-java-stackovfl-2 \
 	xgettext-java-stackovfl-3 xgettext-java-stackovfl-4 \
 	xgettext-javascript-1 xgettext-javascript-2 xgettext-javascript-3 \
@@ -146,7 +147,7 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-rst-1 xgettext-rst-2 \
 	xgettext-python-1 xgettext-python-2 xgettext-python-3 \
 	xgettext-python-4 xgettext-python-5 xgettext-python-6 \
-	xgettext-python-7 \
+	xgettext-python-7 xgettext-python-8 \
 	xgettext-python-stackovfl-1 xgettext-python-stackovfl-2 \
 	xgettext-python-stackovfl-3 xgettext-python-stackovfl-4 \
 	xgettext-ruby-1 \
@@ -165,7 +166,7 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-tcl-stackovfl-1 xgettext-tcl-stackovfl-2 \
 	xgettext-tcl-stackovfl-3 xgettext-tcl-stackovfl-4 \
 	xgettext-vala-1 xgettext-vala-2 xgettext-vala-3 xgettext-vala-4 \
-	xgettext-vala-5 \
+	xgettext-vala-5 xgettext-vala-6 xgettext-vala-7 \
 	xgettext-vala-stackovfl-1 xgettext-vala-stackovfl-2 \
 	xgettext-ycp-1 xgettext-ycp-2 xgettext-ycp-3 xgettext-ycp-4 \
 	xgettext-ycp-stackovfl-1 xgettext-ycp-stackovfl-2 \

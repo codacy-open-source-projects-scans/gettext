@@ -67,7 +67,9 @@
 /* The Python syntax is defined in the Python Reference Manual
    /usr/share/doc/packages/python/html/ref/index.html.
    See also Python-2.0/Parser/tokenizer.c, Python-2.0/Python/compile.c,
-   Python-2.0/Objects/unicodeobject.c.  */
+   Python-2.0/Objects/unicodeobject.c.
+   For the f-strings, refer to https://peps.python.org/pep-0498/
+   and https://docs.python.org/3/reference/lexical_analysis.html#literals .  */
 
 
 /* ====================== Keyword set customization.  ====================== */
@@ -197,7 +199,7 @@ phase0_getc ()
 }
 
 /* Supports only one pushback character, and not '\n'.  */
-static inline void
+MAYBE_UNUSED static inline void
 phase0_ungetc (int c)
 {
   if (c != EOF)
@@ -775,6 +777,7 @@ phase3_ungetc (int c)
 /* Return value of phase7_getuc when EOF is reached.  */
 #define P7_EOF (-1)
 #define P7_STRING_END (-2)
+#define P7_498_START_OF_EXPRESSION (-3) /* { */
 
 /* Convert an UTF-16 or UTF-32 code point to a return value that can be
    distinguished from a single-byte return value.  */
@@ -801,6 +804,10 @@ enum token_type_ty
   token_type_lbracket,          /* [ */
   token_type_rbracket,          /* ] */
   token_type_string,            /* "abc", 'abc', """abc""", '''abc''' */
+  token_type_498,               /* f"abc", f'abc', f"""abc""", f'''abc''' */
+  token_type_l498,              /* left part of f-string: f"abc{, f'abc{, f"""abc{, f'''abc{ */
+  token_type_m498,              /* middle part of f-string: }abc{ */
+  token_type_r498,              /* right part of f-string: }abc", }abc', }abc""", }abc''' */
   token_type_symbol,            /* symbol, number */
   token_type_plus,              /* + */
   token_type_other              /* misc. operator */
@@ -811,9 +818,9 @@ typedef struct token_ty token_ty;
 struct token_ty
 {
   token_type_ty type;
-  char *string;                         /* for token_type_symbol */
-  mixed_string_ty *mixed_string;        /* for token_type_string */
-  refcounted_string_list_ty *comment;   /* for token_type_string */
+  char *string;                       /* for token_type_symbol */
+  mixed_string_ty *mixed_string;      /* for token_type_string, token_type_498 */
+  refcounted_string_list_ty *comment; /* for token_type_string, token_type_498 */
   int line_number;
 };
 
@@ -823,7 +830,7 @@ free_token (token_ty *tp)
 {
   if (tp->type == token_type_symbol)
     free (tp->string);
-  if (tp->type == token_type_string)
+  if (tp->type == token_type_string || tp->type == token_type_498)
     {
       mixed_string_free (tp->mixed_string);
       drop_reference (tp->comment);
@@ -847,6 +854,7 @@ free_token (token_ty *tp)
 static int
 phase7_getuc (int quote_char,
               bool triple, bool interpret_ansic, bool interpret_unicode,
+              bool f_string,
               unsigned int *backslash_counter)
 {
   int c;
@@ -898,6 +906,25 @@ phase7_getuc (int quote_char,
                     logical_file_name, line_number, (size_t)(-1), false,
                     _("unterminated string"));
           return P7_STRING_END;
+        }
+
+      if (f_string)
+        {
+          if (c == '{')
+            {
+              int c1 = phase2_getc ();
+              if (c1 == '{')
+                return UNICODE ('{');
+              phase2_ungetc (c1);
+              return P7_498_START_OF_EXPRESSION;
+            }
+          if (c == '}')
+            {
+              int c1 = phase2_getc ();
+              if (c1 == '}')
+                return UNICODE ('}');
+              phase2_ungetc (c1);
+            }
         }
 
       if (c != '\\')
@@ -1168,8 +1195,49 @@ phase7_getuc (int quote_char,
 /* Combine characters into tokens.  Discard whitespace except newlines at
    the end of logical lines.  */
 
-/* Number of pending open parentheses/braces/brackets.  */
-static int open_pbb;
+/* Number of open f-strings f"...{ or f'...{ or f"""...{ or f'''...{ or
+   fr"...{ or fr'...{ or fr"""...{ or fr'''...{ */
+static int f_string_depth;
+
+/* Information per f-string nesting level.  */
+struct f_string_level
+{
+  /* Describes the start and end sequence of the f-string.
+     Only relevant for levels > 0.  */
+  int quote_char;
+  bool interpret_ansic;
+  bool triple;
+  /* Number of open '{' tokens.  */
+  int brace_depth;
+};
+
+/* Stack of f-string nesting levels.
+   The "current" element is f_string_stack[f_string_depth].  */
+static struct f_string_level *f_string_stack;
+/* Number of allocated elements in f_string_stack.  */
+static size_t f_string_stack_alloc;
+
+/* Adds a new f_string_stack level after f_string_depth was incremented.  */
+static void
+new_f_string_level (int quote_char, bool interpret_ansic, bool triple)
+{
+  if (f_string_depth == f_string_stack_alloc)
+    {
+      f_string_stack_alloc = 2 * f_string_stack_alloc + 1;
+      /* Now f_string_depth < f_string_stack_alloc.  */
+      f_string_stack =
+        (struct f_string_level *)
+        xrealloc (f_string_stack,
+                  f_string_stack_alloc * sizeof (struct f_string_level));
+    }
+  f_string_stack[f_string_depth].quote_char = quote_char;
+  f_string_stack[f_string_depth].interpret_ansic = interpret_ansic;
+  f_string_stack[f_string_depth].triple = triple;
+  f_string_stack[f_string_depth].brace_depth = 0;
+}
+
+/* Number of pending open parentheses/brackets.  */
+static int open_pb;
 
 static token_ty phase5_pushback[2];
 static int phase5_pushback_length;
@@ -1207,7 +1275,7 @@ phase5_get (token_ty *tp)
             savable_comment_reset ();
           /* Ignore newline if and only if it is used for implicit line
              joining.  */
-          if (open_pbb > 0)
+          if (open_pb > 0 || f_string_stack[f_string_depth].brace_depth > 0)
             continue;
           tp->type = token_type_other;
           return;
@@ -1229,13 +1297,13 @@ phase5_get (token_ty *tp)
               }
           }
           FALLTHROUGH;
-        case 'A': case 'B': case 'C': case 'D': case 'E': case 'F':
+        case 'A': case 'B': case 'C': case 'D': case 'E':
         case 'G': case 'H': case 'I': case 'J': case 'K': case 'L':
         case 'M': case 'N': case 'O': case 'P': case 'Q':
         case 'S': case 'T':           case 'V': case 'W': case 'X':
         case 'Y': case 'Z':
         case '_':
-        case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
+        case 'a': case 'b': case 'c': case 'd': case 'e':
         case 'g': case 'h': case 'i': case 'j': case 'k': case 'l':
         case 'm': case 'n': case 'o': case 'p': case 'q':
         case 's': case 't':           case 'v': case 'w': case 'x':
@@ -1297,8 +1365,37 @@ phase5_get (token_ty *tp)
             int quote_char;
             bool interpret_ansic;
             bool interpret_unicode;
+            bool f_string;
             bool triple;
             unsigned int backslash_counter;
+
+            case 'F': case 'f':
+              {
+                int c1 = phase2_getc ();
+                if (c1 == '"' || c1 == '\'')
+                  {
+                    quote_char = c1;
+                    interpret_ansic = true;
+                    interpret_unicode = false;
+                    f_string = true;
+                    goto string;
+                  }
+                if (c1 == 'R' || c1 == 'r')
+                  {
+                    int c2 = phase2_getc ();
+                    if (c2 == '"' || c2 == '\'')
+                      {
+                        quote_char = c2;
+                        interpret_ansic = false;
+                        interpret_unicode = false;
+                        f_string = true;
+                        goto string;
+                      }
+                    phase2_ungetc (c2);
+                  }
+                phase2_ungetc (c1);
+                goto symbol;
+              }
 
             case 'R': case 'r':
               {
@@ -1308,7 +1405,21 @@ phase5_get (token_ty *tp)
                     quote_char = c1;
                     interpret_ansic = false;
                     interpret_unicode = false;
+                    f_string = false;
                     goto string;
+                  }
+                if (c1 == 'F' || c1 == 'f')
+                  {
+                    int c2 = phase2_getc ();
+                    if (c2 == '"' || c2 == '\'')
+                      {
+                        quote_char = c2;
+                        interpret_ansic = false;
+                        interpret_unicode = false;
+                        f_string = true;
+                        goto string;
+                      }
+                    phase2_ungetc (c2);
                   }
                 phase2_ungetc (c1);
                 goto symbol;
@@ -1322,6 +1433,7 @@ phase5_get (token_ty *tp)
                     quote_char = c1;
                     interpret_ansic = true;
                     interpret_unicode = true;
+                    f_string = false;
                     goto string;
                   }
                 if (c1 == 'R' || c1 == 'r')
@@ -1332,6 +1444,7 @@ phase5_get (token_ty *tp)
                         quote_char = c2;
                         interpret_ansic = false;
                         interpret_unicode = true;
+                        f_string = false;
                         goto string;
                       }
                     phase2_ungetc (c2);
@@ -1344,6 +1457,7 @@ phase5_get (token_ty *tp)
               quote_char = c;
               interpret_ansic = true;
               interpret_unicode = false;
+              f_string = false;
             string:
               triple = false;
               lexical_context = lc_string;
@@ -1373,13 +1487,28 @@ phase5_get (token_ty *tp)
                 for (;;)
                   {
                     int uc = phase7_getuc (quote_char, triple, interpret_ansic,
-                                           interpret_unicode, &backslash_counter);
+                                           interpret_unicode, f_string,
+                                           &backslash_counter);
 
                     /* Keep line_number in sync.  */
                     msb.line_number = line_number;
 
                     if (uc == P7_EOF || uc == P7_STRING_END)
-                      break;
+                      {
+                        tp->mixed_string = mixed_string_buffer_result (&msb);
+                        tp->comment = add_reference (savable_comment);
+                        tp->type = (f_string ? token_type_498 : token_type_string);
+                        break;
+                      }
+
+                    if (uc == P7_498_START_OF_EXPRESSION) /* implies f_string */
+                      {
+                        mixed_string_buffer_destroy (&msb);
+                        tp->type = token_type_l498;
+                        f_string_depth++;
+                        new_f_string_level (quote_char, interpret_ansic, triple);
+                        break;
+                      }
 
                     if (IS_UNICODE (uc))
                       {
@@ -1391,22 +1520,58 @@ phase5_get (token_ty *tp)
                     else
                       mixed_string_buffer_append_char (&msb, uc);
                   }
-                tp->mixed_string = mixed_string_buffer_result (&msb);
-                tp->comment = add_reference (savable_comment);
                 lexical_context = lc_outside;
-                tp->type = token_type_string;
               }
               return;
           }
 
+        case '{':
+          f_string_stack[f_string_depth].brace_depth++;
+          tp->type = token_type_other;
+          return;
+
+        case '}':
+          if (f_string_stack[f_string_depth].brace_depth > 0)
+            f_string_stack[f_string_depth].brace_depth--;
+          else if (f_string_depth > 0)
+            {
+              /* Middle or right part of f-string.  */
+              int quote_char = f_string_stack[f_string_depth].quote_char;
+              bool interpret_ansic = f_string_stack[f_string_depth].interpret_ansic;
+              bool triple = f_string_stack[f_string_depth].triple;
+              unsigned int backslash_counter = 0;
+              for (;;)
+                {
+                  int uc = phase7_getuc (quote_char, triple, interpret_ansic,
+                                         false, true,
+                                         &backslash_counter);
+
+                  if (uc == P7_EOF || uc == P7_STRING_END)
+                    {
+                      tp->type = token_type_r498;
+                      f_string_depth--;
+                      break;
+                    }
+
+                  if (uc == P7_498_START_OF_EXPRESSION)
+                    {
+                      tp->type = token_type_m498;
+                      break;
+                    }
+                }
+              return;
+            }
+          tp->type = token_type_other;
+          return;
+
         case '(':
-          open_pbb++;
+          open_pb++;
           tp->type = token_type_lparen;
           return;
 
         case ')':
-          if (open_pbb > 0)
-            open_pbb--;
+          if (open_pb > 0)
+            open_pb--;
           tp->type = token_type_rparen;
           return;
 
@@ -1414,15 +1579,15 @@ phase5_get (token_ty *tp)
           tp->type = token_type_comma;
           return;
 
-        case '[': case '{':
-          open_pbb++;
-          tp->type = (c == '[' ? token_type_lbracket : token_type_other);
+        case '[':
+          open_pb++;
+          tp->type = token_type_lbracket;
           return;
 
-        case ']': case '}':
-          if (open_pbb > 0)
-            open_pbb--;
-          tp->type = (c == ']' ? token_type_rbracket : token_type_other);
+        case ']':
+          if (open_pb > 0)
+            open_pb--;
+          tp->type = token_type_rbracket;
           return;
 
         case '+':
@@ -1460,7 +1625,7 @@ static void
 x_python_lex (token_ty *tp)
 {
   phase5_get (tp);
-  if (tp->type == token_type_string)
+  if (tp->type == token_type_string || tp->type == token_type_498)
     {
       mixed_string_ty *sum = tp->mixed_string;
 
@@ -1476,7 +1641,8 @@ x_python_lex (token_ty *tp)
             case token_type_plus:
               {
                 phase5_get (&token3);
-                if (token3.type == token_type_string)
+                if (token3.type == token_type_string
+                    || token3.type == token_type_498)
                   {
                     free_token (&token2);
                     tp2 = &token3;
@@ -1486,6 +1652,7 @@ x_python_lex (token_ty *tp)
               }
               break;
             case token_type_string:
+            case token_type_498:
               tp2 = &token2;
               break;
             default:
@@ -1545,7 +1712,7 @@ static int bracket_nesting_depth;
 static bool
 extract_balanced (message_list_ty *mlp,
                   token_type_ty delim,
-                  flag_context_ty outer_context,
+                  flag_region_ty *outer_region,
                   flag_context_list_iterator_ty context_iter,
                   struct arglist_parser *argparser)
 {
@@ -1558,9 +1725,9 @@ extract_balanced (message_list_ty *mlp,
   /* Context iterator that will be used if the next token is a '('.  */
   flag_context_list_iterator_ty next_context_iter =
     passthrough_context_list_iterator;
-  /* Current context.  */
-  flag_context_ty inner_context =
-    inherited_context (outer_context,
+  /* Current region.  */
+  flag_region_ty *inner_region =
+    inheriting_region (outer_region,
                        flag_context_list_iterator_advance (&context_iter));
 
   /* Start state is 0.  */
@@ -1601,11 +1768,12 @@ extract_balanced (message_list_ty *mlp,
                       logical_file_name, line_number, (size_t)(-1), false,
                       _("too many open parentheses"));
           if (extract_balanced (mlp, token_type_rparen,
-                                inner_context, next_context_iter,
+                                inner_region, next_context_iter,
                                 arglist_parser_alloc (mlp,
                                                       state ? next_shapes : NULL)))
             {
               arglist_parser_done (argparser, arg);
+              unref_region (inner_region);
               return true;
             }
           paren_nesting_depth--;
@@ -1617,6 +1785,7 @@ extract_balanced (message_list_ty *mlp,
           if (delim == token_type_rparen || delim == token_type_eof)
             {
               arglist_parser_done (argparser, arg);
+              unref_region (inner_region);
               return false;
             }
           next_context_iter = null_context_list_iterator;
@@ -1625,8 +1794,9 @@ extract_balanced (message_list_ty *mlp,
 
         case token_type_comma:
           arg++;
-          inner_context =
-            inherited_context (outer_context,
+          unref_region (inner_region);
+          inner_region =
+            inheriting_region (outer_region,
                                flag_context_list_iterator_advance (
                                  &context_iter));
           next_context_iter = passthrough_context_list_iterator;
@@ -1639,10 +1809,12 @@ extract_balanced (message_list_ty *mlp,
                       logical_file_name, line_number, (size_t)(-1), false,
                       _("too many open brackets"));
           if (extract_balanced (mlp, token_type_rbracket,
-                                null_context, null_context_list_iterator,
+                                null_context_region (),
+                                null_context_list_iterator,
                                 arglist_parser_alloc (mlp, NULL)))
             {
               arglist_parser_done (argparser, arg);
+              unref_region (inner_region);
               return true;
             }
           bracket_nesting_depth--;
@@ -1654,6 +1826,7 @@ extract_balanced (message_list_ty *mlp,
           if (delim == token_type_rbracket || delim == token_type_eof)
             {
               arglist_parser_done (argparser, arg);
+              unref_region (inner_region);
               return false;
             }
           next_context_iter = null_context_list_iterator;
@@ -1661,6 +1834,7 @@ extract_balanced (message_list_ty *mlp,
           continue;
 
         case token_type_string:
+        case token_type_498:
           {
             lex_pos_ty pos;
 
@@ -1672,12 +1846,12 @@ extract_balanced (message_list_ty *mlp,
                 char *string = mixed_string_contents (token.mixed_string);
                 mixed_string_free (token.mixed_string);
                 remember_a_message (mlp, NULL, string, true, false,
-                                    inner_context, &pos,
+                                    inner_region, &pos,
                                     NULL, token.comment, true);
               }
             else
               arglist_parser_remember (argparser, arg, token.mixed_string,
-                                       inner_context,
+                                       inner_region,
                                        pos.file_name, pos.line_number,
                                        token.comment, true);
           }
@@ -1688,8 +1862,12 @@ extract_balanced (message_list_ty *mlp,
 
         case token_type_eof:
           arglist_parser_done (argparser, arg);
+          unref_region (inner_region);
           return true;
 
+        case token_type_l498:
+        case token_type_m498:
+        case token_type_r498:
         case token_type_plus:
         case token_type_other:
           next_context_iter = null_context_list_iterator;
@@ -1741,9 +1919,12 @@ extract_python (FILE *f,
 
   continuation_or_nonblank_line = false;
 
-  open_pbb = 0;
+  open_pb = 0;
 
   phase5_pushback_length = 0;
+
+  f_string_depth = 0;
+  new_f_string_level (0, false, false);
 
   flag_context_list_table = flag_table;
   paren_nesting_depth = 0;
@@ -1754,7 +1935,7 @@ extract_python (FILE *f,
   /* Eat tokens until eof is seen.  When extract_balanced returns
      due to an unbalanced closing parenthesis, just restart it.  */
   while (!extract_balanced (mlp, token_type_eof,
-                            null_context, null_context_list_iterator,
+                            null_context_region (), null_context_list_iterator,
                             arglist_parser_alloc (mlp, NULL)))
     ;
 

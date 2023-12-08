@@ -145,7 +145,52 @@ init_flag_table_vala ()
   xgettext_record_flag ("N_:1:pass-c-format!Vala");
   xgettext_record_flag ("NC_:2:pass-c-format!Vala");
 
-  xgettext_record_flag ("printf:1:c-format!Vala");
+  /* In Vala, vprintf does not exist as a function, only as a method.
+     https://valadoc.org/?q=printf provides this list:
+
+     Method                                             Arguments
+
+     Posix.FILE.printf (posix)                          (string format, ...)
+     Posix.printf (posix)                               (string format, ...)
+     Alsa.Output.printf (alsa)                          (string format, ...)
+     Dazzle.Path.printf (libdazzle-1.0)                 ()
+     Dazzle.ShortcutChordTable.printf (libdazzle-1.0)   ()
+     string.printf (glib-2.0)                           (...)
+     GLib.FileStream.printf (glib-2.0)                  (string format, ...)
+     GLib.StringBuilder.printf (glib-2.0)               (string format, ...)
+     GLib.Variant.Variant.printf (glib-2.0)             (string format, ...)
+     FastCGI.FileStream.printf (fcgi)                   (string format, ...)
+     FastCGI.Stream.printf (fcgi)                       (string format, ...)
+     Purple.Stringref.printf (purple)                   (string format)
+     Gsl.Stream.printf (gsl)                            (string label, string file, int line, string reason)
+     Gsf.Output.printf (libgsf-1)                       (string format, ...)
+     GLib.OutputStream.printf (gio-2.0)                 (out size_t bytes_written, Cancellable? cancellable, string format, ...)
+     TokyoCabinet.XString.printf (tokyocabinet)         (string format, ...)
+     ZLib.GZFileStream.printf (zlib)                    (string format, ...)
+
+     Therefore, whenever the first argument is a string, it may be a format
+     string or a plain string.  We don't know.  Therefore we cannot enable
+     this flag.  Recognition of format strings that occur as a first argument
+     therefore relies on the heuristics.  */
+  /* Override the effect of
+       xgettext_record_flag ("printf:1:c-format");
+     in x-c.c.  */
+  xgettext_record_flag ("printf:1:undecided-c-format!Vala");
+
+  /* In Vala, vprintf does not exist as a function, only as a method.
+     https://valadoc.org/?q=vprintf provides this list:
+
+     Method                                             Arguments
+     string.vprintf (glib-2.0)                          (va_list args)
+     GLib.FileStream.vprintf (glib-2.0)                 (string format, va_list args)
+     GLib.StringBuilder.vprintf (glib-2.0)              (string format, va_list args)
+     FastCGI.FileStream.vprintf (fcgi)                  (string format, va_list args)
+     FastCGI.Stream.vprintf (fcgi)                      (string format, va_list args)
+     Gsf.Output.vprintf (libgsf-1)                      (string format, va_list args)
+     GLib.OutputStream.vprintf (gio-2.0)                (out size_t bytes_written, Cancellable? cancellable, string format, va_list args)
+
+     Therefore, whenever the first argument is a string, it must be a format
+     string.  */
   xgettext_record_flag ("vprintf:1:c-format!Vala");
 }
 
@@ -358,6 +403,7 @@ enum token_type_ty
   token_type_string_literal,            /* "abc" */
   token_type_string_template,           /* @"abc" */
   token_type_regex_literal,             /* /.../ */
+  token_type_semicolon,                 /* ; */
   token_type_symbol,                    /* if else etc. */
   token_type_other
 };
@@ -1161,6 +1207,10 @@ phase3_get (token_ty *tp)
             return;
           }
 
+        case ';':
+          tp->type = last_token_type = token_type_semicolon;
+          return;
+
         default:
           tp->type = last_token_type = token_type_other;
           return;
@@ -1181,11 +1231,20 @@ phase3_unget (token_ty *tp)
 }
 
 
-/* String concatenation with '+'.  */
+/* 4. String concatenation with '+'.  */
+
+static token_ty phase4_pushback[2];
+static int phase4_pushback_length;
 
 static void
-x_vala_lex (token_ty *tp)
+phase4_get (token_ty *tp)
 {
+  if (phase4_pushback_length)
+    {
+      *tp = phase4_pushback[--phase4_pushback_length];
+      return;
+    }
+
   phase3_get (tp);
   if (tp->type == token_type_string_literal)
     {
@@ -1218,6 +1277,31 @@ x_vala_lex (token_ty *tp)
     }
 }
 
+static void
+phase4_unget (token_ty *tp)
+{
+  if (tp->type != token_type_eof)
+    {
+      if (phase4_pushback_length == SIZEOF (phase4_pushback))
+        abort ();
+      phase4_pushback[phase4_pushback_length++] = *tp;
+    }
+}
+
+
+static void
+x_vala_lex (token_ty *tp)
+{
+  phase4_get (tp);
+}
+
+/* Supports 2 tokens of pushback.  */
+static void
+x_vala_unlex (token_ty *tp)
+{
+  phase4_unget (tp);
+}
+
 
 /* ========================= Extracting strings.  ========================== */
 
@@ -1248,14 +1332,15 @@ static int nesting_depth;
    We use recursion because the arguments before msgid or between msgid
    and msgid_plural can contain subexpressions of the same form.  */
 
-/* Extract messages until the next balanced closing parenthesis or bracket.
+/* Extract messages until the next balanced closing parenthesis or bracket
+   or the next semicolon.
    Extracted messages are added to MLP.
    DELIM can be either token_type_rparen or token_type_rbracket, or
    token_type_eof to accept both.
    Return true upon eof, false upon closing parenthesis or bracket.  */
 static bool
 extract_balanced (message_list_ty *mlp, token_type_ty delim,
-                  flag_context_ty outer_context,
+                  flag_region_ty *outer_region,
                   flag_context_list_iterator_ty context_iter,
                   struct arglist_parser *argparser)
 {
@@ -1268,9 +1353,9 @@ extract_balanced (message_list_ty *mlp, token_type_ty delim,
   /* Context iterator that will be used if the next token is a '('.  */
   flag_context_list_iterator_ty next_context_iter =
     passthrough_context_list_iterator;
-  /* Current context.  */
-  flag_context_ty inner_context =
-    inherited_context (outer_context,
+  /* Current region.  */
+  flag_region_ty *inner_region =
+    inheriting_region (outer_region,
                        flag_context_list_iterator_advance (&context_iter));
 
   /* Start state is 0.  */
@@ -1312,14 +1397,45 @@ extract_balanced (message_list_ty *mlp, token_type_ty delim,
                       logical_file_name, line_number, (size_t)(-1), false,
                       _("too many open parentheses"));
           if (extract_balanced (mlp, token_type_rparen,
-                                inner_context, next_context_iter,
+                                inner_region, next_context_iter,
                                 arglist_parser_alloc (mlp,
                                                       state ? next_shapes : NULL)))
             {
               arglist_parser_done (argparser, arg);
+              unref_region (inner_region);
               return true;
             }
           nesting_depth--;
+          /* Test whether the next tokens are '.' and 'printf' or 'vprintf'.  */
+          {
+            token_ty token2;
+            x_vala_lex (&token2);
+            if (token2.type == token_type_symbol
+                && strcmp (token2.string, ".") == 0)
+              {
+                token_ty token3;
+                x_vala_lex (&token3);
+                if (token3.type == token_type_symbol
+                    && (strcmp (token3.string, "printf") == 0
+                        || strcmp (token3.string, "vprintf") == 0))
+                  {
+                    /* Mark the messages found in the region as c-format
+                       a posteriori.  */
+                    inner_region->for_formatstring[XFORMAT_PRIMARY].is_format = yes_according_to_context;
+                    struct remembered_message_list_ty *rmlp =
+                      inner_region->for_formatstring[XFORMAT_PRIMARY].remembered;
+                    size_t i;
+                    for (i = 0; i < rmlp->nitems; i++)
+                      {
+                        struct remembered_message_ty *rmp = &rmlp->item[i];
+                        set_format_flag_from_context (rmp->mp, rmp->plural, &rmp->pos,
+                                                      XFORMAT_PRIMARY, inner_region);
+                      }
+                  }
+                x_vala_unlex (&token3);
+              }
+            x_vala_unlex (&token2);
+          }
           next_context_iter = null_context_list_iterator;
           state = 0;
           break;
@@ -1328,6 +1444,7 @@ extract_balanced (message_list_ty *mlp, token_type_ty delim,
           if (delim == token_type_rparen || delim == token_type_eof)
             {
               arglist_parser_done (argparser, arg);
+              unref_region (inner_region);
               return false;
             }
 
@@ -1337,16 +1454,23 @@ extract_balanced (message_list_ty *mlp, token_type_ty delim,
 
         case token_type_comma:
           arg++;
-          inner_context =
-            inherited_context (outer_context,
+          unref_region (inner_region);
+          inner_region =
+            inheriting_region (outer_region,
                                flag_context_list_iterator_advance (
                                  &context_iter));
           next_context_iter = passthrough_context_list_iterator;
           state = 0;
           continue;
 
+        case token_type_semicolon:
+          arglist_parser_done (argparser, arg);
+          unref_region (inner_region);
+          return false;
+
         case token_type_eof:
           arglist_parser_done (argparser, arg);
+          unref_region (inner_region);
           return true;
 
         case token_type_string_literal:
@@ -1361,7 +1485,7 @@ extract_balanced (message_list_ty *mlp, token_type_ty delim,
                 char *string = mixed_string_contents (token.mixed_string);
                 mixed_string_free (token.mixed_string);
                 remember_a_message (mlp, NULL, string, true, false,
-                                    inner_context, &pos,
+                                    inner_region, &pos,
                                     NULL, token.comment, false);
               }
             else
@@ -1373,14 +1497,14 @@ extract_balanced (message_list_ty *mlp, token_type_ty delim,
                     tmp_argparser = arglist_parser_alloc (mlp, next_shapes);
 
                     arglist_parser_remember (tmp_argparser, 1,
-                                             token.mixed_string, inner_context,
+                                             token.mixed_string, inner_region,
                                              pos.file_name, pos.line_number,
                                              token.comment, false);
                     arglist_parser_done (tmp_argparser, 1);
                   }
                 else
                   arglist_parser_remember (argparser, arg,
-                                           token.mixed_string, inner_context,
+                                           token.mixed_string, inner_region,
                                            pos.file_name, pos.line_number,
                                            token.comment, false);
               }
@@ -1436,6 +1560,8 @@ extract_vala (FILE *f,
   phase3_pushback_length = 0;
   last_token_type = token_type_other;
 
+  phase4_pushback_length = 0;
+
   flag_context_list_table = flag_table;
   nesting_depth = 0;
 
@@ -1444,7 +1570,7 @@ extract_vala (FILE *f,
   /* Eat tokens until eof is seen.  When extract_parenthesized returns
      due to an unbalanced closing parenthesis, just restart it.  */
   while (!extract_balanced (mlp, token_type_eof,
-                            null_context, null_context_list_iterator,
+                            null_context_region (), null_context_list_iterator,
                             arglist_parser_alloc (mlp, NULL)))
     ;
 
