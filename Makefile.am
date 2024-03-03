@@ -74,7 +74,6 @@ distcheck-hook:
 	cmp -s $(srcdir)/gettext-runtime/po/remove-potcdate.sin $(srcdir)/gettext-tools/examples/po/remove-potcdate.sin
 	cmp -s $(srcdir)/gettext-runtime/m4/build-to-host.m4 $(srcdir)/gettext-tools/gnulib-m4/build-to-host.m4
 	cmp -s $(srcdir)/gettext-runtime/m4/gettext.m4 $(srcdir)/gettext-tools/gnulib-m4/gettext.m4
-	cmp -s $(srcdir)/gettext-runtime/m4/po.m4 $(srcdir)/gettext-tools/gnulib-m4/po.m4
 	cmp -s $(srcdir)/gettext-runtime/man/help2man $(srcdir)/gettext-tools/man/help2man
 	cmp -s $(srcdir)/gettext-runtime/man/x-to-1.in $(srcdir)/gettext-tools/man/x-to-1.in
 	cmp -s $(srcdir)/libtextstyle/m4/libtextstyle.m4 $(srcdir)/gettext-tools/gnulib-m4/libtextstyle.m4
@@ -109,22 +108,22 @@ dist-hook: gen-ChangeLogs
 gen_start_date = 2015-10-13
 .PHONY: gen-ChangeLogs
 gen-ChangeLogs:
-	$(AM_V_GEN)if test -d .git; then				\
-	  log_fix="$(srcdir)/build-aux/git-log-fix";			\
-	  test -e "$$log_fix"						\
-	    && amend_git_log="--amend=$$log_fix"			\
-	    || amend_git_log=;						\
-	  for d in . gettext-runtime/intl gettext-runtime/po		\
-		gettext-tools/po; do					\
-	    test "$$d" = "."						\
-	      && cldir="$(distdir)"					\
-	      || cldir="$(distdir)/$$d";				\
-	    $(top_srcdir)/build-aux/gitlog-to-changelog			\
-	      $$amend_git_log --since=$(gen_start_date) -- "$$d"	\
-		> "$$cldir/cl-t" &&					\
-	    { rm -f "$$cldir/ChangeLog" &&				\
-	      mv "$$cldir/cl-t" "$$cldir/ChangeLog"; };			\
-	  done;								\
+	$(AM_V_GEN)if test -d .git; then                                       \
+	  log_fix="$(srcdir)/build-aux/git-log-fix";                           \
+	  test -e "$$log_fix"                                                  \
+	    && amend_git_log="--amend=$$log_fix"                               \
+	    || amend_git_log=;                                                 \
+	  for d in . gettext-runtime/intl gettext-runtime/po gettext-tools/po; \
+	  do                                                                   \
+	    test "$$d" = "."                                                   \
+	      && cldir="$(distdir)"                                            \
+	      || cldir="$(distdir)/$$d";                                       \
+	    $(top_srcdir)/build-aux/gitlog-to-changelog                        \
+	      $$amend_git_log --no-cluster --since=$(gen_start_date) -- "$$d"  \
+	      > "$$cldir/ChangeLog-t"                                          \
+	      && rm -f "$$cldir/ChangeLog"                                     \
+	      && mv "$$cldir/ChangeLog-t" "$$cldir/ChangeLog";                 \
+	  done;                                                                \
 	fi
 
 
