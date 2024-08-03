@@ -43,11 +43,6 @@
 
 #define _(str) gettext (str)
 
-/* For compiling this file in C++ mode.  */
-#ifdef __cplusplus
-# define this thiss
-#endif
-
 
 /* The format of the Java .properties files is documented in the JDK
    documentation for class java.util.Properties.  In the case of .properties
@@ -71,7 +66,7 @@
 static const char *real_file_name;
 
 /* File name and line number.  */
-extern lex_pos_ty gram_pos;
+static lex_pos_ty pos;
 
 /* The contents of the input file.  */
 static char *contents;
@@ -132,7 +127,7 @@ phase2_getc ()
     }
 
   if (c == '\n')
-    gram_pos.line_number++;
+    pos.line_number++;
 
   return c;
 }
@@ -141,7 +136,7 @@ static void
 phase2_ungetc (int c)
 {
   if (c == '\n')
-    --gram_pos.line_number;
+    --pos.line_number;
   if (c != EOF)
     phase2_pushback[phase2_pushback_length++] = c;
 }
@@ -353,7 +348,7 @@ phase4_getuc ()
                 {
                   phase3_ungetc (c1);
                   po_xerror (PO_SEVERITY_ERROR, NULL,
-                             real_file_name, gram_pos.line_number, (size_t)(-1),
+                             real_file_name, pos.line_number, (size_t)(-1),
                              false, _("warning: invalid \\uxxxx syntax for Unicode character"));
                   return 'u';
                 }
@@ -495,7 +490,7 @@ read_escaped_string (bool in_key)
                 {
                   error_with_progname = false;
                   po_xerror (PO_SEVERITY_ERROR, NULL,
-                             real_file_name, gram_pos.line_number, (size_t)(-1),
+                             real_file_name, pos.line_number, (size_t)(-1),
                              false, _("warning: invalid Unicode character"));
                   error_with_progname = true;
                 }
@@ -515,10 +510,10 @@ read_escaped_string (bool in_key)
               if (c >= UNICODE (0xd800) && c < UNICODE (0xdc00))
                 {
                   utf16_surr = UTF16_VALUE (c);
-                  utf16_surr_line = gram_pos.line_number;
+                  utf16_surr_line = pos.line_number;
                 }
               else if (c >= UNICODE (0xdc00) && c < UNICODE (0xe000))
-                utf8_buffer_append_lone_surrogate (UTF16_VALUE (c), gram_pos.line_number);
+                utf8_buffer_append_lone_surrogate (UTF16_VALUE (c), pos.line_number);
               else
                 {
                   ucs4_t uc = UTF16_VALUE (c);
@@ -530,7 +525,7 @@ read_escaped_string (bool in_key)
                     {
                       error_with_progname = false;
                       po_xerror (PO_SEVERITY_ERROR, NULL,
-                                 real_file_name, gram_pos.line_number, (size_t)(-1),
+                                 real_file_name, pos.line_number, (size_t)(-1),
                                  false, _("warning: invalid Unicode character"));
                       error_with_progname = true;
                     }
@@ -596,7 +591,7 @@ read_escaped_string (bool in_key)
 /* Read a .properties file from a stream, and dispatch to the various
    abstract_catalog_reader_class_ty methods.  */
 static void
-properties_parse (abstract_catalog_reader_ty *this, FILE *file,
+properties_parse (abstract_catalog_reader_ty *catr, FILE *file,
                   const char *real_filename, const char *logical_filename,
                   bool is_pot_role)
 {
@@ -618,8 +613,8 @@ properties_parse (abstract_catalog_reader_ty *this, FILE *file,
 
   position = 0;
   real_file_name = real_filename;
-  gram_pos.file_name = xstrdup (real_file_name);
-  gram_pos.line_number = 1;
+  pos.file_name = xstrdup (real_file_name);
+  pos.line_number = 1;
 
   for (;;)
     {
@@ -675,7 +670,8 @@ properties_parse (abstract_catalog_reader_ty *this, FILE *file,
             }
           buffer[buflen] = '\0';
 
-          po_callback_comment_dispatcher (
+          catalog_reader_seen_generic_comment (
+            catr,
             conv_from_java (
               assume_utf8 ? buffer : conv_from_iso_8859_1 (buffer)));
         }
@@ -685,7 +681,7 @@ properties_parse (abstract_catalog_reader_ty *this, FILE *file,
           char *msgid;
           lex_pos_ty msgid_pos;
 
-          msgid_pos = gram_pos;
+          msgid_pos = pos;
           msgid = read_escaped_string (true);
           if (msgid == NULL)
             /* Skip blank line.  */
@@ -696,7 +692,7 @@ properties_parse (abstract_catalog_reader_ty *this, FILE *file,
               lex_pos_ty msgstr_pos;
               bool force_fuzzy;
 
-              msgstr_pos = gram_pos;
+              msgstr_pos = pos;
               msgstr = read_escaped_string (false);
               if (msgstr == NULL)
                 msgstr = xstrdup ("");
@@ -705,10 +701,11 @@ properties_parse (abstract_catalog_reader_ty *this, FILE *file,
                  and if it is not already header/fuzzy/untranslated.  */
               force_fuzzy = (hidden && msgid[0] != '\0' && msgstr[0] != '\0');
 
-              po_callback_message (NULL, msgid, &msgid_pos, NULL,
-                                   msgstr, strlen (msgstr) + 1, &msgstr_pos,
-                                   NULL, NULL, NULL,
-                                   force_fuzzy, false);
+              catalog_reader_seen_message (catr,
+                                           NULL, msgid, &msgid_pos, NULL,
+                                           msgstr, strlen (msgstr) + 1, &msgstr_pos,
+                                           NULL, NULL, NULL,
+                                           force_fuzzy, false);
             }
         }
     }
@@ -716,7 +713,7 @@ properties_parse (abstract_catalog_reader_ty *this, FILE *file,
   free (contents);
   contents = NULL;
   real_file_name = NULL;
-  gram_pos.line_number = 0;
+  pos.line_number = 0;
 }
 
 const struct catalog_input_format input_format_properties =

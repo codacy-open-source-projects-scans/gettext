@@ -23,7 +23,7 @@
 #endif
 
 /* Specification.  */
-#include "po-lex.h"
+#include "read-po-lex.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -47,11 +47,17 @@
 #include "xvasprintf.h"
 #include "po-error.h"
 #include "po-xerror.h"
+#include "xmalloca.h"
+#if !IN_LIBGETTEXTPO
+# include "basename-lgpl.h"
+# include "progname.h"
+#endif
+#include "c-strstr.h"
 #include "pos.h"
 #include "message.h"
 #include "str-list.h"
-#include "po-gram.h"
-#include "po-gram-gen.h"
+#include "read-po-internal.h"
+#include "read-po-gram.h"
 
 #define _(str) gettext(str)
 
@@ -61,12 +67,8 @@
 #endif
 
 
-/* Current position within the PO file.  */
-lex_pos_ty gram_pos;
-
-
 /* Error handling during the parsing of a PO file.
-   These functions can access gram_pos and ps->gram_pos_column.  */
+   These functions can access ps->gram_pos and ps->gram_pos_column.  */
 
 /* VARARGS1 */
 void
@@ -79,7 +81,8 @@ po_gram_error (struct po_parser_state *ps, const char *fmt, ...)
   if (vasprintf (&buffer, fmt, ap) < 0)
     error (EXIT_FAILURE, 0, _("memory exhausted"));
   va_end (ap);
-  po_xerror (PO_SEVERITY_ERROR, NULL, gram_pos.file_name, gram_pos.line_number,
+  po_xerror (PO_SEVERITY_ERROR, NULL,
+             ps->gram_pos.file_name, ps->gram_pos.line_number,
              ps->gram_pos_column + 1, false, buffer);
   free (buffer);
 
@@ -104,6 +107,271 @@ po_gram_error_at_line (const lex_pos_ty *pp, const char *fmt, ...)
 
   if (error_message_count >= gram_max_allowed_errors)
     po_error (EXIT_FAILURE, 0, _("too many errors, aborting"));
+}
+
+
+/* Charset handling while parsing PO files.  */
+
+/* Initialize the PO file's encoding.  */
+static void
+po_lex_charset_init (struct po_parser_state *ps)
+{
+  ps->po_lex_charset = NULL;
+  ps->catr->po_lex_isolate_start = NULL;
+  ps->catr->po_lex_isolate_end = NULL;
+#if HAVE_ICONV
+  ps->po_lex_iconv = (iconv_t)(-1);
+#endif
+  ps->po_lex_weird_cjk = false;
+}
+
+/* Set the PO file's encoding from the header entry.
+   If is_pot_role is true, "charset=CHARSET" is expected and does not deserve
+   a warning.  */
+void
+po_lex_charset_set (struct po_parser_state *ps,
+                    const char *header_entry,
+                    const char *filename, bool is_pot_role)
+{
+  /* Verify the validity of CHARSET.  It is necessary
+     1. for the correct treatment of multibyte characters containing
+        0x5C bytes in the PO lexer,
+     2. so that at run time, gettext() can call iconv() to convert
+        msgstr.  */
+  const char *charsetstr = c_strstr (header_entry, "charset=");
+
+  if (charsetstr != NULL)
+    {
+      size_t len;
+      char *charset;
+      const char *canon_charset;
+
+      charsetstr += strlen ("charset=");
+      len = strcspn (charsetstr, " \t\n");
+      charset = (char *) xmalloca (len + 1);
+      memcpy (charset, charsetstr, len);
+      charset[len] = '\0';
+
+      canon_charset = po_charset_canonicalize (charset);
+      if (canon_charset == NULL)
+        {
+          /* Don't warn for POT files, because POT files usually contain
+             only ASCII msgids.  */
+          size_t filenamelen = strlen (filename);
+
+          if (!(strcmp (charset, "CHARSET") == 0
+                && ((filenamelen >= 4
+                     && memcmp (filename + filenamelen - 4, ".pot", 4) == 0)
+                    || is_pot_role)))
+            {
+              char *warning_message =
+                xasprintf (_("\
+Charset \"%s\" is not a portable encoding name.\n\
+Message conversion to user's charset might not work.\n"),
+                           charset);
+              po_xerror (PO_SEVERITY_WARNING, NULL,
+                         filename, (size_t)(-1), (size_t)(-1), true,
+                         warning_message);
+              free (warning_message);
+            }
+        }
+      else
+        {
+          const char *envval;
+
+          ps->po_lex_charset = canon_charset;
+
+          if (strcmp (canon_charset, "UTF-8") == 0)
+            {
+              ps->catr->po_lex_isolate_start = "\xE2\x81\xA8";
+              ps->catr->po_lex_isolate_end = "\xE2\x81\xA9";
+            }
+          else if (strcmp (canon_charset, "GB18030") == 0)
+            {
+              ps->catr->po_lex_isolate_start = "\x81\x36\xAC\x34";
+              ps->catr->po_lex_isolate_end = "\x81\x36\xAC\x35";
+            }
+          else
+            {
+              /* The other encodings don't contain U+2068, U+2069.  */
+              ps->catr->po_lex_isolate_start = NULL;
+              ps->catr->po_lex_isolate_end = NULL;
+            }
+
+#if HAVE_ICONV
+          if (ps->po_lex_iconv != (iconv_t)(-1))
+            iconv_close (ps->po_lex_iconv);
+#endif
+
+          /* The old Solaris/openwin msgfmt and GNU msgfmt <= 0.10.35
+             don't know about multibyte encodings, and require a spurious
+             backslash after every multibyte character whose last byte is
+             0x5C.  Some programs, like vim, distribute PO files in this
+             broken format.  GNU msgfmt must continue to support this old
+             PO file format when the Makefile requests it.  */
+          envval = getenv ("OLD_PO_FILE_INPUT");
+          if (envval != NULL && *envval != '\0')
+            {
+              /* Assume the PO file is in old format, with extraneous
+                 backslashes.  */
+#if HAVE_ICONV
+              ps->po_lex_iconv = (iconv_t)(-1);
+#endif
+              ps->po_lex_weird_cjk = false;
+            }
+          else
+            {
+              /* Use iconv() to parse multibyte characters.  */
+#if HAVE_ICONV
+              /* Avoid glibc-2.1 bug with EUC-KR.  */
+# if ((__GLIBC__ == 2 && __GLIBC_MINOR__ <= 1) && !defined __UCLIBC__) \
+     && !defined _LIBICONV_VERSION
+              if (strcmp (ps->po_lex_charset, "EUC-KR") == 0)
+                ps->po_lex_iconv = (iconv_t)(-1);
+              else
+# endif
+              /* Avoid Solaris 2.9 bug with GB2312, EUC-TW, BIG5, BIG5-HKSCS,
+                 GBK, GB18030.  */
+# if defined __sun && !defined _LIBICONV_VERSION
+              if (   strcmp (ps->po_lex_charset, "GB2312") == 0
+                  || strcmp (ps->po_lex_charset, "EUC-TW") == 0
+                  || strcmp (ps->po_lex_charset, "BIG5") == 0
+                  || strcmp (ps->po_lex_charset, "BIG5-HKSCS") == 0
+                  || strcmp (ps->po_lex_charset, "GBK") == 0
+                  || strcmp (ps->po_lex_charset, "GB18030") == 0)
+                ps->po_lex_iconv = (iconv_t)(-1);
+              else
+# endif
+              ps->po_lex_iconv = iconv_open ("UTF-8", ps->po_lex_charset);
+              if (ps->po_lex_iconv == (iconv_t)(-1))
+                {
+                  const char *progname;
+                  char *warning_message;
+                  const char *recommendation;
+                  const char *note;
+                  char *whole_message;
+
+# if IN_LIBGETTEXTPO
+                  progname = "libgettextpo";
+# else
+                  progname = last_component (program_name);
+# endif
+
+                  warning_message =
+                    xasprintf (_("\
+Charset \"%s\" is not supported. %s relies on iconv(),\n\
+and iconv() does not support \"%s\".\n"),
+                               ps->po_lex_charset, progname, ps->po_lex_charset);
+
+# if !defined _LIBICONV_VERSION || (_LIBICONV_VERSION == 0x10b && defined __APPLE__)
+                  recommendation = _("\
+Installing GNU libiconv and then reinstalling GNU gettext\n\
+would fix this problem.\n");
+# else
+                  recommendation = "";
+# endif
+
+                  /* Test for a charset which has double-byte characters
+                     ending in 0x5C.  For these encodings, the string parser
+                     is likely to be confused if it can't see the character
+                     boundaries.  */
+                  ps->po_lex_weird_cjk = po_is_charset_weird_cjk (ps->po_lex_charset);
+                  if (po_is_charset_weird (ps->po_lex_charset)
+                      && !ps->po_lex_weird_cjk)
+                    note = _("Continuing anyway, expect parse errors.");
+                  else
+                    note = _("Continuing anyway.");
+
+                  whole_message =
+                    xasprintf ("%s%s%s\n",
+                               warning_message, recommendation, note);
+
+                  po_xerror (PO_SEVERITY_WARNING, NULL,
+                             filename, (size_t)(-1), (size_t)(-1), true,
+                             whole_message);
+
+                  free (whole_message);
+                  free (warning_message);
+                }
+#else
+              /* Test for a charset which has double-byte characters
+                 ending in 0x5C.  For these encodings, the string parser
+                 is likely to be confused if it can't see the character
+                 boundaries.  */
+              ps->po_lex_weird_cjk = po_is_charset_weird_cjk (ps->po_lex_charset);
+              if (po_is_charset_weird (ps->po_lex_charset) && !ps->po_lex_weird_cjk)
+                {
+                  const char *progname;
+                  char *warning_message;
+                  const char *recommendation;
+                  const char *note;
+                  char *whole_message;
+
+# if IN_LIBGETTEXTPO
+                  progname = "libgettextpo";
+# else
+                  progname = last_component (program_name);
+# endif
+
+                  warning_message =
+                    xasprintf (_("\
+Charset \"%s\" is not supported. %s relies on iconv().\n\
+This version was built without iconv().\n"),
+                               ps->po_lex_charset, progname);
+
+                  recommendation = _("\
+Installing GNU libiconv and then reinstalling GNU gettext\n\
+would fix this problem.\n");
+
+                  note = _("Continuing anyway, expect parse errors.");
+
+                  whole_message =
+                    xasprintf ("%s%s%s\n",
+                               warning_message, recommendation, note);
+
+                  po_xerror (PO_SEVERITY_WARNING, NULL,
+                             filename, (size_t)(-1), (size_t)(-1), true,
+                             whole_message);
+
+                  free (whole_message);
+                  free (warning_message);
+                }
+#endif
+            }
+        }
+      freea (charset);
+    }
+  else
+    {
+      /* Don't warn for POT files, because POT files usually contain
+         only ASCII msgids.  */
+      size_t filenamelen = strlen (filename);
+
+      if (!(filenamelen >= 4
+            && memcmp (filename + filenamelen - 4, ".pot", 4) == 0))
+        po_xerror (PO_SEVERITY_WARNING,
+                   NULL, filename, (size_t)(-1), (size_t)(-1), true,
+                   _("\
+Charset missing in header.\n\
+Message conversion to user's charset will not work.\n"));
+    }
+}
+
+/* Finish up with the PO file's encoding.  */
+static void
+po_lex_charset_close (struct po_parser_state *ps)
+{
+  ps->po_lex_charset = NULL;
+  ps->catr->po_lex_isolate_start = NULL;
+  ps->catr->po_lex_isolate_end = NULL;
+#if HAVE_ICONV
+  if (ps->po_lex_iconv != (iconv_t)(-1))
+    {
+      iconv_close (ps->po_lex_iconv);
+      ps->po_lex_iconv = (iconv_t)(-1);
+    }
+#endif
+  ps->po_lex_weird_cjk = false;
 }
 
 
@@ -241,7 +509,7 @@ mb_width (struct po_parser_state *ps, const mbchar_t mbc)
     {
       ucs4_t uc = mbc->uc;
       const char *encoding =
-        (po_lex_iconv != (iconv_t)(-1) ? po_lex_charset : "");
+        (ps->po_lex_iconv != (iconv_t)(-1) ? ps->po_lex_charset : "");
       int w = uc_width (uc, encoding);
       /* For unprintable characters, arbitrarily return 0 for control
          characters (except tab) and MB_UNPRINTABLE_WIDTH otherwise.  */
@@ -356,7 +624,7 @@ mbfile_getc (struct po_parser_state *ps, mbchar_t mbc, mbfile_t mbf)
     }
 
 #if HAVE_ICONV
-  if (po_lex_iconv != (iconv_t)(-1))
+  if (ps->po_lex_iconv != (iconv_t)(-1))
     {
       /* Use iconv on an increasing number of bytes.  Read only as many
          bytes from mbf->fp as needed.  This is needed to give reasonable
@@ -370,7 +638,7 @@ mbfile_getc (struct po_parser_state *ps, mbchar_t mbc, mbfile_t mbf)
           char *outptr = (char *) &scratchbuf[0];
           size_t outsize = sizeof (scratchbuf);
 
-          size_t res = iconv (po_lex_iconv,
+          size_t res = iconv (ps->po_lex_iconv,
                               (ICONV_CONST char **) &inptr, &insize,
                               &outptr, &outsize);
           /* We expect that a character has been produced if and only if
@@ -468,7 +736,7 @@ mbfile_getc (struct po_parser_state *ps, mbchar_t mbc, mbfile_t mbf)
   else
 #endif
     {
-      if (po_lex_weird_cjk
+      if (ps->po_lex_weird_cjk
           /* Special handling of encodings with CJK structure.  */
           && (unsigned char) mbf->buf[0] >= 0x80)
         {
@@ -549,8 +817,6 @@ mbfile_ungetc (const mbchar_t mbc, mbfile_t mbf)
 /* Lexer variables.  */
 
 unsigned int gram_max_allowed_errors = 20;
-static bool pass_comments = false;
-bool pass_obsolete_entries = false;
 
 
 /* Prepare lexical analysis.  */
@@ -560,25 +826,28 @@ lex_start (struct po_parser_state *ps,
 {
   /* Ignore the logical_filename, because PO file entries already have
      their file names attached.  But use real_filename for error messages.  */
-  gram_pos.file_name = xstrdup (real_filename);
+  ps->gram_pos.file_name = xstrdup (real_filename);
 
   mbfile_init (ps->mbf, fp);
 
-  gram_pos.line_number = 1;
+  ps->gram_pos.line_number = 1;
   ps->gram_pos_column = 0;
   ps->signal_eilseq = true;
   ps->po_lex_obsolete = false;
   ps->po_lex_previous = false;
-  po_lex_charset_init ();
+  po_lex_charset_init (ps);
+  ps->buf = NULL;
+  ps->bufmax = 0;
 }
 
 /* Terminate lexical analysis.  */
 void
-lex_end ()
+lex_end (struct po_parser_state *ps)
 {
-  gram_pos.file_name = NULL;
-  gram_pos.line_number = 0;
-  po_lex_charset_close ();
+  ps->gram_pos.file_name = NULL;
+  ps->gram_pos.line_number = 0;
+  po_lex_charset_close (ps);
+  free (ps->buf);
 }
 
 
@@ -600,7 +869,7 @@ lex_getc (struct po_parser_state *ps, mbchar_t mbc)
               po_xerror (PO_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
                          xasprintf ("%s: %s",
                                     xasprintf (_("error while reading \"%s\""),
-                                               gram_pos.file_name),
+                                               ps->gram_pos.file_name),
                                     errno_description));
             }
           break;
@@ -608,7 +877,7 @@ lex_getc (struct po_parser_state *ps, mbchar_t mbc)
 
       if (mb_iseq (mbc, '\n'))
         {
-          gram_pos.line_number++;
+          ps->gram_pos.line_number++;
           ps->gram_pos_column = 0;
           break;
         }
@@ -634,7 +903,7 @@ lex_getc (struct po_parser_state *ps, mbchar_t mbc)
               break;
             }
 
-          gram_pos.line_number++;
+          ps->gram_pos.line_number++;
           ps->gram_pos_column = 0;
         }
       else
@@ -650,7 +919,7 @@ lex_ungetc (struct po_parser_state *ps, const mbchar_t mbc)
     {
       if (mb_iseq (mbc, '\n'))
         /* Decrement the line number, but don't care about the column.  */
-        gram_pos.line_number--;
+        ps->gram_pos.line_number--;
       else
         /* Decrement the column number.  Also works well enough for tabs.  */
         ps->gram_pos_column -= mb_width (ps, mbc);
@@ -686,7 +955,7 @@ keyword_p (struct po_parser_state *ps, const char *s)
       if (!strcmp (s, "msgctxt"))
         return PREV_MSGCTXT;
     }
-  po_gram_error_at_line (&gram_pos, _("keyword \"%s\" unknown"), s);
+  po_gram_error_at_line (&ps->gram_pos, _("keyword \"%s\" unknown"), s);
   return NAME;
 }
 
@@ -802,12 +1071,14 @@ control_sequence (struct po_parser_state *ps)
 
 
 /* Return the next token in the PO file.  The return codes are defined
-   in "po-gram-gen2.h".  Associated data is put in 'po_gram_lval'.  */
+   in "read-po-gram.h".  Associated data is put in 'po_gram_lval'.  */
 int
 po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps)
 {
-  static char *buf;
-  static size_t bufmax;
+  /* Cache ps->buf and ps->bufmax in local variables.  */
+  char *buf = ps->buf;
+  size_t bufmax = ps->bufmax;
+
   mbchar_t mbc;
   size_t bufpos;
 
@@ -870,7 +1141,7 @@ po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps)
                to pass comments, generate a COMMENT token, otherwise
                discard it.  */
             ps->signal_eilseq = false;
-            if (pass_comments)
+            if (ps->catr->pass_comments)
               {
                 bufpos = 0;
                 for (;;)
@@ -879,6 +1150,8 @@ po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps)
                       {
                         bufmax += 100;
                         buf = xrealloc (buf, bufmax);
+                        ps->bufmax = bufmax;
+                        ps->buf = buf;
                       }
                     if (mb_iseof (mbc) || mb_iseq (mbc, '\n'))
                       break;
@@ -891,7 +1164,7 @@ po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps)
                 buf[bufpos] = '\0';
 
                 lval->string.string = buf;
-                lval->string.pos = gram_pos;
+                lval->string.pos = ps->gram_pos;
                 lval->string.obsolete = ps->po_lex_obsolete;
                 ps->po_lex_obsolete = false;
                 ps->signal_eilseq = true;
@@ -919,16 +1192,18 @@ po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps)
                   {
                     bufmax += 100;
                     buf = xrealloc (buf, bufmax);
+                    ps->bufmax = bufmax;
+                    ps->buf = buf;
                   }
                 if (mb_iseof (mbc))
                   {
-                    po_gram_error_at_line (&gram_pos,
+                    po_gram_error_at_line (&ps->gram_pos,
                                            _("end-of-file within string"));
                     break;
                   }
                 if (mb_iseq (mbc, '\n'))
                   {
-                    po_gram_error_at_line (&gram_pos,
+                    po_gram_error_at_line (&ps->gram_pos,
                                            _("end-of-line within string"));
                     break;
                   }
@@ -949,12 +1224,12 @@ po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps)
             /* Strings cannot contain the msgctxt separator, because it cannot
                be faithfully represented in the msgid of a .mo file.  */
             if (strchr (buf, MSGCTXT_SEPARATOR) != NULL)
-              po_gram_error_at_line (&gram_pos,
+              po_gram_error_at_line (&ps->gram_pos,
                                      _("context separator <EOT> within string"));
 
             /* FIXME: Treatment of embedded \000 chars is incorrect.  */
             lval->string.string = xstrdup (buf);
-            lval->string.pos = gram_pos;
+            lval->string.pos = ps->gram_pos;
             lval->string.obsolete = ps->po_lex_obsolete;
             return (ps->po_lex_previous ? PREV_STRING : STRING);
 
@@ -977,6 +1252,8 @@ po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps)
                   {
                     bufmax += 100;
                     buf = xrealloc (buf, bufmax);
+                    ps->bufmax = bufmax;
+                    ps->buf = buf;
                   }
                 buf[bufpos++] = c;
                 lex_getc (ps, mbc);
@@ -1013,12 +1290,12 @@ po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps)
               if (k == NAME)
                 {
                   lval->string.string = xstrdup (buf);
-                  lval->string.pos = gram_pos;
+                  lval->string.pos = ps->gram_pos;
                   lval->string.obsolete = ps->po_lex_obsolete;
                 }
               else
                 {
-                  lval->pos.pos = gram_pos;
+                  lval->pos.pos = ps->gram_pos;
                   lval->pos.obsolete = ps->po_lex_obsolete;
                 }
               return k;
@@ -1034,6 +1311,8 @@ po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps)
                   {
                     bufmax += 100;
                     buf = xrealloc (buf, bufmax + 1);
+                    ps->bufmax = bufmax;
+                    ps->buf = buf;
                   }
                 buf[bufpos++] = c;
                 lex_getc (ps, mbc);
@@ -1054,17 +1333,17 @@ po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps)
             buf[bufpos] = '\0';
 
             lval->number.number = atol (buf);
-            lval->number.pos = gram_pos;
+            lval->number.pos = ps->gram_pos;
             lval->number.obsolete = ps->po_lex_obsolete;
             return NUMBER;
 
           case '[':
-            lval->pos.pos = gram_pos;
+            lval->pos.pos = ps->gram_pos;
             lval->pos.obsolete = ps->po_lex_obsolete;
             return '[';
 
           case ']':
-            lval->pos.pos = gram_pos;
+            lval->pos.pos = ps->gram_pos;
             lval->pos.obsolete = ps->po_lex_obsolete;
             return ']';
 
@@ -1076,21 +1355,4 @@ po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps)
         /* This will cause a syntax error.  */
         return JUNK;
     }
-}
-
-
-/* po_gram_lex() can return comments as COMMENT.  Switch this on or off.  */
-void
-po_lex_pass_comments (bool flag)
-{
-  pass_comments = flag;
-}
-
-
-/* po_gram_lex() can return obsolete entries as if they were normal entries.
-   Switch this on or off.  */
-void
-po_lex_pass_obsolete_entries (bool flag)
-{
-  pass_obsolete_entries = flag;
 }

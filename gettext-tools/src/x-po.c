@@ -1,5 +1,5 @@
 /* xgettext PO, JavaProperties, and NXStringTable backends.
-   Copyright (C) 1995-1998, 2000-2003, 2005-2006, 2008-2009, 2014, 2018, 2020, 2023 Free Software Foundation, Inc.
+   Copyright (C) 1995-2024 Free Software Foundation, Inc.
 
    This file was written by Peter Miller <millerp@canb.auug.org.au>
 
@@ -30,6 +30,7 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include <error.h>
 #include "message.h"
 #include "xgettext.h"
 #include "xalloc.h"
@@ -40,7 +41,6 @@
 #include "msgl-iconv.h"
 #include "msgl-ascii.h"
 #include "po-charset.h"
-#include "po-lex.h"
 #include "gettext.h"
 
 /* A convenience macro.  I don't like writing gettext() every time.  */
@@ -65,10 +65,6 @@ extract_add_message (default_catalog_reader_ty *this,
                      char *prev_msgid_plural,
                      bool force_fuzzy, bool obsolete)
 {
-  /* See whether we shall exclude this message.  */
-  if (exclude != NULL && message_list_search (exclude, msgctxt, msgid) != NULL)
-    goto discard;
-
   /* If the msgid is the empty string, it is the old header.  Throw it
      away, we have constructed a new one.  Only remember its charset.
      But if no new one was constructed, keep the old header.  This is useful
@@ -111,6 +107,10 @@ extract_add_message (default_catalog_reader_ty *this,
       return;
     }
 
+  /* See whether we shall exclude this message.  */
+  if (exclude != NULL && message_list_search (exclude, msgctxt, msgid) != NULL)
+    goto discard;
+
   /* Invoke superclass method.  */
   default_add_message (this, msgctxt, msgid, msgid_pos, msgid_plural,
                        msgstr, msgstr_len, msgstr_pos,
@@ -152,21 +152,21 @@ extract (FILE *fp,
          catalog_input_format_ty input_syntax,
          msgdomain_list_ty *mdlp)
 {
-  default_catalog_reader_ty *pop;
+  default_catalog_reader_ty *dcatr;
 
   header_charset = NULL;
 
-  pop = default_catalog_reader_alloc (&extract_methods);
-  pop->handle_comments = true;
-  pop->allow_domain_directives = false;
-  pop->allow_duplicates = false;
-  pop->allow_duplicates_if_same_msgstr = true;
-  pop->file_name = real_filename;
-  pop->mdlp = NULL;
-  pop->mlp = mdlp->item[0]->messages;
-  catalog_reader_parse ((abstract_catalog_reader_ty *) pop, fp, real_filename,
+  dcatr = default_catalog_reader_alloc (&extract_methods);
+  dcatr->handle_comments = true;
+  dcatr->allow_domain_directives = false;
+  dcatr->allow_duplicates = false;
+  dcatr->allow_duplicates_if_same_msgstr = true;
+  dcatr->file_name = real_filename;
+  dcatr->mdlp = NULL;
+  dcatr->mlp = mdlp->item[0]->messages;
+  catalog_reader_parse ((abstract_catalog_reader_ty *) dcatr, fp, real_filename,
                         logical_filename, true, input_syntax);
-  catalog_reader_free ((abstract_catalog_reader_ty *) pop);
+  catalog_reader_free ((abstract_catalog_reader_ty *) dcatr);
 
   if (header_charset != NULL)
     {

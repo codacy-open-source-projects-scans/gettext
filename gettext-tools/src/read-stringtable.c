@@ -67,7 +67,7 @@
 static const char *real_file_name;
 
 /* File name and line number.  */
-extern lex_pos_ty gram_pos;
+static lex_pos_ty pos;
 
 /* The input file stream.  */
 static FILE *fp;
@@ -312,7 +312,7 @@ phase3_getc ()
   int c = phase2_getc ();
 
   if (c == '\n')
-    gram_pos.line_number++;
+    pos.line_number++;
 
   return c;
 }
@@ -321,7 +321,7 @@ static void
 phase3_ungetc (int c)
 {
   if (c == '\n')
-    --gram_pos.line_number;
+    --pos.line_number;
   phase2_ungetc (c);
 }
 
@@ -331,18 +331,18 @@ static char *
 conv_from_ucs4 (const int *buffer, size_t buflen)
 {
   unsigned char *utf8_string;
-  size_t pos;
+  size_t i;
   unsigned char *q;
 
   /* Each UCS-4 word needs 6 bytes at worst.  */
   utf8_string = XNMALLOC (6 * buflen + 1, unsigned char);
 
-  for (pos = 0, q = utf8_string; pos < buflen; )
+  for (i = 0, q = utf8_string; i < buflen; )
     {
       unsigned int uc;
       int n;
 
-      uc = buffer[pos++];
+      uc = buffer[i++];
       n = u8_uctomb (q, uc, 6);
       assert (n > 0);
       q += n;
@@ -474,11 +474,11 @@ special_comment_add (const char *flag)
 }
 
 static inline void
-special_comment_finish ()
+special_comment_finish (abstract_catalog_reader_ty *catr)
 {
   if (special_comment != NULL)
     {
-      po_callback_comment_special (special_comment);
+      catalog_reader_seen_comment_special (catr, special_comment);
       free (special_comment);
       special_comment = NULL;
     }
@@ -514,7 +514,8 @@ comment_add (int c)
 }
 
 static void
-comment_line_end (size_t chars_to_remove, bool test_for_fuzzy_msgstr)
+comment_line_end (abstract_catalog_reader_ty *catr,
+                  size_t chars_to_remove, bool test_for_fuzzy_msgstr)
 {
   char *line;
 
@@ -548,7 +549,7 @@ comment_line_end (size_t chars_to_remove, bool test_for_fuzzy_msgstr)
     special_comment_add (line + 6);
   else if (strlen (line) >= 9 && memcmp (line, "Comment: ", 9) == 0)
     /* A comment extracted from the source.  */
-    po_callback_comment_dot (line + 9);
+    catalog_reader_seen_comment_dot (catr, line + 9);
   else
     {
       char *last_colon;
@@ -562,10 +563,10 @@ comment_line_end (size_t chars_to_remove, bool test_for_fuzzy_msgstr)
         {
           /* A "File: <filename>:<number>" type comment.  */
           *last_colon = '\0';
-          po_callback_comment_filepos (line + 6, number);
+          catalog_reader_seen_comment_filepos (catr, line + 6, number);
         }
       else
-        po_callback_comment (line);
+        catalog_reader_seen_comment (catr, line);
     }
 }
 
@@ -574,7 +575,7 @@ comment_line_end (size_t chars_to_remove, bool test_for_fuzzy_msgstr)
    character.  */
 
 static int
-phase4_getc ()
+phase4_getc (abstract_catalog_reader_ty *catr)
 {
   int c;
 
@@ -620,7 +621,7 @@ phase4_getc ()
               {
               case '\n':
                 seen_newline = true;
-                comment_line_end (1, false);
+                comment_line_end (catr, 1, false);
                 comment_start ();
                 last_was_star = false;
                 trailing_stars = 0;
@@ -635,7 +636,7 @@ phase4_getc ()
                 if (last_was_star)
                   {
                     /* Drop additional stars at the end of the comment.  */
-                    comment_line_end (trailing_stars + 1,
+                    comment_line_end (catr, trailing_stars + 1,
                                       expect_fuzzy_msgstr_as_c_comment
                                       && !seen_newline);
                     break;
@@ -664,7 +665,7 @@ phase4_getc ()
           if (!(buflen == 0 && (c == ' ' || c == '\t')))
             comment_add (c);
         }
-      comment_line_end (0, expect_fuzzy_msgstr_as_cxx_comment);
+      comment_line_end (catr, 0, expect_fuzzy_msgstr_as_cxx_comment);
       return '\n';
     }
 }
@@ -706,9 +707,9 @@ is_quotable (int c)
 
 /* Read a key or value string.
    Return the string in UTF-8 encoding, or NULL if no string is seen.
-   Return the start position of the string in *pos.  */
+   Return the start position of the string in *start_pos.  */
 static char *
-read_string (lex_pos_ty *pos)
+read_string (abstract_catalog_reader_ty *catr, lex_pos_ty *start_pos)
 {
   static int *buffer;
   static size_t bufmax;
@@ -717,14 +718,14 @@ read_string (lex_pos_ty *pos)
 
   /* Skip whitespace before the string.  */
   do
-    c = phase4_getc ();
+    c = phase4_getc (catr);
   while (is_whitespace (c));
 
   if (c == UEOF)
     /* No more string.  */
     return NULL;
 
-  *pos = gram_pos;
+  *start_pos = pos;
   buflen = 0;
   if (c == '"')
     {
@@ -799,7 +800,7 @@ read_string (lex_pos_ty *pos)
         }
       if (c == UEOF)
         po_xerror (PO_SEVERITY_ERROR, NULL,
-                   real_file_name, gram_pos.line_number, (size_t)(-1), false,
+                   real_file_name, pos.line_number, (size_t)(-1), false,
                    _("warning: unterminated string"));
     }
   else
@@ -807,9 +808,9 @@ read_string (lex_pos_ty *pos)
       /* Read a token outside quotes.  */
       if (is_quotable (c))
         po_xerror (PO_SEVERITY_ERROR, NULL,
-                   real_file_name, gram_pos.line_number, (size_t)(-1), false,
+                   real_file_name, pos.line_number, (size_t)(-1), false,
                    _("warning: syntax error"));
-      for (; c != UEOF && !is_quotable (c); c = phase4_getc ())
+      for (; c != UEOF && !is_quotable (c); c = phase4_getc (catr))
         {
           if (buflen >= bufmax)
             {
@@ -827,14 +828,14 @@ read_string (lex_pos_ty *pos)
 /* Read a .strings file from a stream, and dispatch to the various
    abstract_catalog_reader_class_ty methods.  */
 static void
-stringtable_parse (abstract_catalog_reader_ty *pop, FILE *file,
+stringtable_parse (abstract_catalog_reader_ty *catr, FILE *file,
                    const char *real_filename, const char *logical_filename,
                    bool is_pot_role)
 {
   fp = file;
   real_file_name = real_filename;
-  gram_pos.file_name = xstrdup (real_file_name);
-  gram_pos.line_number = 1;
+  pos.file_name = xstrdup (real_file_name);
+  pos.line_number = 1;
   encoding = enc_undetermined;
   expect_fuzzy_msgstr_as_c_comment = false;
   expect_fuzzy_msgstr_as_cxx_comment = false;
@@ -854,22 +855,22 @@ stringtable_parse (abstract_catalog_reader_ty *pop, FILE *file,
       fuzzy_msgstr = NULL;
 
       /* Read the key and all the comments preceding it.  */
-      msgid = read_string (&msgid_pos);
+      msgid = read_string (catr, &msgid_pos);
       if (msgid == NULL)
         break;
 
-      special_comment_finish ();
+      special_comment_finish (catr);
 
       /* Skip whitespace.  */
       do
-        c = phase4_getc ();
+        c = phase4_getc (catr);
       while (is_whitespace (c));
 
       /* Expect a '=' or ';'.  */
       if (c == UEOF)
         {
           po_xerror (PO_SEVERITY_ERROR, NULL,
-                     real_file_name, gram_pos.line_number, (size_t)(-1), false,
+                     real_file_name, pos.line_number, (size_t)(-1), false,
                      _("warning: unterminated key/value pair"));
           break;
         }
@@ -879,19 +880,20 @@ stringtable_parse (abstract_catalog_reader_ty *pop, FILE *file,
              necessarily designate an untranslated entry.  */
           msgstr = xstrdup ("");
           msgstr_pos = msgid_pos;
-          po_callback_message (NULL, msgid, &msgid_pos, NULL,
-                               msgstr, strlen (msgstr) + 1, &msgstr_pos,
-                               NULL, NULL, NULL,
-                               false, next_is_obsolete);
+          catalog_reader_seen_message (catr,
+                                       NULL, msgid, &msgid_pos, NULL,
+                                       msgstr, strlen (msgstr) + 1, &msgstr_pos,
+                                       NULL, NULL, NULL,
+                                       false, next_is_obsolete);
         }
       else if (c == '=')
         {
           /* Read the value.  */
-          msgstr = read_string (&msgstr_pos);
+          msgstr = read_string (catr, &msgstr_pos);
           if (msgstr == NULL)
             {
               po_xerror (PO_SEVERITY_ERROR, NULL,
-                         real_file_name, gram_pos.line_number, (size_t)(-1),
+                         real_file_name, pos.line_number, (size_t)(-1),
                          false, _("warning: unterminated key/value pair"));
               break;
             }
@@ -901,7 +903,7 @@ stringtable_parse (abstract_catalog_reader_ty *pop, FILE *file,
           expect_fuzzy_msgstr_as_c_comment = next_is_fuzzy;
           do
             {
-              c = phase4_getc ();
+              c = phase4_getc (catr);
               if (fuzzy_msgstr != NULL)
                 expect_fuzzy_msgstr_as_c_comment = false;
             }
@@ -921,7 +923,7 @@ stringtable_parse (abstract_catalog_reader_ty *pop, FILE *file,
                   phase3_ungetc (c);
 
                   expect_fuzzy_msgstr_as_cxx_comment = true;
-                  c = phase4_getc ();
+                  c = phase4_getc (catr);
                   phase4_ungetc (c);
                   expect_fuzzy_msgstr_as_cxx_comment = false;
                 }
@@ -929,15 +931,16 @@ stringtable_parse (abstract_catalog_reader_ty *pop, FILE *file,
                 msgstr = fuzzy_msgstr;
 
               /* A key/value pair.  */
-              po_callback_message (NULL, msgid, &msgid_pos, NULL,
-                                   msgstr, strlen (msgstr) + 1, &msgstr_pos,
-                                   NULL, NULL, NULL,
-                                   false, next_is_obsolete);
+              catalog_reader_seen_message (catr,
+                                           NULL, msgid, &msgid_pos, NULL,
+                                           msgstr, strlen (msgstr) + 1, &msgstr_pos,
+                                           NULL, NULL, NULL,
+                                           false, next_is_obsolete);
             }
           else
             {
               po_xerror (PO_SEVERITY_ERROR, NULL,
-                         real_file_name, gram_pos.line_number, (size_t)(-1),
+                         real_file_name, pos.line_number, (size_t)(-1),
                          false,
                          _("warning: syntax error, expected ';' after string"));
               break;
@@ -946,7 +949,7 @@ stringtable_parse (abstract_catalog_reader_ty *pop, FILE *file,
       else
         {
           po_xerror (PO_SEVERITY_ERROR, NULL,
-                     real_file_name, gram_pos.line_number, (size_t)(-1), false,
+                     real_file_name, pos.line_number, (size_t)(-1), false,
                      _("warning: syntax error, expected '=' or ';' after string"));
           break;
         }
@@ -954,7 +957,7 @@ stringtable_parse (abstract_catalog_reader_ty *pop, FILE *file,
 
   fp = NULL;
   real_file_name = NULL;
-  gram_pos.line_number = 0;
+  pos.line_number = 0;
 }
 
 const struct catalog_input_format input_format_stringtable =

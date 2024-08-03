@@ -1,5 +1,5 @@
 /* Extracting a message.  Accumulating the message list.
-   Copyright (C) 2001-2020, 2023 Free Software Foundation, Inc.
+   Copyright (C) 2001-2024 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 #include "c-strstr.h"
 #include "if-error.h"
 #include "format.h"
-#include "read-catalog-abstract.h"
+#include "read-catalog-special.h"
 #include "xalloc.h"
 #include "xerror.h"
 #include "xvasprintf.h"
@@ -429,8 +429,8 @@ meta information, not the empty string.\n"));
 
             t += strlen ("xgettext:");
 
-            po_parse_comment_special (t, &tmp_fuzzy, tmp_format, &tmp_range,
-                                      &tmp_wrap, tmp_syntax_check);
+            parse_comment_special (t, &tmp_fuzzy, tmp_format, &tmp_range,
+                                   &tmp_wrap, tmp_syntax_check);
 
             interesting = false;
             for (i = 0; i < NFORMATS; i++)

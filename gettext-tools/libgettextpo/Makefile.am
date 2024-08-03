@@ -1,5 +1,5 @@
 ## Makefile for the gettext-tools/libgettextpo subdirectory of GNU gettext
-## Copyright (C) 1995-1998, 2000-2016, 2019-2023 Free Software Foundation, Inc.
+## Copyright (C) 1995-2024 Free Software Foundation, Inc.
 ##
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 
 ## Process this file with automake to produce Makefile.in.
 
-AUTOMAKE_OPTIONS = 1.5 gnits no-dependencies subdir-objects
+AUTOMAKE_OPTIONS = 1.5 gnits subdir-objects
 EXTRA_DIST =
 BUILT_SOURCES =
 MOSTLYCLEANFILES = core *.stackdump
@@ -62,11 +62,12 @@ libgettextpo_la_AUXSOURCES = \
   ../src/write-catalog.c \
   ../src/write-po.c \
   ../src/po-charset.c \
-  ../src/po-lex.c \
-  ../src/po-gram-gen.c \
-  ../src/read-po.c \
+  ../src/read-catalog-special.c \
   ../src/read-catalog-abstract.c \
   ../src/read-catalog.c \
+  ../src/read-po.c \
+  ../src/read-po-lex.c \
+  ../src/read-po-gram.c \
   ../src/plural-table.c \
   ../src/format-c.c \
   ../src/format-c++-brace.c \

@@ -1,5 +1,5 @@
 /* GNU gettext - internationalization aids
-   Copyright (C) 1995-2023 Free Software Foundation, Inc.
+   Copyright (C) 1995-2024 Free Software Foundation, Inc.
 
    This file was written by Peter Miller <millerp@canb.auug.org.au>
 
@@ -23,8 +23,11 @@
 #include <stdio.h>
 
 #if HAVE_ICONV
+#include <iconv.h>
 # include "unistr.h"
 #endif
+
+#include "read-catalog-abstract.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -77,25 +80,44 @@ struct po_parser_state
 {
   /* ----- Input variables -----  */
 
+  /* The catalog reader that implements the callbacks.  */
+  struct abstract_catalog_reader_ty *catr;
+
   /* Whether the PO file is in the role of a POT file.  */
   bool gram_pot_role;
 
   /* ----- Output variables -----  */
 
-  /* ----- Local variables of po-lex.c -----  */
+  /* ----- Local variables of read-po-lex.c -----  */
+
+  /* The PO file's encoding, as specified in the header entry.  */
+  const char *po_lex_charset;
+
+#if HAVE_ICONV
+  /* Converter from the PO file's encoding to UTF-8.  */
+  iconv_t po_lex_iconv;
+#endif
+  /* If no converter is available, some information about the structure of the
+     PO file's encoding.  */
+  bool po_lex_weird_cjk;
 
   /* Current position within the PO file.  */
+  lex_pos_ty gram_pos;
   int gram_pos_column;
 
   /* Whether invalid multibyte sequences in the input shall be signalled
      or silently tolerated.  */
   bool signal_eilseq;
 
+  /* A buffer for po_gram_lex().  */
+  char *buf;
+  size_t bufmax;
+
   mbfile_t mbf;
   bool po_lex_obsolete;
   bool po_lex_previous;
 
-  /* ----- Local variables of po-gram-gen.y -----  */
+  /* ----- Local variables of read-po-gram.y -----  */
   long plural_counter;
 };
 

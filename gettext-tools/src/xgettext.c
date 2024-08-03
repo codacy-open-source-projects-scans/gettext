@@ -69,6 +69,7 @@
 #include "open-catalog.h"
 #include "read-catalog-abstract.h"
 #include "read-po.h"
+#include "read-po-lex.h"
 #include "message.h"
 #include "pos.h"
 #include "po-charset.h"
@@ -1268,15 +1269,16 @@ or by email to <%s>.\n"),
 
 
 static void
-exclude_directive_domain (abstract_catalog_reader_ty *pop, char *name)
+exclude_directive_domain (abstract_catalog_reader_ty *catr,
+                          char *name, lex_pos_ty *name_pos)
 {
-  po_gram_error_at_line (&gram_pos,
+  po_gram_error_at_line (name_pos,
                          _("this file may not contain domain directives"));
 }
 
 
 static void
-exclude_directive_message (abstract_catalog_reader_ty *pop,
+exclude_directive_message (abstract_catalog_reader_ty *catr,
                            char *msgctxt,
                            char *msgid,
                            lex_pos_ty *msgid_pos,
@@ -1336,11 +1338,11 @@ read_exclusion_file (char *filename)
 {
   char *real_filename;
   FILE *fp = open_catalog_file (filename, &real_filename, true);
-  abstract_catalog_reader_ty *pop;
+  abstract_catalog_reader_ty *catr;
 
-  pop = catalog_reader_alloc (&exclude_methods);
-  catalog_reader_parse (pop, fp, real_filename, filename, true, &input_format_po);
-  catalog_reader_free (pop);
+  catr = catalog_reader_alloc (&exclude_methods);
+  catalog_reader_parse (catr, fp, real_filename, filename, true, &input_format_po);
+  catalog_reader_free (catr);
 
   if (fp != stdin)
     fclose (fp);
@@ -1452,7 +1454,7 @@ xgettext_record_flag (const char *optionstring)
           flag_start += 5;
         }
 
-      /* Unlike po_parse_comment_special(), we don't accept "fuzzy",
+      /* Unlike parse_comment_special(), we don't accept "fuzzy",
          "wrap", or "check" here - it has no sense.  */
       if (flag_end - flag_start >= 7
           && memcmp (flag_end - 7, "-format", 7) == 0)

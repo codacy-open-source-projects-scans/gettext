@@ -22,7 +22,7 @@
 #endif
 
 /* Specification.  */
-#include "po-gram.h"
+#include "read-po-internal.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -31,7 +31,7 @@
 
 #include <error.h>
 #include "str-list.h"
-#include "po-lex.h"
+#include "read-po-lex.h"
 #include "po-charset.h"
 #include "xalloc.h"
 #include "gettext.h"
@@ -54,13 +54,14 @@ do_callback_message (struct po_parser_state *ps,
 {
   /* Test for header entry.  Ignore fuzziness of the header entry.  */
   if (msgctxt == NULL && msgid[0] == '\0' && !obsolete)
-    po_lex_charset_set (msgstr, gram_pos.file_name, ps->gram_pot_role);
+    po_lex_charset_set (ps, msgstr, ps->gram_pos.file_name, ps->gram_pot_role);
 
-  po_callback_message (msgctxt,
-                       msgid, msgid_pos, msgid_plural,
-                       msgstr, msgstr_len, msgstr_pos,
-                       prev_msgctxt, prev_msgid, prev_msgid_plural,
-                       false, obsolete);
+  catalog_reader_seen_message (ps->catr,
+                               msgctxt,
+                               msgid, msgid_pos, msgid_plural,
+                               msgstr, msgstr_len, msgstr_pos,
+                               prev_msgctxt, prev_msgid, prev_msgid_plural,
+                               false, obsolete);
 }
 
 #define free_message_intro(value) \
@@ -139,7 +140,7 @@ po_file
 comment
         : COMMENT
                 {
-                  po_callback_comment_dispatcher ($1.string);
+                  catalog_reader_seen_generic_comment (ps->catr, $1.string);
                 }
         ;
 
@@ -147,7 +148,8 @@ comment
 domain
         : DOMAIN STRING
                 {
-                   po_callback_domain ($2.string);
+                   catalog_reader_seen_domain (ps->catr, $2.string,
+                                               &ps->gram_pos);
                 }
         ;
 
@@ -161,7 +163,7 @@ message
                   check_obsolete ($1, $2);
                   check_obsolete ($1, $3);
                   check_obsolete ($1, $4);
-                  if (!$1.obsolete || pass_obsolete_entries)
+                  if (!$1.obsolete || ps->catr->pass_obsolete_entries)
                     do_callback_message (ps, $1.ctxt, string2, &$1.pos, NULL,
                                          string4, strlen (string4) + 1, &$3.pos,
                                          $1.prev_ctxt,
@@ -181,7 +183,7 @@ message
                   check_obsolete ($1, $2);
                   check_obsolete ($1, $3);
                   check_obsolete ($1, $4);
-                  if (!$1.obsolete || pass_obsolete_entries)
+                  if (!$1.obsolete || ps->catr->pass_obsolete_entries)
                     do_callback_message (ps, $1.ctxt, string2, &$1.pos, $3.string,
                                          $4.rhs.msgstr, $4.rhs.msgstr_len, &$4.pos,
                                          $1.prev_ctxt,
