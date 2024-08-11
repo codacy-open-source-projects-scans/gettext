@@ -34,6 +34,7 @@
 #include "message.h"
 #include "xgettext.h"
 #include "xalloc.h"
+#include "xerror-handler.h"
 #include "read-catalog.h"
 #include "read-po.h"
 #include "read-properties.h"
@@ -156,7 +157,8 @@ extract (FILE *fp,
 
   header_charset = NULL;
 
-  dcatr = default_catalog_reader_alloc (&extract_methods);
+  dcatr = default_catalog_reader_alloc (&extract_methods,
+                                        textmode_xerror_handler);
   dcatr->handle_comments = true;
   dcatr->allow_domain_directives = false;
   dcatr->allow_duplicates = false;
@@ -210,7 +212,8 @@ extract (FILE *fp,
               /* Convert the messages to UTF-8.
                  finalize_header() expects this.  */
               message_list_ty *mlp = mdlp->item[0]->messages;
-              iconv_message_list (mlp, NULL, po_charset_utf8, logical_filename);
+              iconv_message_list (mlp, NULL, po_charset_utf8, logical_filename,
+                                  textmode_xerror_handler);
             }
         }
 

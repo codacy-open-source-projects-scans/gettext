@@ -360,7 +360,6 @@ if ! $skip_gnulib; then
     c-strcase
     c-strstr
     error
-    error-progname
     filename
     fopen
     free-posix
@@ -375,6 +374,7 @@ if ! $skip_gnulib; then
     markup
     mem-hash-map
     minmax
+    once
     open
     relocatable-lib
     sigpipe
@@ -398,7 +398,7 @@ if ! $skip_gnulib; then
     xalloc
     xconcat-filename
     xmalloca
-    xerror
+    xstrerror
     xstriconv
     xvasprintf
   '

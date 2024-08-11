@@ -46,6 +46,7 @@
 #include "write-properties.h"
 #include "write-stringtable.h"
 #include "msgl-iconv.h"
+#include "xerror-handler.h"
 #include "localcharset.h"
 #include "propername.h"
 #include "gettext.h"
@@ -109,6 +110,7 @@ main (int argc, char **argv)
   /* Set program name for messages.  */
   set_program_name (argv[0]);
   error_print_progname = maybe_print_progname;
+  gram_max_allowed_errors = 20;
 
   /* Set locale via LC_ALL.  */
   setlocale (LC_ALL, "");
@@ -277,7 +279,8 @@ There is NO WARRANTY, to the extent permitted by law.\n\
 
   /* Convert if and only if the output syntax supports different encodings.  */
   if (!output_syntax->requires_utf8)
-    result = iconv_msgdomain_list (result, to_code, true, input_file);
+    result = iconv_msgdomain_list (result, to_code, true, input_file,
+                                   textmode_xerror_handler);
 
   /* Sort the results.  */
   if (sort_by_filepos)
@@ -286,7 +289,8 @@ There is NO WARRANTY, to the extent permitted by law.\n\
     msgdomain_list_sort_by_msgid (result);
 
   /* Write the merged message list out.  */
-  msgdomain_list_print (result, output_file, output_syntax, force_po, false);
+  msgdomain_list_print (result, output_file, output_syntax,
+                        textmode_xerror_handler, force_po, false);
 
   exit (EXIT_SUCCESS);
 }

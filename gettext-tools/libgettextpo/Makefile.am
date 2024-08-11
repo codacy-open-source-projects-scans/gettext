@@ -57,8 +57,6 @@ libgettextpo_la_AUXSOURCES = \
   ../src/message.c \
   ../src/pos.c \
   ../src/msgl-ascii.c \
-  ../src/po-error.c \
-  ../src/po-xerror.c \
   ../src/write-catalog.c \
   ../src/write-po.c \
   ../src/po-charset.c \
@@ -214,6 +212,9 @@ else
 	cp $(srcdir)/gettext-po.in.h gettext-po.h-tmp
 endif
 	mv gettext-po.h-tmp gettext-po.h
+
+# Internal documentation.
+EXTRA_DIST += multithread-safe.txt
 
 # Allow users to use "gnulib-tool --update".
 EXTRA_DIST += gnulib-m4/gnulib-cache.m4

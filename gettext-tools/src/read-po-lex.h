@@ -25,8 +25,8 @@
 
 #include <error.h>
 #include "error-progname.h"
-#include "xerror.h"
 #include "pos.h"
+#include "read-catalog-abstract.h"
 
 #ifndef __attribute__
 /* This feature is available in gcc versions 2.5 and later.  */
@@ -52,12 +52,6 @@ extern "C" {
 
 struct po_parser_state;
 
-/* Global variables from read-po-lex.c.  */
-
-/* Number of parse errors within a PO file that cause the program to
-   terminate.  Cf. error_message_count, declared in <error.h>.  */
-extern DLL_VARIABLE unsigned int gram_max_allowed_errors;
-
 
 /* Prepare lexical analysis.  */
 extern void lex_start (struct po_parser_state *ps,
@@ -74,8 +68,9 @@ extern int po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps);
 
 extern void po_gram_error (struct po_parser_state *ps, const char *fmt, ...)
        __attribute__ ((__format__ (__printf__, 2, 3)));
-extern void po_gram_error_at_line (const lex_pos_ty *pos, const char *fmt, ...)
-       __attribute__ ((__format__ (__printf__, 2, 3)));
+extern void po_gram_error_at_line (abstract_catalog_reader_ty *catr,
+                                   const lex_pos_ty *pos, const char *fmt, ...)
+       __attribute__ ((__format__ (__printf__, 3, 4)));
 
 /* Set the PO file's encoding from the header entry.
    If is_pot_role is true, "charset=CHARSET" is expected and does not deserve

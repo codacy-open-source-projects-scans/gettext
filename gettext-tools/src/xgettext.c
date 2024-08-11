@@ -63,6 +63,7 @@
 #include "verify.h"
 #include "c-strstr.h"
 #include "xerror.h"
+#include "xerror-handler.h"
 #include "filename.h"
 #include "concat-filename.h"
 #include "c-strcase.h"
@@ -72,6 +73,8 @@
 #include "read-po-lex.h"
 #include "message.h"
 #include "pos.h"
+#include "po-xerror.h"
+#include "xerror-handler.h"
 #include "po-charset.h"
 #include "msgl-iconv.h"
 #include "msgl-ascii.h"
@@ -348,6 +351,7 @@ main (int argc, char *argv[])
   /* Set program name for messages.  */
   set_program_name (argv[0]);
   error_print_progname = maybe_print_progname;
+  gram_max_allowed_errors = 20;
 
   /* Set locale via LC_ALL.  */
   setlocale (LC_ALL, "");
@@ -847,7 +851,8 @@ xgettext cannot work without keywords to look for"));
 
       extract_from_file (file_name, po_extractor, mdlp);
       if (!is_ascii_msgdomain_list (mdlp))
-        mdlp = iconv_msgdomain_list (mdlp, po_charset_utf8, true, file_name);
+        mdlp = iconv_msgdomain_list (mdlp, po_charset_utf8, true, file_name,
+                                     textmode_xerror_handler);
 
       dir_list_restore (saved_directory_list);
     }
@@ -1036,7 +1041,8 @@ xgettext cannot work without keywords to look for"));
   }
 
   /* Write the PO file.  */
-  msgdomain_list_print (mdlp, file_name, output_syntax, force_po, do_debug);
+  msgdomain_list_print (mdlp, file_name, output_syntax, textmode_xerror_handler,
+                        force_po, do_debug);
 
   if (its_locating_rules)
     locating_rule_list_free (its_locating_rules);
@@ -1272,8 +1278,9 @@ static void
 exclude_directive_domain (abstract_catalog_reader_ty *catr,
                           char *name, lex_pos_ty *name_pos)
 {
-  po_gram_error_at_line (name_pos,
-                         _("this file may not contain domain directives"));
+  po_xerror (PO_SEVERITY_ERROR, NULL,
+             name_pos->file_name, name_pos->line_number, (size_t)(-1), false,
+             _("this file may not contain domain directives"));
 }
 
 
@@ -1340,7 +1347,7 @@ read_exclusion_file (char *filename)
   FILE *fp = open_catalog_file (filename, &real_filename, true);
   abstract_catalog_reader_ty *catr;
 
-  catr = catalog_reader_alloc (&exclude_methods);
+  catr = catalog_reader_alloc (&exclude_methods, textmode_xerror_handler);
   catalog_reader_parse (catr, fp, real_filename, filename, true, &input_format_po);
   catalog_reader_free (catr);
 
@@ -2188,7 +2195,8 @@ finalize_header (msgdomain_list_ty *mdlp)
       {
         message_list_ty *mlp = mdlp->item[0]->messages;
 
-        iconv_message_list (mlp, po_charset_utf8, po_charset_utf8, NULL);
+        iconv_message_list (mlp, po_charset_utf8, po_charset_utf8, NULL,
+                            textmode_xerror_handler);
       }
   }
 }

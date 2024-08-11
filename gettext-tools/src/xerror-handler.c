@@ -1,6 +1,5 @@
-/* Error handling during reading and writing of PO files.
+/* Error handling during reading and writing of textual message catalogs.
    Copyright (C) 2005-2024 Free Software Foundation, Inc.
-   Written by Bruno Haible <bruno@clisp.org>, 2005.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,13 +14,14 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
+/* Written by Bruno Haible <bruno@clisp.org>, 2024.  */
 
 #ifdef HAVE_CONFIG_H
 # include "config.h"
 #endif
 
 /* Specification.  */
-#include "po-xerror.h"
+#include "xerror-handler.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,11 +33,7 @@
 #include "xerror.h"
 #include "xvasprintf.h"
 #include "po-error.h"
-#if IN_LIBGETTEXTPO
-# define program_name getprogname ()
-#else
-# include "progname.h"
-#endif
+#include "progname.h"
 #include "gettext.h"
 
 #define _(str) gettext (str)
@@ -73,19 +69,19 @@ xerror (int severity, const char *prefix_tail,
       else
         prefix = xasprintf ("%s: %s", program_name, prefix_tail);
 
-      if (severity >= PO_SEVERITY_ERROR)
+      if (severity >= CAT_SEVERITY_ERROR)
         po_multiline_error (prefix, xstrdup (message_text));
       else
         po_multiline_warning (prefix, xstrdup (message_text));
       error_with_progname = old_error_with_progname;
 
-      if (severity == PO_SEVERITY_FATAL_ERROR)
+      if (severity == CAT_SEVERITY_FATAL_ERROR)
         exit (EXIT_FAILURE);
     }
   else
     {
       int exit_status =
-        (severity == PO_SEVERITY_FATAL_ERROR ? EXIT_FAILURE : 0);
+        (severity == CAT_SEVERITY_FATAL_ERROR ? EXIT_FAILURE : 0);
 
       if (filename != NULL)
         {
@@ -107,22 +103,21 @@ xerror (int severity, const char *prefix_tail,
         }
       else
         po_error (exit_status, 0, "%s%s", prefix_tail, message_text);
-      if (severity < PO_SEVERITY_ERROR)
+      if (severity < CAT_SEVERITY_ERROR)
         --error_message_count;
     }
 }
 
 /* The default error handler is based on the lower-level error handler
-   in po-error.h, so that gettext-po.h can offer to override one or the
-   other.  */
-void
+   in po-error.h.  */
+static void
 textmode_xerror (int severity,
                  const struct message_ty *message,
                  const char *filename, size_t lineno, size_t column,
                  int multiline_p, const char *message_text)
 {
   const char *prefix_tail =
-    (severity == PO_SEVERITY_WARNING ? _("warning: ") : "");
+    (severity == CAT_SEVERITY_WARNING ? _("warning: ") : "");
 
   if (message != NULL && (filename == NULL || lineno == (size_t)(-1)))
     {
@@ -135,7 +130,7 @@ textmode_xerror (int severity,
           multiline_p, message_text);
 }
 
-void
+static void
 textmode_xerror2 (int severity,
                   const struct message_ty *message1,
                   const char *filename1, size_t lineno1, size_t column1,
@@ -145,9 +140,9 @@ textmode_xerror2 (int severity,
                   int multiline_p2, const char *message_text2)
 {
   int severity1 = /* Don't exit before both texts have been output.  */
-    (severity == PO_SEVERITY_FATAL_ERROR ? PO_SEVERITY_ERROR : severity);
+    (severity == CAT_SEVERITY_FATAL_ERROR ? CAT_SEVERITY_ERROR : severity);
   const char *prefix_tail =
-    (severity == PO_SEVERITY_WARNING ? _("warning: ") : "");
+    (severity == CAT_SEVERITY_WARNING ? _("warning: ") : "");
 
   if (message1 != NULL && (filename1 == NULL || lineno1 == (size_t)(-1)))
     {
@@ -181,22 +176,14 @@ textmode_xerror2 (int severity,
     free (message_text2_extended);
   }
 
-  if (severity >= PO_SEVERITY_ERROR)
+  if (severity >= CAT_SEVERITY_ERROR)
     /* error_message_count needs to be incremented only by 1, not by 2.  */
     --error_message_count;
 }
 
-void (*po_xerror) (int severity,
-                   const struct message_ty *message,
-                   const char *filename, size_t lineno, size_t column,
-                   int multiline_p, const char *message_text)
-  = textmode_xerror;
-
-void (*po_xerror2) (int severity,
-                    const struct message_ty *message1,
-                    const char *filename1, size_t lineno1, size_t column1,
-                    int multiline_p1, const char *message_text1,
-                    const struct message_ty *message2,
-                    const char *filename2, size_t lineno2, size_t column2,
-                    int multiline_p2, const char *message_text2)
-  = textmode_xerror2;
+const struct xerror_handler textmode_xerror_handler_struct =
+{
+  textmode_xerror, /* xerror */
+  textmode_xerror2, /* xerror2 */
+  &error_message_count /* error_message_count_p */
+};

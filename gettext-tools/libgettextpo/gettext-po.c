@@ -18,45 +18,24 @@
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
-/* Avoid side effect of gnulib's error.h on 'struct po_error_handler'.  */
-#define _GL_NO_INLINE_ERROR
-
-/* Avoid side effect of config.h on 'struct po_error_handler'.  */
-#include <error.h>
-static void (*orig_error) (int status, int errnum,
-                           const char *format, ...)
-  = error;
-
-static void (*orig_error_at_line) (int status, int errnum,
-                                   const char *filename, unsigned int lineno,
-                                   const char *format, ...)
-  = error_at_line;
-#undef error
-#undef error_at_line
 
 /* Specification.  */
 #include "gettext-po.h"
 
 #include <limits.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
 
 #include "message.h"
 #include "xalloc.h"
 #include "read-catalog.h"
 #include "read-po.h"
-#include "read-po-lex.h"
 #include "write-catalog.h"
 #include "write-po.h"
-#include "xerror.h"
-#include "po-error.h"
-#include "po-xerror.h"
-#include "format.h"
 #include "xvasprintf.h"
 #include "msgl-check.h"
+#include "glthread/once.h"
 #include "gettext.h"
 
 #define _(str) gettext(str)
@@ -85,19 +64,6 @@ struct po_message_iterator
 
 /* Version number: (major<<16) + (minor<<8) + subminor */
 int libgettextpo_version = LIBGETTEXTPO_VERSION;
-
-
-static void
-void_multiline_warning (char *prefix, char *message)
-{
-  multiline_warning (prefix, message);
-}
-
-static void
-void_multiline_error (char *prefix, char *message)
-{
-  multiline_error (prefix, message);
-}
 
 
 /* Create an empty PO file representation in memory.  */
@@ -137,107 +103,23 @@ po_file_read (const char *filename, po_xerror_handler_t handler)
         return NULL;
     }
 
-  /* Establish error handler around read_catalog_stream().  */
-  po_xerror =
-    (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *))
-    handler->xerror;
-  po_xerror2 =
-    (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *, const message_ty *, const char *, size_t, size_t, int, const char *))
-    handler->xerror2;
-  gram_max_allowed_errors = UINT_MAX;
+  /* Establish error handler for read_catalog_stream().  */
+  unsigned int error_count = 0;
+  struct xerror_handler local_xerror_handler =
+    {
+      (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *))
+      handler->xerror,
+      (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *, const message_ty *, const char *, size_t, size_t, int, const char *))
+      handler->xerror2,
+      &error_count
+    };
 
   file = XMALLOC (struct po_file);
   file->real_filename = filename;
   file->logical_filename = filename;
   file->mdlp = read_catalog_stream (fp, file->real_filename,
-                                    file->logical_filename, &input_format_po);
-  file->domains = NULL;
-
-  /* Restore error handler.  */
-  po_xerror  = textmode_xerror;
-  po_xerror2 = textmode_xerror2;
-  gram_max_allowed_errors = 20;
-
-  if (fp != stdin)
-    fclose (fp);
-  return file;
-}
-#undef po_file_read
-
-#ifdef __cplusplus
-extern "C" po_file_t po_file_read_v2 (const char *filename, po_error_handler_t handler);
-#endif
-po_file_t
-po_file_read_v2 (const char *filename, po_error_handler_t handler)
-{
-  FILE *fp;
-  po_file_t file;
-
-  if (strcmp (filename, "-") == 0 || strcmp (filename, "/dev/stdin") == 0)
-    {
-      filename = _("<stdin>");
-      fp = stdin;
-    }
-  else
-    {
-      fp = fopen (filename, "r");
-      if (fp == NULL)
-        return NULL;
-    }
-
-  /* Establish error handler around read_catalog_stream().  */
-  po_error             = handler->error;
-  po_error_at_line     = handler->error_at_line;
-  po_multiline_warning = handler->multiline_warning;
-  po_multiline_error   = handler->multiline_error;
-  gram_max_allowed_errors = UINT_MAX;
-
-  file = XMALLOC (struct po_file);
-  file->real_filename = filename;
-  file->logical_filename = filename;
-  file->mdlp = read_catalog_stream (fp, file->real_filename,
-                                    file->logical_filename, &input_format_po);
-  file->domains = NULL;
-
-  /* Restore error handler.  */
-  po_error             = orig_error;
-  po_error_at_line     = orig_error_at_line;
-  po_multiline_warning = void_multiline_warning;
-  po_multiline_error   = void_multiline_error;
-  gram_max_allowed_errors = 20;
-
-  if (fp != stdin)
-    fclose (fp);
-  return file;
-}
-
-/* Older version for binary backward compatibility.  */
-#ifdef __cplusplus
-extern "C" po_file_t po_file_read (const char *filename);
-#endif
-po_file_t
-po_file_read (const char *filename)
-{
-  FILE *fp;
-  po_file_t file;
-
-  if (strcmp (filename, "-") == 0 || strcmp (filename, "/dev/stdin") == 0)
-    {
-      filename = _("<stdin>");
-      fp = stdin;
-    }
-  else
-    {
-      fp = fopen (filename, "r");
-      if (fp == NULL)
-        return NULL;
-    }
-
-  file = XMALLOC (struct po_file);
-  file->real_filename = filename;
-  file->logical_filename = filename;
-  file->mdlp = read_catalog_stream (fp, file->real_filename,
-                                    file->logical_filename, &input_format_po);
+                                    file->logical_filename, &input_format_po,
+                                    &local_xerror_handler);
   file->domains = NULL;
 
   if (fp != stdin)
@@ -252,44 +134,19 @@ po_file_read (const char *filename)
 po_file_t
 po_file_write (po_file_t file, const char *filename, po_xerror_handler_t handler)
 {
-  /* Establish error handler around msgdomain_list_print().  */
-  po_xerror =
-    (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *))
-    handler->xerror;
-  po_xerror2 =
-    (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *, const message_ty *, const char *, size_t, size_t, int, const char *))
-    handler->xerror2;
+  /* Establish error handler for msgdomain_list_print().  */
+  unsigned int error_count = 0;
+  struct xerror_handler local_xerror_handler =
+    {
+      (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *))
+      handler->xerror,
+      (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *, const message_ty *, const char *, size_t, size_t, int, const char *))
+      handler->xerror2,
+      &error_count
+    };
 
-  msgdomain_list_print (file->mdlp, filename, &output_format_po, true, false);
-
-  /* Restore error handler.  */
-  po_xerror  = textmode_xerror;
-  po_xerror2 = textmode_xerror2;
-
-  return file;
-}
-#undef po_file_write
-
-/* Older version for binary backward compatibility.  */
-#ifdef __cplusplus
-extern "C" po_file_t po_file_write (po_file_t file, const char *filename, po_error_handler_t handler);
-#endif
-po_file_t
-po_file_write (po_file_t file, const char *filename, po_error_handler_t handler)
-{
-  /* Establish error handler around msgdomain_list_print().  */
-  po_error             = handler->error;
-  po_error_at_line     = handler->error_at_line;
-  po_multiline_warning = handler->multiline_warning;
-  po_multiline_error   = handler->multiline_error;
-
-  msgdomain_list_print (file->mdlp, filename, &output_format_po, true, false);
-
-  /* Restore error handler.  */
-  po_error             = orig_error;
-  po_error_at_line     = orig_error_at_line;
-  po_multiline_warning = void_multiline_warning;
-  po_multiline_error   = void_multiline_error;
+  msgdomain_list_print (file->mdlp, filename, &output_format_po,
+                        &local_xerror_handler, true, false);
 
   return file;
 }
@@ -1183,22 +1040,30 @@ po_filepos_start_line (po_filepos_t filepos)
 }
 
 
+/* A NULL terminated array of the supported format types.  */
+static const char * const * all_formats;
+
+static void
+all_formats_init (void)
+{
+  const char **list = XNMALLOC (NFORMATS + 1, const char *);
+  size_t i;
+  for (i = 0; i < NFORMATS; i++)
+    list[i] = xasprintf ("%s-format", format_language[i]);
+  list[i] = NULL;
+  all_formats = list;
+}
+
+/* Ensure that all_formats_init is called once only.  */
+gl_once_define(static, all_formats_init_once)
+
 /* Return a NULL terminated array of the supported format types.  */
 
 const char * const *
 po_format_list (void)
 {
-  static const char * const * whole_list /* = NULL */;
-  if (whole_list == NULL)
-    {
-      const char **list = XNMALLOC (NFORMATS + 1, const char *);
-      size_t i;
-      for (i = 0; i < NFORMATS; i++)
-        list[i] = xasprintf ("%s-format", format_language[i]);
-      list[i] = NULL;
-      whole_list = list;
-    }
-  return whole_list;
+  gl_once (all_formats_init_once, all_formats_init);
+  return all_formats;
 }
 
 
@@ -1231,21 +1096,21 @@ po_file_check_all (po_file_t file, po_xerror_handler_t handler)
   msgdomain_list_ty *mdlp;
   size_t k;
 
-  /* Establish error handler.  */
-  po_xerror =
-    (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *))
-    handler->xerror;
-  po_xerror2 =
-    (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *, const message_ty *, const char *, size_t, size_t, int, const char *))
-    handler->xerror2;
+  /* Establish error handler for check_message_list().  */
+  unsigned int error_count = 0;
+  struct xerror_handler local_xerror_handler =
+    {
+      (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *))
+      handler->xerror,
+      (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *, const message_ty *, const char *, size_t, size_t, int, const char *))
+      handler->xerror2,
+      &error_count
+    };
 
   mdlp = file->mdlp;
   for (k = 0; k < mdlp->nitems; k++)
-    check_message_list (mdlp->item[k]->messages, 1, 1, 1, 1, 1, 0, 0, 0);
-
-  /* Restore error handler.  */
-  po_xerror  = textmode_xerror;
-  po_xerror2 = textmode_xerror2;
+    check_message_list (mdlp->item[k]->messages, 1, 1, 1, 1, 1, 0, 0, 0,
+                        &local_xerror_handler);
 }
 
 
@@ -1259,13 +1124,16 @@ po_message_check_all (po_message_t message, po_message_iterator_t iterator,
 {
   message_ty *mp = (message_ty *) message;
 
-  /* Establish error handler.  */
-  po_xerror =
-    (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *))
-    handler->xerror;
-  po_xerror2 =
-    (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *, const message_ty *, const char *, size_t, size_t, int, const char *))
-    handler->xerror2;
+  /* Establish error handler for check_message_list().  */
+  unsigned int error_count = 0;
+  struct xerror_handler local_xerror_handler =
+    {
+      (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *))
+      handler->xerror,
+      (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *, const message_ty *, const char *, size_t, size_t, int, const char *))
+      handler->xerror2,
+      &error_count
+    };
 
   /* For plural checking, combine the message and its header into a small,
      two-element message list.  */
@@ -1302,13 +1170,9 @@ po_message_check_all (po_message_t message, po_message_iterator_t iterator,
       if (mp != header)
         message_list_append (&ml, mp);
 
-      check_message_list (&ml, 1, 1, 1, 1, 1, 0, 0, 0);
+      check_message_list (&ml, 1, 1, 1, 1, 1, 0, 0, 0, &local_xerror_handler);
     }
   }
-
-  /* Restore error handler.  */
-  po_xerror  = textmode_xerror;
-  po_xerror2 = textmode_xerror2;
 }
 
 
@@ -1320,62 +1184,17 @@ po_message_check_format (po_message_t message, po_xerror_handler_t handler)
 {
   message_ty *mp = (message_ty *) message;
 
-  /* Establish error handler.  */
-  po_xerror =
-    (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *))
-    handler->xerror;
-  po_xerror2 =
-    (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *, const message_ty *, const char *, size_t, size_t, int, const char *))
-    handler->xerror2;
+  /* Establish error handler for check_message().  */
+  unsigned int error_count = 0;
+  struct xerror_handler local_xerror_handler =
+    {
+      (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *))
+      handler->xerror,
+      (void (*) (int, const message_ty *, const char *, size_t, size_t, int, const char *, const message_ty *, const char *, size_t, size_t, int, const char *))
+      handler->xerror2,
+      &error_count
+    };
 
   if (!mp->obsolete)
-    check_message (mp, &mp->pos, 0, 1, NULL, 0, 0, 0, 0);
-
-  /* Restore error handler.  */
-  po_xerror  = textmode_xerror;
-  po_xerror2 = textmode_xerror2;
-}
-#undef po_message_check_format
-
-/* Older version for binary backward compatibility.  */
-
-/* An error logger based on the po_error function pointer.  */
-static void
-po_error_logger (void *data, const char *format, ...)
-     __attribute__ ((__format__ (__printf__, 2, 3)));
-static void
-po_error_logger (void *data, const char *format, ...)
-{
-  va_list args;
-  char *error_message;
-
-  va_start (args, format);
-  if (vasprintf (&error_message, format, args) < 0)
-    orig_error (EXIT_FAILURE, 0, _("memory exhausted"));
-  va_end (args);
-  po_error (0, 0, "%s", error_message);
-  free (error_message);
-}
-
-/* Test whether the message translation is a valid format string if the message
-   is marked as being a format string.  If it is invalid, pass the reasons to
-   the handler.  */
-#ifdef __cplusplus
-extern "C" void po_message_check_format (po_message_t message, po_error_handler_t handler);
-#endif
-void
-po_message_check_format (po_message_t message, po_error_handler_t handler)
-{
-  message_ty *mp = (message_ty *) message;
-
-  /* Establish error handler for po_error_logger().  */
-  po_error = handler->error;
-
-  check_msgid_msgstr_format (mp->msgid, mp->msgid_plural,
-                             mp->msgstr, mp->msgstr_len,
-                             mp->is_format, mp->range, NULL,
-                             po_error_logger, NULL);
-
-  /* Restore error handler.  */
-  po_error = orig_error;
+    check_message (mp, &mp->pos, 0, 1, NULL, 0, 0, 0, 0, &local_xerror_handler);
 }

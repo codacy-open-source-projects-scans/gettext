@@ -40,6 +40,7 @@
 #include "relocatable.h"
 #include "basename-lgpl.h"
 #include "xerror.h"
+#include "xerror-handler.h"
 #include "xvasprintf.h"
 #include "xalloc.h"
 #include "msgfmt.h"
@@ -56,10 +57,11 @@
 #include "open-catalog.h"
 #include "read-catalog-file.h"
 #include "read-po.h"
-#include "read-po-lex.h"
 #include "read-properties.h"
 #include "read-stringtable.h"
 #include "read-desktop.h"
+#include "po-xerror.h"
+#include "xerror-handler.h"
 #include "po-charset.h"
 #include "msgl-check.h"
 #include "msgl-iconv.h"
@@ -256,6 +258,7 @@ main (int argc, char *argv[])
   error_print_progname = maybe_print_progname;
   error_one_per_line = 1;
   exit_status = EXIT_SUCCESS;
+  gram_max_allowed_errors = 20;
 
   /* Set locale via LC_ALL.  */
   setlocale (LC_ALL, "");
@@ -767,7 +770,8 @@ There is NO WARRANTY, to the extent permitted by law.\n\
                             0, 0,
                             1, check_format_strings, check_header,
                             check_compatibility,
-                            check_accelerators, accelerator_char);
+                            check_accelerators, accelerator_char,
+                            textmode_xerror_handler);
 
     /* Exit with status 1 on any error.  */
     if (nerrors > 0)
@@ -1236,8 +1240,10 @@ msgfmt_set_domain (default_catalog_reader_ty *dcatr,
   else
     {
       if (check_domain)
-        po_gram_error_at_line (name_pos,
-                               _("'domain %s' directive ignored"), name);
+        po_xerror (PO_SEVERITY_ERROR, NULL,
+                   name_pos->file_name, name_pos->line_number, (size_t)(-1),
+                   false,
+                   xasprintf (_("'domain %s' directive ignored"), name));
 
       /* NAME was allocated in read-po-gram.y but is not used anywhere.  */
       free (name);
@@ -1388,7 +1394,8 @@ read_catalog_file_msgfmt (char *filename, catalog_input_format_ty input_syntax)
   FILE *fp = open_catalog_file (filename, &real_filename, true);
   default_catalog_reader_ty *dcatr;
 
-  dcatr = default_catalog_reader_alloc (&msgfmt_methods);
+  dcatr = default_catalog_reader_alloc (&msgfmt_methods,
+                                        textmode_xerror_handler);
   dcatr->pass_obsolete_entries = true;
   dcatr->handle_comments = false;
   dcatr->allow_domain_directives = true;
@@ -1603,7 +1610,8 @@ msgfmt_operand_list_add_from_directory (msgfmt_operand_list_ty *operands,
                             0, 0,
                             1, check_format_strings, check_header,
                             check_compatibility,
-                            check_accelerators, accelerator_char);
+                            check_accelerators, accelerator_char,
+                            textmode_xerror_handler);
 
       retval += nerrors;
       if (nerrors > 0)
@@ -1616,7 +1624,8 @@ msgfmt_operand_list_add_from_directory (msgfmt_operand_list_ty *operands,
         }
 
       /* Convert the messages to Unicode.  */
-      iconv_message_list (mlp, NULL, po_charset_utf8, NULL);
+      iconv_message_list (mlp, NULL, po_charset_utf8, NULL,
+                          textmode_xerror_handler);
 
       msgfmt_operand_list_append (operands, language, mlp);
     }

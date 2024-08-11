@@ -63,6 +63,7 @@
 #include "write-po.h"
 #include "write-properties.h"
 #include "write-stringtable.h"
+#include "xerror-handler.h"
 #include "po-charset.h"
 #include "localcharset.h"
 #include "localename.h"
@@ -152,6 +153,7 @@ main (int argc, char **argv)
   /* Set program name for messages.  */
   set_program_name (argv[0]);
   error_print_progname = maybe_print_progname;
+  gram_max_allowed_errors = 20;
 
   /* Set locale via LC_ALL.  */
   setlocale (LC_ALL, "");
@@ -378,7 +380,8 @@ the output .po file through the --output-file option.\n"),
     result = update_msgstr_plurals (result);
 
   /* Write the modified message list out.  */
-  msgdomain_list_print (result, output_file, output_syntax, true, false);
+  msgdomain_list_print (result, output_file, output_syntax,
+                        textmode_xerror_handler, true, false);
 
   if (!no_translator)
     fprintf (stderr, "\n");

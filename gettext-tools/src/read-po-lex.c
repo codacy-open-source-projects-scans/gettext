@@ -43,10 +43,10 @@
 #include "gettext.h"
 #include "po-charset.h"
 #include "xalloc.h"
-#include "error-progname.h"
 #include "xvasprintf.h"
+#include "xstrerror.h"
 #include "po-error.h"
-#include "po-xerror.h"
+#include "xerror-handler.h"
 #include "xmalloca.h"
 #if !IN_LIBGETTEXTPO
 # include "basename-lgpl.h"
@@ -56,6 +56,7 @@
 #include "pos.h"
 #include "message.h"
 #include "str-list.h"
+#include "read-po.h"
 #include "read-po-internal.h"
 #include "read-po-gram.h"
 
@@ -70,7 +71,6 @@
 /* Error handling during the parsing of a PO file.
    These functions can access ps->gram_pos and ps->gram_pos_column.  */
 
-/* VARARGS1 */
 void
 po_gram_error (struct po_parser_state *ps, const char *fmt, ...)
 {
@@ -79,34 +79,38 @@ po_gram_error (struct po_parser_state *ps, const char *fmt, ...)
 
   va_start (ap, fmt);
   if (vasprintf (&buffer, fmt, ap) < 0)
-    error (EXIT_FAILURE, 0, _("memory exhausted"));
+    ps->catr->xeh->xerror (CAT_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
+                           _("memory exhausted"));
   va_end (ap);
-  po_xerror (PO_SEVERITY_ERROR, NULL,
-             ps->gram_pos.file_name, ps->gram_pos.line_number,
-             ps->gram_pos_column + 1, false, buffer);
+  ps->catr->xeh->xerror (CAT_SEVERITY_ERROR, NULL,
+                         ps->gram_pos.file_name, ps->gram_pos.line_number,
+                         ps->gram_pos_column + 1, false, buffer);
   free (buffer);
 
-  if (error_message_count >= gram_max_allowed_errors)
-    po_error (EXIT_FAILURE, 0, _("too many errors, aborting"));
+  if (*(ps->catr->xeh->error_message_count_p) >= gram_max_allowed_errors)
+    ps->catr->xeh->xerror (CAT_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
+                           _("too many errors, aborting"));
 }
 
-/* VARARGS2 */
 void
-po_gram_error_at_line (const lex_pos_ty *pp, const char *fmt, ...)
+po_gram_error_at_line (abstract_catalog_reader_ty *catr, const lex_pos_ty *pp,
+                       const char *fmt, ...)
 {
   va_list ap;
   char *buffer;
 
   va_start (ap, fmt);
   if (vasprintf (&buffer, fmt, ap) < 0)
-    error (EXIT_FAILURE, 0, _("memory exhausted"));
+    catr->xeh->xerror (CAT_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
+                       _("memory exhausted"));
   va_end (ap);
-  po_xerror (PO_SEVERITY_ERROR, NULL, pp->file_name, pp->line_number,
-             (size_t)(-1), false, buffer);
+  catr->xeh->xerror (CAT_SEVERITY_ERROR, NULL, pp->file_name, pp->line_number,
+                     (size_t)(-1), false, buffer);
   free (buffer);
 
-  if (error_message_count >= gram_max_allowed_errors)
-    po_error (EXIT_FAILURE, 0, _("too many errors, aborting"));
+  if (*(catr->xeh->error_message_count_p) >= gram_max_allowed_errors)
+    catr->xeh->xerror (CAT_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
+                       _("too many errors, aborting"));
 }
 
 
@@ -169,9 +173,9 @@ po_lex_charset_set (struct po_parser_state *ps,
 Charset \"%s\" is not a portable encoding name.\n\
 Message conversion to user's charset might not work.\n"),
                            charset);
-              po_xerror (PO_SEVERITY_WARNING, NULL,
-                         filename, (size_t)(-1), (size_t)(-1), true,
-                         warning_message);
+              ps->catr->xeh->xerror (CAT_SEVERITY_WARNING, NULL,
+                                     filename, (size_t)(-1), (size_t)(-1), true,
+                                     warning_message);
               free (warning_message);
             }
         }
@@ -286,9 +290,9 @@ would fix this problem.\n");
                     xasprintf ("%s%s%s\n",
                                warning_message, recommendation, note);
 
-                  po_xerror (PO_SEVERITY_WARNING, NULL,
-                             filename, (size_t)(-1), (size_t)(-1), true,
-                             whole_message);
+                  ps->catr->xeh->xerror (CAT_SEVERITY_WARNING, NULL,
+                                         filename, (size_t)(-1), (size_t)(-1),
+                                         true, whole_message);
 
                   free (whole_message);
                   free (warning_message);
@@ -329,9 +333,9 @@ would fix this problem.\n");
                     xasprintf ("%s%s%s\n",
                                warning_message, recommendation, note);
 
-                  po_xerror (PO_SEVERITY_WARNING, NULL,
-                             filename, (size_t)(-1), (size_t)(-1), true,
-                             whole_message);
+                  ps->catr->xeh->xerror (CAT_SEVERITY_WARNING, NULL,
+                                         filename, (size_t)(-1), (size_t)(-1),
+                                         true, whole_message);
 
                   free (whole_message);
                   free (warning_message);
@@ -349,9 +353,9 @@ would fix this problem.\n");
 
       if (!(filenamelen >= 4
             && memcmp (filename + filenamelen - 4, ".pot", 4) == 0))
-        po_xerror (PO_SEVERITY_WARNING,
-                   NULL, filename, (size_t)(-1), (size_t)(-1), true,
-                   _("\
+        ps->catr->xeh->xerror (CAT_SEVERITY_WARNING,
+                               NULL, filename, (size_t)(-1), (size_t)(-1), true,
+                               _("\
 Charset missing in header.\n\
 Message conversion to user's charset will not work.\n"));
     }
@@ -701,11 +705,10 @@ mbfile_getc (struct po_parser_state *ps, mbchar_t mbc, mbfile_t mbf)
                 }
               else
                 {
-                  const char *errno_description = strerror (errno);
-                  po_xerror (PO_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
-                             xasprintf ("%s: %s",
-                                        _("iconv failure"),
-                                        errno_description));
+                  int err = errno;
+                  ps->catr->xeh->xerror (CAT_SEVERITY_FATAL_ERROR,
+                                         NULL, NULL, 0, 0, false,
+                                         xstrerror (_("iconv failure"), err));
                 }
             }
           else
@@ -814,11 +817,6 @@ mbfile_ungetc (const mbchar_t mbc, mbfile_t mbf)
 }
 
 
-/* Lexer variables.  */
-
-unsigned int gram_max_allowed_errors = 20;
-
-
 /* Prepare lexical analysis.  */
 void
 lex_start (struct po_parser_state *ps,
@@ -865,12 +863,12 @@ lex_getc (struct po_parser_state *ps, mbchar_t mbc)
           if (ferror (ps->mbf->fp))
            bomb:
             {
-              const char *errno_description = strerror (errno);
-              po_xerror (PO_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
-                         xasprintf ("%s: %s",
-                                    xasprintf (_("error while reading \"%s\""),
-                                               ps->gram_pos.file_name),
-                                    errno_description));
+              int err = errno;
+              ps->catr->xeh->xerror (CAT_SEVERITY_FATAL_ERROR,
+                                     NULL, NULL, 0, 0, false,
+                                     xstrerror (xasprintf (_("error while reading \"%s\""),
+                                                           ps->gram_pos.file_name),
+                                                err));
             }
           break;
         }
@@ -955,7 +953,8 @@ keyword_p (struct po_parser_state *ps, const char *s)
       if (!strcmp (s, "msgctxt"))
         return PREV_MSGCTXT;
     }
-  po_gram_error_at_line (&ps->gram_pos, _("keyword \"%s\" unknown"), s);
+  po_gram_error_at_line (ps->catr, &ps->gram_pos,
+                         _("keyword \"%s\" unknown"), s);
   return NAME;
 }
 
@@ -1197,13 +1196,13 @@ po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps)
                   }
                 if (mb_iseof (mbc))
                   {
-                    po_gram_error_at_line (&ps->gram_pos,
+                    po_gram_error_at_line (ps->catr, &ps->gram_pos,
                                            _("end-of-file within string"));
                     break;
                   }
                 if (mb_iseq (mbc, '\n'))
                   {
-                    po_gram_error_at_line (&ps->gram_pos,
+                    po_gram_error_at_line (ps->catr, &ps->gram_pos,
                                            _("end-of-line within string"));
                     break;
                   }
@@ -1224,7 +1223,7 @@ po_gram_lex (union PO_GRAM_STYPE *lval, struct po_parser_state *ps)
             /* Strings cannot contain the msgctxt separator, because it cannot
                be faithfully represented in the msgid of a .mo file.  */
             if (strchr (buf, MSGCTXT_SEPARATOR) != NULL)
-              po_gram_error_at_line (&ps->gram_pos,
+              po_gram_error_at_line (ps->catr, &ps->gram_pos,
                                      _("context separator <EOT> within string"));
 
             /* FIXME: Treatment of embedded \000 chars is incorrect.  */
