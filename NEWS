@@ -1,12 +1,27 @@
 Version 0.23 - August 2024
 
 * Programming languages support:
-  - Python: xgettext now recognizes the f-string syntax.
+  - Python:
+    o xgettext now assumes source code for Python 3 rather than Python 2.
+      This affects the interpretation of escape sequences in string literals.
+    o xgettext now recognizes the f-string syntax.
+  - Scheme:
+    o xgettext now supports the option '-L Guile' as an alternative to
+      '-L Scheme'.  They are nearly equivalent.  They differ in the
+      interpretation of escape sequences in string literals: While
+      'xgettext -L Scheme' assumes the R6RS and R7RS syntax of string literals,
+      'xgettext -L Guile' assumes the syntax of string literals understood by
+      Guile 2.x and 3.0 (without command-line option '--r6rs' or '--r7rs', and
+      before a '#!r6rs' directive is seen).
+    o xgettext now recognizes comments of the form '#; <expression>'.
   - Java: Improved recognition of format strings when the String.formatted
     method is used.
   - Vala: Improved recognition of format strings when the string.printf method
     is used.
   - Glade: xgettext has improved support for GtkBuilder 4.
+  - Tcl: With the forthcoming Tcl 9.0, characters outside the Unicode BMP
+    in Tcl message catalogs (.msg files) will work regardless of the locale's
+    encoding.
 
 * Runtime behaviour:
   - In the C.UTF-8 locale, like in the C locale, the *gettext() functions
