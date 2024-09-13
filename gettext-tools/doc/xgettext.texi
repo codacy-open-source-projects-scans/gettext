@@ -275,7 +275,7 @@ GCC-source, Glade, Lua, JavaScript, Vala, GSettings, Desktop.
 The default keyword specifications, which are always looked for if not
 explicitly disabled, are language dependent.  They are:
 
-@itemize
+@itemize @bullet
 @item
 For C, C++, and GCC-source: @code{gettext}, @code{dgettext:2},
 @code{dcgettext:2}, @code{ngettext:1,2}, @code{dngettext:2,3},
@@ -414,7 +414,8 @@ YCP, Tcl, Perl, PHP, GCC-source, Lua, JavaScript, Vala.
 @opindex -T@r{, @code{xgettext} option}
 @opindex --trigraphs@r{, @code{xgettext} option}
 @cindex C trigraphs
-Understand ANSI C trigraphs for input.
+Understand ANSI C trigraphs for input
+(deprecated, since trigraphs have been removed from ISO C 23).
 @*
 This option has an effect only with the languages C, C++, ObjectiveC.
 
@@ -558,6 +559,8 @@ Sort output by file location.
 @item --omit-header
 @opindex --omit-header@r{, @code{xgettext} option}
 Don't write header with @samp{msgid ""} entry.
+Note: Using this option may lead to an error in subsequent operations
+if the output contains non-ASCII characters.
 
 @cindex testing @file{.po} files for equivalence
 This is useful for testing purposes because it eliminates a source

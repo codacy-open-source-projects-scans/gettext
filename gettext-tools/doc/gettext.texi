@@ -230,8 +230,10 @@ Updating Existing PO Files
 
 Editing PO Files
 
-* KBabel::                      KDE's PO File Editor
+* Web based localization::      Web-based PO editing
+* Lokalize::                    KDE's PO File Editor
 * Gtranslator::                 GNOME's PO File Editor
+* Poedit::                      A simple PO File Editor
 * PO Mode::                     Emacs's PO File Editor
 * Compendium::                  Using Translation Compendia
 
@@ -3351,7 +3353,7 @@ In the GNU system, the following encodings are frequently used for the
 corresponding languages.
 
 @cindex encoding for your language
-@itemize
+@itemize @bullet
 @item @code{ISO-8859-1} for
 Afrikaans, Albanian, Basque, Breton, Catalan, Cornish, Danish, Dutch,
 English, Estonian, Faroese, Finnish, French, Galician, German,
@@ -3440,20 +3442,88 @@ format of the plural forms field is described in @ref{Plural forms} and
 @chapter Editing PO Files
 @cindex Editing PO Files
 
+As a translator, you will typically edit a PO file
+in an editor that has built-in knowledge about the PO file format.
+You most probably won't want to edit a PO file
+in a text editor for plain-text files,
+because that would be cumbersome regarding cursor navigation
+and would also easily lead to syntax mistakes.
+
 @menu
-* KBabel::                      KDE's PO File Editor
+* Web based localization::      Web-based PO editing
+* Lokalize::                    KDE's PO File Editor
 * Gtranslator::                 GNOME's PO File Editor
+* Poedit::                      A simple PO File Editor
 * PO Mode::                     Emacs's PO File Editor
 * Compendium::                  Using Translation Compendia
 @end menu
 
-@node KBabel
+@node Web based localization
+@section Web-based PO editing
+@cindex weblate
+
+There are two ways to edit a PO file:
+either through a web-based PO editor, in a browser,
+or through a PO editor that you can install on your computer.
+Which one you choose, depends on your habits.
+
+Typically, the software project for which you want to provide translations
+has set up a workflow that you, as a translator, have to follow.
+
+@itemize @bullet
+@item
+There are projects which use the @url{https://weblate.org/, Weblate}
+localization suite.
+In this case, you have the choice between a
+@url{https://docs.weblate.org/en/latest/user/translating.html, web-based PO editor}
+and a @url{https://docs.weblate.org/en/latest/user/files.html, workflow}
+where you download the previous translation,
+update it with your preferred PO editor,
+and then upload it back.
+
+@item
+There are projects which offer you only a web-based PO editor, as only choice.
+Since web-based tools restrict your freedom as a user -- you cannot make
+modifications on your own to that tool --,
+you should complain to that project and claim the choice of using a locally
+installed PO editor, because that is the only way that can guarantee
+your freedom of choice and freedom to modify the software.
+
+@item
+There are projects which do not support web-based localizations.
+In this case, pick a PO file editor as listed in the next few sections.
+Examples for such projects are
+the @url{https://translationproject.org/, Free Translation Project},
+as well as projects where you directly interact with the version control
+system of the project.
+@end itemize
+
+@node Lokalize
 @section KDE's PO File Editor
 @cindex KDE PO file editor
+
+Lokalize (@url{https://apps.kde.org/lokalize/})
+is the PO file editor made by the KDE project.
+It is present in @url{https://repology.org/project/lokalize/versions, many}
+GNU/Linux distributions.
 
 @node Gtranslator
 @section GNOME's PO File Editor
 @cindex GNOME PO file editor
+
+Gtranslator (@url{https://wiki.gnome.org/Apps/Gtranslator})
+is the PO file editor made by the GNOME project.
+It is present in @url{https://repology.org/project/gtranslator/versions, many}
+GNU/Linux distributions.
+
+@node Poedit
+@section Poedit
+
+Poedit (@url{https://github.com/vslavik/poedit})
+is another decent PO file editor.
+It works on all major desktop OSes and
+is present in @url{https://repology.org/project/poedit/versions, many}
+GNU/Linux distributions.
 
 @node PO Mode
 @section Emacs's PO File Editor
@@ -5446,7 +5516,7 @@ esac
 The ``Pology'' package is a Free Software package for manipulating PO files.
 It features, in particular:
 
-@itemize
+@itemize @bullet
 @item
 Examination and in-place modification of collections of PO files.
 @item
@@ -8214,7 +8284,7 @@ $ msgattrib --set-obsolete --ignore-file $domain-missing.po $domain.$lang.po \
 
 The she translates @file{$domain.$lang-urgent.po} by use of a PO file editor
 (@pxref{Editing}).
-(FIXME: I don't know whether @code{KBabel} and @code{gtranslator} also
+(FIXME: I don't know whether @code{Lokalize} and @code{gtranslator} also
 preserve obsolete messages, as they should.)
 Finally she restores the not urgent messages (with their earlier
 translations, for those which were already translated) through this command:
@@ -9672,10 +9742,9 @@ strings.
 
 C format strings are described in POSIX (IEEE P1003.1 2001), section
 XSH 3 fprintf(),
-@uref{http://www.opengroup.org/onlinepubs/007904975/functions/fprintf.html}.
-See also the fprintf() manual page,
-@uref{http://www.linuxvalley.it/encyclopedia/ldp/manpage/man3/printf.3.php},
-@uref{http://informatik.fh-wuerzburg.de/student/i510/man/printf.html}.
+@uref{https://pubs.opengroup.org/onlinepubs/9799919799/functions/fprintf.html}.
+See also the fprintf() manual page
+@uref{https://www.kernel.org/doc/man-pages/online/pages/man3/fprintf.3.html,,man fprintf}.
 
 Although format strings with positions that reorder arguments, such as
 
@@ -9696,6 +9765,19 @@ on this reordering ability: On the few platforms where @code{printf()},
 @code{fprintf()} etc. don't support this feature natively, @file{libintl.a}
 or @file{libintl.so} provides replacement functions, and GNU @code{<libintl.h>}
 activates these replacement functions automatically.
+
+@cindex @code{inttypes.h}
+C format strings can contain placeholders
+that reference macros defined in ISO C 99 @code{<inttypes.h>}.
+For example, @code{<PRId64>} references the macro @code{PRId64}.
+The value of such a macro is system-dependent,
+but programmers and translators do not need to know this value.
+ISO C 23 specifies system-independent format string elements,
+for example, @code{"%w64d"} instead of @code{"%" PRId64};
+however, as of 2024, these are not implemented across systems
+and therefore cannot be used portably.
+@c We need it implemented in glibc and in gcc and clang; <libintl.h> could
+@c then do the rest, with the help of gnulib's *printf functions.
 
 @cindex outdigits
 @cindex Arabic digits
@@ -9718,6 +9800,10 @@ glibc when NLS is disabled.)
 Objective C format strings are like C format strings.  They support an
 additional format directive: "%@@", which when executed consumes an argument
 of type @code{Object *}.
+
+@cindex @code{inttypes.h}
+Objective C format strings, like C format strings, can contain placeholders
+that reference macros defined in ISO C 99 @code{<inttypes.h>}.
 
 @node c++-format
 @subsection C++ Format Strings
@@ -10306,7 +10392,7 @@ categories:
 This data category associates @code{msgctxt} to the extracted text.  In
 the global rule, the @code{contextRule} element contains the following:
 
-@itemize
+@itemize @bullet
 @item
 A required @code{selector} attribute.  It contains an absolute selector
 that selects the nodes to which this rule applies.
@@ -10327,7 +10413,7 @@ This data category indicates whether the special XML characters
 reference.  In the global rule, the @code{escapeRule} element contains
 the following:
 
-@itemize
+@itemize @bullet
 @item
 A required @code{selector} attribute.  It contains an absolute selector
 that selects the nodes to which this rule applies.
@@ -10346,7 +10432,7 @@ content, but not to normalize whitespaces in the middle.
 boundaries.  In the global
 rule, the @code{preserveSpaceRule} element contains the following:
 
-@itemize
+@itemize @bullet
 @item
 A required @code{selector} attribute.  It contains an absolute selector
 that selects the nodes to which this rule applies.
