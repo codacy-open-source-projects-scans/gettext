@@ -16,6 +16,8 @@ Version 0.23 - September 2024
     o xgettext now recognizes comments of the form '#; <expression>'.
   - Java: Improved recognition of format strings when the String.formatted
     method is used.
+  - C#: Strings with embedded expressions (a.k.a. interpolated strings) are now
+    recognized.
   - awk: String concatenation by juxtaposition is now recognized.
   - Smalltalk: The string concatenation operator ',' is now recognized.
   - Vala: Improved recognition of format strings when the string.printf method
@@ -24,11 +26,20 @@ Version 0.23 - September 2024
   - Tcl: With the forthcoming Tcl 9.0, characters outside the Unicode BMP
     in Tcl message catalogs (.msg files) will work regardless of the locale's
     encoding.
+  - Perl:
+    o xgettext now reports warnings instead of fatal errors.
+    o Strings with embedded expressions (a.k.a. interpolated strings) are now
+      recognized.
+  - PHP: Strings with embedded expressions are now recognized.
 
 * Runtime behaviour:
   - In the C.UTF-8 locale, like in the C locale, the *gettext() functions
     now return the msgid untranslated. This is relevant for GNU systems,
     Linux with musl libc, FreeBSD, NetBSD, OpenBSD, Cygwin, and Android.
+
+* Documentation:
+  - The section "Preparing Strings" now gives more advice how to deal with
+    string concatenation and strings with embedded expressions.
 
 * xgettext:
   - Most of the diagnostics emitted by xgettext are now labelled as

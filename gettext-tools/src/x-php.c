@@ -49,12 +49,13 @@
 
 
 /* The PHP syntax is defined in phpdoc/manual/langref.html.
-   See also php-4.1.0/Zend/zend_language_scanner.l
-   and      php-4.1.0/Zend/zend_language_parser.y.
+   See also php-8.1.0/Zend/zend_language_scanner.l
+   and      php-8.1.0/Zend/zend_language_parser.y.
    Note that variable and function names can contain bytes in the range
-   0x7f..0xff; see
-     http://www.php.net/manual/en/language.variables.php
-     http://www.php.net/manual/en/language.functions.php  */
+   0x80..0xff; see
+     https://www.php.net/manual/en/language.variables.basics.php
+   String syntaxes (single-quoted, double-quoted, heredoc, nowdoc):
+     https://www.php.net/manual/en/language.types.string.php  */
 
 
 /* ====================== Keyword set customization.  ====================== */
@@ -136,602 +137,9 @@ init_flag_table_php ()
 }
 
 
-/* ======================== Reading of characters.  ======================== */
+/* =================== Variables used by the extractor.  =================== */
 
-/* The input file stream.  */
-static FILE *fp;
-
-
-/* 1. line_number handling.  */
-
-static unsigned char phase1_pushback[2];
-static int phase1_pushback_length;
-
-static int
-phase1_getc ()
-{
-  int c;
-
-  if (phase1_pushback_length)
-    c = phase1_pushback[--phase1_pushback_length];
-  else
-    {
-      c = getc (fp);
-
-      if (c == EOF)
-        {
-          if (ferror (fp))
-            error (EXIT_FAILURE, errno, _("error while reading \"%s\""),
-                   real_file_name);
-          return EOF;
-        }
-    }
-
-  if (c == '\n')
-    line_number++;
-
-  return c;
-}
-
-/* Supports 2 characters of pushback.  */
-static void
-phase1_ungetc (int c)
-{
-  if (c != EOF)
-    {
-      if (c == '\n')
-        --line_number;
-
-      if (phase1_pushback_length == SIZEOF (phase1_pushback))
-        abort ();
-      phase1_pushback[phase1_pushback_length++] = c;
-    }
-}
-
-
-/* 2. Ignore HTML sections.  They are equivalent to PHP echo commands and
-   therefore don't contain translatable strings.  */
-
-static void
-skip_html ()
-{
-  for (;;)
-    {
-      int c = phase1_getc ();
-
-      if (c == EOF)
-        return;
-
-      if (c == '<')
-        {
-          int c2 = phase1_getc ();
-
-          if (c2 == EOF)
-            break;
-
-          if (c2 == '?')
-            {
-              /* <?php is the normal way to enter PHP mode. <? and <?= are
-                 recognized by PHP depending on a configuration setting.  */
-              int c3 = phase1_getc ();
-
-              if (c3 != '=')
-                phase1_ungetc (c3);
-
-              return;
-            }
-
-          if (c2 == '%')
-            {
-              /* <% and <%= are recognized by PHP depending on a configuration
-                 setting.  */
-              int c3 = phase1_getc ();
-
-              if (c3 != '=')
-                phase1_ungetc (c3);
-
-              return;
-            }
-
-          if (c2 == '<')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-
-          /* < script language = php >
-             < script language = "php" >
-             < script language = 'php' >
-             are always recognized.  */
-          while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r')
-            c2 = phase1_getc ();
-          if (c2 != 's' && c2 != 'S')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          if (c2 != 'c' && c2 != 'C')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          if (c2 != 'r' && c2 != 'R')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          if (c2 != 'i' && c2 != 'I')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          if (c2 != 'p' && c2 != 'P')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          if (c2 != 't' && c2 != 'T')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          if (!(c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r'))
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          do
-            c2 = phase1_getc ();
-          while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r');
-          if (c2 != 'l' && c2 != 'L')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          if (c2 != 'a' && c2 != 'A')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          if (c2 != 'n' && c2 != 'N')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          if (c2 != 'g' && c2 != 'G')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          if (c2 != 'u' && c2 != 'U')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          if (c2 != 'a' && c2 != 'A')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          if (c2 != 'g' && c2 != 'G')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          if (c2 != 'e' && c2 != 'E')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r')
-            c2 = phase1_getc ();
-          if (c2 != '=')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          c2 = phase1_getc ();
-          while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r')
-            c2 = phase1_getc ();
-          if (c2 == '"')
-            {
-              c2 = phase1_getc ();
-              if (c2 != 'p')
-                {
-                  phase1_ungetc (c2);
-                  continue;
-                }
-              c2 = phase1_getc ();
-              if (c2 != 'h')
-                {
-                  phase1_ungetc (c2);
-                  continue;
-                }
-              c2 = phase1_getc ();
-              if (c2 != 'p')
-                {
-                  phase1_ungetc (c2);
-                  continue;
-                }
-              c2 = phase1_getc ();
-              if (c2 != '"')
-                {
-                  phase1_ungetc (c2);
-                  continue;
-                }
-            }
-          else if (c2 == '\'')
-            {
-              c2 = phase1_getc ();
-              if (c2 != 'p')
-                {
-                  phase1_ungetc (c2);
-                  continue;
-                }
-              c2 = phase1_getc ();
-              if (c2 != 'h')
-                {
-                  phase1_ungetc (c2);
-                  continue;
-                }
-              c2 = phase1_getc ();
-              if (c2 != 'p')
-                {
-                  phase1_ungetc (c2);
-                  continue;
-                }
-              c2 = phase1_getc ();
-              if (c2 != '\'')
-                {
-                  phase1_ungetc (c2);
-                  continue;
-                }
-            }
-          else
-            {
-              if (c2 != 'p')
-                {
-                  phase1_ungetc (c2);
-                  continue;
-                }
-              c2 = phase1_getc ();
-              if (c2 != 'h')
-                {
-                  phase1_ungetc (c2);
-                  continue;
-                }
-              c2 = phase1_getc ();
-              if (c2 != 'p')
-                {
-                  phase1_ungetc (c2);
-                  continue;
-                }
-            }
-          c2 = phase1_getc ();
-          while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r')
-            c2 = phase1_getc ();
-          if (c2 != '>')
-            {
-              phase1_ungetc (c2);
-              continue;
-            }
-          return;
-        }
-    }
-}
-
-#if 0
-
-static unsigned char phase2_pushback[1];
-static int phase2_pushback_length;
-
-static int
-phase2_getc ()
-{
-  int c;
-
-  if (phase2_pushback_length)
-    return phase2_pushback[--phase2_pushback_length];
-
-  c = phase1_getc ();
-  switch (c)
-    {
-    case '?':
-    case '%':
-      {
-        int c2 = phase1_getc ();
-        if (c2 == '>')
-          {
-            /* ?> and %> terminate PHP mode and switch back to HTML mode.  */
-            skip_html ();
-            return ' ';
-          }
-        phase1_ungetc (c2);
-      }
-      break;
-
-    case '<':
-      {
-        int c2 = phase1_getc ();
-
-        /* < / script > terminates PHP mode and switches back to HTML mode.  */
-        while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r')
-          c2 = phase1_getc ();
-        if (c2 == '/')
-          {
-            do
-              c2 = phase1_getc ();
-            while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r');
-            if (c2 == 's' || c2 == 'S')
-              {
-                c2 = phase1_getc ();
-                if (c2 == 'c' || c2 == 'C')
-                  {
-                    c2 = phase1_getc ();
-                    if (c2 == 'r' || c2 == 'R')
-                      {
-                        c2 = phase1_getc ();
-                        if (c2 == 'i' || c2 == 'I')
-                          {
-                            c2 = phase1_getc ();
-                            if (c2 == 'p' || c2 == 'P')
-                              {
-                                c2 = phase1_getc ();
-                                if (c2 == 't' || c2 == 'T')
-                                  {
-                                    do
-                                      c2 = phase1_getc ();
-                                    while (c2 == ' ' || c2 == '\t'
-                                           || c2 == '\n' || c2 == '\r');
-                                    if (c2 == '>')
-                                      {
-                                        skip_html ();
-                                        return ' ';
-                                      }
-                                  }
-                              }
-                          }
-                      }
-                  }
-              }
-          }
-        phase1_ungetc (c2);
-      }
-      break;
-    }
-
-  return c;
-}
-
-static void
-phase2_ungetc (int c)
-{
-  if (c != EOF)
-    {
-      if (phase2_pushback_length == SIZEOF (phase2_pushback))
-        abort ();
-      phase2_pushback[phase2_pushback_length++] = c;
-    }
-}
-
-#endif
-
-
-/* Accumulating comments.  */
-
-static char *buffer;
-static size_t bufmax;
-static size_t buflen;
-
-static inline void
-comment_start ()
-{
-  buflen = 0;
-}
-
-static inline void
-comment_add (int c)
-{
-  if (buflen >= bufmax)
-    {
-      bufmax = 2 * bufmax + 10;
-      buffer = xrealloc (buffer, bufmax);
-    }
-  buffer[buflen++] = c;
-}
-
-static inline void
-comment_line_end (size_t chars_to_remove)
-{
-  buflen -= chars_to_remove;
-  while (buflen >= 1
-         && (buffer[buflen - 1] == ' ' || buffer[buflen - 1] == '\t'))
-    --buflen;
-  if (chars_to_remove == 0 && buflen >= bufmax)
-    {
-      bufmax = 2 * bufmax + 10;
-      buffer = xrealloc (buffer, bufmax);
-    }
-  buffer[buflen] = '\0';
-  savable_comment_add (buffer);
-}
-
-
-/* 3. Replace each comment that is not inside a string literal with a
-   space character.  We need to remember the comment for later, because
-   it may be attached to a keyword string.  */
-
-/* These are for tracking whether comments count as immediately before
-   keyword.  */
-static int last_comment_line;
-static int last_non_comment_line;
-
-static unsigned char phase3_pushback[1];
-static int phase3_pushback_length;
-
-static int
-phase3_getc ()
-{
-  int lineno;
-  int c;
-
-  if (phase3_pushback_length)
-    return phase3_pushback[--phase3_pushback_length];
-
-  c = phase1_getc ();
-
-  if (c == '#')
-    {
-      /* sh comment.  */
-      bool last_was_qmark = false;
-
-      comment_start ();
-      lineno = line_number;
-      for (;;)
-        {
-          c = phase1_getc ();
-          if (c == '\n' || c == EOF)
-            {
-              comment_line_end (0);
-              break;
-            }
-          if (last_was_qmark && c == '>')
-            {
-              comment_line_end (1);
-              skip_html ();
-              break;
-            }
-          /* We skip all leading white space, but not EOLs.  */
-          if (!(buflen == 0 && (c == ' ' || c == '\t')))
-            comment_add (c);
-          last_was_qmark = (c == '?' || c == '%');
-        }
-      last_comment_line = lineno;
-      return '\n';
-    }
-  else if (c == '/')
-    {
-      c = phase1_getc ();
-
-      switch (c)
-        {
-        default:
-          phase1_ungetc (c);
-          return '/';
-
-        case '*':
-          {
-            /* C comment.  */
-            bool last_was_star;
-
-            comment_start ();
-            lineno = line_number;
-            last_was_star = false;
-            for (;;)
-              {
-                c = phase1_getc ();
-                if (c == EOF)
-                  break;
-                /* We skip all leading white space, but not EOLs.  */
-                if (buflen == 0 && (c == ' ' || c == '\t'))
-                  continue;
-                comment_add (c);
-                switch (c)
-                  {
-                  case '\n':
-                    comment_line_end (1);
-                    comment_start ();
-                    lineno = line_number;
-                    last_was_star = false;
-                    continue;
-
-                  case '*':
-                    last_was_star = true;
-                    continue;
-
-                  case '/':
-                    if (last_was_star)
-                      {
-                        comment_line_end (2);
-                        break;
-                      }
-                    FALLTHROUGH;
-
-                  default:
-                    last_was_star = false;
-                    continue;
-                  }
-                break;
-              }
-            last_comment_line = lineno;
-            return ' ';
-          }
-
-        case '/':
-          {
-            /* C++ comment.  */
-            bool last_was_qmark = false;
-
-            comment_start ();
-            lineno = line_number;
-            for (;;)
-              {
-                c = phase1_getc ();
-                if (c == '\n' || c == EOF)
-                  {
-                    comment_line_end (0);
-                    break;
-                  }
-                if (last_was_qmark && c == '>')
-                  {
-                    comment_line_end (1);
-                    skip_html ();
-                    break;
-                  }
-                /* We skip all leading white space, but not EOLs.  */
-                if (!(buflen == 0 && (c == ' ' || c == '\t')))
-                  comment_add (c);
-                last_was_qmark = (c == '?' || c == '%');
-              }
-            last_comment_line = lineno;
-            return '\n';
-          }
-        }
-    }
-  else
-    return c;
-}
-
-#ifdef unused
-static void
-phase3_ungetc (int c)
-{
-  if (c != EOF)
-    {
-      if (phase3_pushback_length == SIZEOF (phase3_pushback))
-        abort ();
-      phase3_pushback[phase3_pushback_length++] = c;
-    }
-}
-#endif
-
-
-/* ========================== Reading of tokens.  ========================== */
-
+/* Type definitions needed for the variables.  */
 
 enum token_type_ty
 {
@@ -759,6 +167,667 @@ struct token_ty
   int line_number;
 };
 
+/* These variables are combined in a struct, so that we can invoke the
+   extractor in a reentrant way.  */
+
+struct php_extractor
+{
+  /* Accumulator for the output.  */
+  message_list_ty *mlp;
+
+  /* The input file stream, when reading from a file.  */
+  FILE *fp;
+  /* The input area, when reading from a string.  */
+  const char *input;
+  const char *input_end;
+
+  int line_number;
+
+  unsigned char phase1_pushback[2];
+  int phase1_pushback_length;
+
+#if 0
+  unsigned char phase2_pushback[1];
+  int phase2_pushback_length;
+#endif
+
+  /* For accumulating comments.  */
+  char *buffer;
+  size_t bufmax;
+  size_t buflen;
+
+  /* These are for tracking whether comments count as immediately before
+     keyword.  */
+  int last_comment_line;
+  int last_non_comment_line;
+
+  unsigned char phase3_pushback[1];
+  int phase3_pushback_length;
+
+  token_ty phase4_pushback[3];
+  int phase4_pushback_length;
+
+  token_type_ty phase5_last;
+
+  /* Maximum supported nesting depth.  */
+  #define MAX_NESTING_DEPTH 1000
+
+  /* Current nesting depths.  */
+  int paren_nesting_depth;
+  int bracket_nesting_depth;
+};
+
+static inline void
+php_extractor_init_rest (struct php_extractor *xp)
+{
+  xp->phase1_pushback_length = 0;
+#if 0
+  xp->phase2_pushback_length = 0;
+#endif
+
+  xp->buffer = NULL;
+  xp->bufmax = 0;
+  xp->buflen = 0;
+
+  xp->last_comment_line = -1;
+  xp->last_non_comment_line = -1;
+
+  xp->phase3_pushback_length = 0;
+  xp->phase4_pushback_length = 0;
+
+  xp->phase5_last = token_type_eof;
+
+  xp->paren_nesting_depth = 0;
+  xp->bracket_nesting_depth = 0;
+}
+
+/* Forward declarations.  */
+static void extract_php_input (struct php_extractor *xp);
+
+
+/* ======================== Reading of characters.  ======================== */
+
+/* 1. line_number handling.  */
+
+static int
+phase1_getc (struct php_extractor *xp)
+{
+  int c;
+
+  if (xp->phase1_pushback_length)
+    c = xp->phase1_pushback[--(xp->phase1_pushback_length)];
+  else if (xp->fp != NULL)
+    {
+      c = getc (xp->fp);
+
+      if (c == EOF)
+        {
+          if (ferror (xp->fp))
+            error (EXIT_FAILURE, errno, _("error while reading \"%s\""),
+                   real_file_name);
+          return EOF;
+        }
+    }
+  else
+    {
+      if (xp->input == xp->input_end)
+        return EOF;
+      c = *(xp->input++);
+    }
+
+  if (xp->fp != NULL && c == '\n')
+    xp->line_number++;
+
+  return c;
+}
+
+/* Supports 2 characters of pushback.  */
+static void
+phase1_ungetc (struct php_extractor *xp, int c)
+{
+  if (c != EOF)
+    {
+      if (c == '\n')
+        --(xp->line_number);
+
+      if (xp->phase1_pushback_length == SIZEOF (xp->phase1_pushback))
+        abort ();
+      xp->phase1_pushback[xp->phase1_pushback_length++] = c;
+    }
+}
+
+
+/* 2. Ignore HTML sections.  They are equivalent to PHP echo commands and
+   therefore don't contain translatable strings.  */
+
+static void
+skip_html (struct php_extractor *xp)
+{
+  for (;;)
+    {
+      int c = phase1_getc (xp);
+
+      if (c == EOF)
+        return;
+
+      if (c == '<')
+        {
+          int c2 = phase1_getc (xp);
+
+          if (c2 == EOF)
+            break;
+
+          if (c2 == '?')
+            {
+              /* <?php is the normal way to enter PHP mode. <? and <?= are
+                 recognized by PHP depending on a configuration setting.  */
+              int c3 = phase1_getc (xp);
+
+              if (c3 != '=')
+                phase1_ungetc (xp, c3);
+
+              return;
+            }
+
+          if (c2 == '%')
+            {
+              /* <% and <%= are recognized by PHP depending on a configuration
+                 setting.  */
+              int c3 = phase1_getc (xp);
+
+              if (c3 != '=')
+                phase1_ungetc (xp, c3);
+
+              return;
+            }
+
+          if (c2 == '<')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+
+          /* < script language = php >
+             < script language = "php" >
+             < script language = 'php' >
+             are always recognized.  */
+          while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r')
+            c2 = phase1_getc (xp);
+          if (c2 != 's' && c2 != 'S')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          if (c2 != 'c' && c2 != 'C')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          if (c2 != 'r' && c2 != 'R')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          if (c2 != 'i' && c2 != 'I')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          if (c2 != 'p' && c2 != 'P')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          if (c2 != 't' && c2 != 'T')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          if (!(c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r'))
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          do
+            c2 = phase1_getc (xp);
+          while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r');
+          if (c2 != 'l' && c2 != 'L')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          if (c2 != 'a' && c2 != 'A')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          if (c2 != 'n' && c2 != 'N')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          if (c2 != 'g' && c2 != 'G')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          if (c2 != 'u' && c2 != 'U')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          if (c2 != 'a' && c2 != 'A')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          if (c2 != 'g' && c2 != 'G')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          if (c2 != 'e' && c2 != 'E')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r')
+            c2 = phase1_getc (xp);
+          if (c2 != '=')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          c2 = phase1_getc (xp);
+          while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r')
+            c2 = phase1_getc (xp);
+          if (c2 == '"')
+            {
+              c2 = phase1_getc (xp);
+              if (c2 != 'p')
+                {
+                  phase1_ungetc (xp, c2);
+                  continue;
+                }
+              c2 = phase1_getc (xp);
+              if (c2 != 'h')
+                {
+                  phase1_ungetc (xp, c2);
+                  continue;
+                }
+              c2 = phase1_getc (xp);
+              if (c2 != 'p')
+                {
+                  phase1_ungetc (xp, c2);
+                  continue;
+                }
+              c2 = phase1_getc (xp);
+              if (c2 != '"')
+                {
+                  phase1_ungetc (xp, c2);
+                  continue;
+                }
+            }
+          else if (c2 == '\'')
+            {
+              c2 = phase1_getc (xp);
+              if (c2 != 'p')
+                {
+                  phase1_ungetc (xp, c2);
+                  continue;
+                }
+              c2 = phase1_getc (xp);
+              if (c2 != 'h')
+                {
+                  phase1_ungetc (xp, c2);
+                  continue;
+                }
+              c2 = phase1_getc (xp);
+              if (c2 != 'p')
+                {
+                  phase1_ungetc (xp, c2);
+                  continue;
+                }
+              c2 = phase1_getc (xp);
+              if (c2 != '\'')
+                {
+                  phase1_ungetc (xp, c2);
+                  continue;
+                }
+            }
+          else
+            {
+              if (c2 != 'p')
+                {
+                  phase1_ungetc (xp, c2);
+                  continue;
+                }
+              c2 = phase1_getc (xp);
+              if (c2 != 'h')
+                {
+                  phase1_ungetc (xp, c2);
+                  continue;
+                }
+              c2 = phase1_getc (xp);
+              if (c2 != 'p')
+                {
+                  phase1_ungetc (xp, c2);
+                  continue;
+                }
+            }
+          c2 = phase1_getc (xp);
+          while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r')
+            c2 = phase1_getc (xp);
+          if (c2 != '>')
+            {
+              phase1_ungetc (xp, c2);
+              continue;
+            }
+          return;
+        }
+    }
+}
+
+#if 0
+
+static int
+phase2_getc (struct php_extractor *xp)
+{
+  int c;
+
+  if (xp->phase2_pushback_length)
+    return xp->phase2_pushback[--(xp->phase2_pushback_length)];
+
+  c = phase1_getc (xp);
+  switch (c)
+    {
+    case '?':
+    case '%':
+      {
+        int c2 = phase1_getc (xp);
+        if (c2 == '>')
+          {
+            /* ?> and %> terminate PHP mode and switch back to HTML mode.  */
+            skip_html ();
+            return ' ';
+          }
+        phase1_ungetc (xp, c2);
+      }
+      break;
+
+    case '<':
+      {
+        int c2 = phase1_getc (xp);
+
+        /* < / script > terminates PHP mode and switches back to HTML mode.  */
+        while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r')
+          c2 = phase1_getc (xp);
+        if (c2 == '/')
+          {
+            do
+              c2 = phase1_getc (xp);
+            while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r');
+            if (c2 == 's' || c2 == 'S')
+              {
+                c2 = phase1_getc (xp);
+                if (c2 == 'c' || c2 == 'C')
+                  {
+                    c2 = phase1_getc (xp);
+                    if (c2 == 'r' || c2 == 'R')
+                      {
+                        c2 = phase1_getc (xp);
+                        if (c2 == 'i' || c2 == 'I')
+                          {
+                            c2 = phase1_getc (xp);
+                            if (c2 == 'p' || c2 == 'P')
+                              {
+                                c2 = phase1_getc (xp);
+                                if (c2 == 't' || c2 == 'T')
+                                  {
+                                    do
+                                      c2 = phase1_getc (xp);
+                                    while (c2 == ' ' || c2 == '\t'
+                                           || c2 == '\n' || c2 == '\r');
+                                    if (c2 == '>')
+                                      {
+                                        skip_html (xp);
+                                        return ' ';
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+        phase1_ungetc (xp, c2);
+      }
+      break;
+    }
+
+  return c;
+}
+
+static void
+phase2_ungetc (struct php_extractor *xp, int c)
+{
+  if (c != EOF)
+    {
+      if (xp->phase2_pushback_length == SIZEOF (xp->phase2_pushback))
+        abort ();
+      xp->phase2_pushback[xp->phase2_pushback_length++] = c;
+    }
+}
+
+#endif
+
+
+/* Accumulating comments.  */
+
+static inline void
+comment_start (struct php_extractor *xp)
+{
+  xp->buflen = 0;
+}
+
+static inline void
+comment_add (struct php_extractor *xp, int c)
+{
+  if (xp->buflen >= xp->bufmax)
+    {
+      xp->bufmax = 2 * xp->bufmax + 10;
+      xp->buffer = xrealloc (xp->buffer, xp->bufmax);
+    }
+  xp->buffer[xp->buflen++] = c;
+}
+
+static inline void
+comment_line_end (struct php_extractor *xp, size_t chars_to_remove)
+{
+  xp->buflen -= chars_to_remove;
+  while (xp->buflen >= 1
+         && (xp->buffer[xp->buflen - 1] == ' '
+             || xp->buffer[xp->buflen - 1] == '\t'))
+    --(xp->buflen);
+  if (chars_to_remove == 0 && xp->buflen >= xp->bufmax)
+    {
+      xp->bufmax = 2 * xp->bufmax + 10;
+      xp->buffer = xrealloc (xp->buffer, xp->bufmax);
+    }
+  xp->buffer[xp->buflen] = '\0';
+  savable_comment_add (xp->buffer);
+}
+
+
+/* 3. Replace each comment that is not inside a string literal with a
+   space character.  We need to remember the comment for later, because
+   it may be attached to a keyword string.  */
+
+static int
+phase3_getc (struct php_extractor *xp)
+{
+  int lineno;
+  int c;
+
+  if (xp->phase3_pushback_length)
+    return xp->phase3_pushback[--(xp->phase3_pushback_length)];
+
+  c = phase1_getc (xp);
+
+  if (c == '#')
+    {
+      /* sh comment.  */
+      bool last_was_qmark = false;
+
+      comment_start (xp);
+      lineno = xp->line_number;
+      for (;;)
+        {
+          c = phase1_getc (xp);
+          if (c == '\n' || c == EOF)
+            {
+              comment_line_end (xp, 0);
+              break;
+            }
+          if (last_was_qmark && c == '>')
+            {
+              comment_line_end (xp, 1);
+              skip_html (xp);
+              break;
+            }
+          /* We skip all leading white space, but not EOLs.  */
+          if (!(xp->buflen == 0 && (c == ' ' || c == '\t')))
+            comment_add (xp, c);
+          last_was_qmark = (c == '?' || c == '%');
+        }
+      xp->last_comment_line = lineno;
+      return '\n';
+    }
+  else if (c == '/')
+    {
+      c = phase1_getc (xp);
+
+      switch (c)
+        {
+        default:
+          phase1_ungetc (xp, c);
+          return '/';
+
+        case '*':
+          {
+            /* C comment.  */
+            bool last_was_star;
+
+            comment_start (xp);
+            lineno = xp->line_number;
+            last_was_star = false;
+            for (;;)
+              {
+                c = phase1_getc (xp);
+                if (c == EOF)
+                  break;
+                /* We skip all leading white space, but not EOLs.  */
+                if (xp->buflen == 0 && (c == ' ' || c == '\t'))
+                  continue;
+                comment_add (xp, c);
+                switch (c)
+                  {
+                  case '\n':
+                    comment_line_end (xp, 1);
+                    comment_start (xp);
+                    lineno = xp->line_number;
+                    last_was_star = false;
+                    continue;
+
+                  case '*':
+                    last_was_star = true;
+                    continue;
+
+                  case '/':
+                    if (last_was_star)
+                      {
+                        comment_line_end (xp, 2);
+                        break;
+                      }
+                    FALLTHROUGH;
+
+                  default:
+                    last_was_star = false;
+                    continue;
+                  }
+                break;
+              }
+            xp->last_comment_line = lineno;
+            return ' ';
+          }
+
+        case '/':
+          {
+            /* C++ comment.  */
+            bool last_was_qmark = false;
+
+            comment_start (xp);
+            lineno = xp->line_number;
+            for (;;)
+              {
+                c = phase1_getc (xp);
+                if (c == '\n' || c == EOF)
+                  {
+                    comment_line_end (xp, 0);
+                    break;
+                  }
+                if (last_was_qmark && c == '>')
+                  {
+                    comment_line_end (xp, 1);
+                    skip_html (xp);
+                    break;
+                  }
+                /* We skip all leading white space, but not EOLs.  */
+                if (!(xp->buflen == 0 && (c == ' ' || c == '\t')))
+                  comment_add (xp, c);
+                last_was_qmark = (c == '?' || c == '%');
+              }
+            xp->last_comment_line = lineno;
+            return '\n';
+          }
+        }
+    }
+  else
+    return c;
+}
+
+#ifdef unused
+static void
+phase3_ungetc (struct php_extractor *xp, int c)
+{
+  if (c != EOF)
+    {
+      if (xp->phase3_pushback_length == SIZEOF (xp->phase3_pushback))
+        abort ();
+      xp->phase3_pushback[xp->phase3_pushback_length++] = c;
+    }
+}
+#endif
+
+
+/* ========================== Reading of tokens.  ========================== */
+
+
+/* 'struct token_ty' is defined above.  */
 
 /* Free the memory pointed to by a 'struct token_ty'.  */
 static inline void
@@ -773,28 +842,25 @@ free_token (token_ty *tp)
 
 /* 4. Combine characters into tokens.  Discard whitespace.  */
 
-static token_ty phase4_pushback[3];
-static int phase4_pushback_length;
-
 static void
-phase4_get (token_ty *tp)
+phase4_get (struct php_extractor *xp, token_ty *tp)
 {
   static char *buffer;
   static int bufmax;
   int bufpos;
   int c;
 
-  if (phase4_pushback_length)
+  if (xp->phase4_pushback_length)
     {
-      *tp = phase4_pushback[--phase4_pushback_length];
+      *tp = xp->phase4_pushback[--(xp->phase4_pushback_length)];
       return;
     }
   tp->string = NULL;
 
   for (;;)
     {
-      tp->line_number = line_number;
-      c = phase3_getc ();
+      tp->line_number = xp->line_number;
+      c = phase3_getc (xp);
       switch (c)
         {
         case EOF:
@@ -802,7 +868,7 @@ phase4_get (token_ty *tp)
           return;
 
         case '\n':
-          if (last_non_comment_line > last_comment_line)
+          if (xp->last_non_comment_line > xp->last_comment_line)
             savable_comment_reset ();
           FALLTHROUGH;
         case ' ':
@@ -812,7 +878,7 @@ phase4_get (token_ty *tp)
           continue;
         }
 
-      last_non_comment_line = tp->line_number;
+      xp->last_non_comment_line = tp->line_number;
 
       switch (c)
         {
@@ -825,25 +891,25 @@ phase4_get (token_ty *tp)
         case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': case 'n':
         case 'o': case 'p': case 'q': case 'r': case 's': case 't': case 'u':
         case 'v': case 'w': case 'x': case 'y': case 'z':
-        case 127: case 128: case 129: case 130: case 131: case 132: case 133:
-        case 134: case 135: case 136: case 137: case 138: case 139: case 140:
-        case 141: case 142: case 143: case 144: case 145: case 146: case 147:
-        case 148: case 149: case 150: case 151: case 152: case 153: case 154:
-        case 155: case 156: case 157: case 158: case 159: case 160: case 161:
-        case 162: case 163: case 164: case 165: case 166: case 167: case 168:
-        case 169: case 170: case 171: case 172: case 173: case 174: case 175:
-        case 176: case 177: case 178: case 179: case 180: case 181: case 182:
-        case 183: case 184: case 185: case 186: case 187: case 188: case 189:
-        case 190: case 191: case 192: case 193: case 194: case 195: case 196:
-        case 197: case 198: case 199: case 200: case 201: case 202: case 203:
-        case 204: case 205: case 206: case 207: case 208: case 209: case 210:
-        case 211: case 212: case 213: case 214: case 215: case 216: case 217:
-        case 218: case 219: case 220: case 221: case 222: case 223: case 224:
-        case 225: case 226: case 227: case 228: case 229: case 230: case 231:
-        case 232: case 233: case 234: case 235: case 236: case 237: case 238:
-        case 239: case 240: case 241: case 242: case 243: case 244: case 245:
-        case 246: case 247: case 248: case 249: case 250: case 251: case 252:
-        case 253: case 254: case 255:
+        case 128: case 129: case 130: case 131: case 132: case 133: case 134:
+        case 135: case 136: case 137: case 138: case 139: case 140: case 141:
+        case 142: case 143: case 144: case 145: case 146: case 147: case 148:
+        case 149: case 150: case 151: case 152: case 153: case 154: case 155:
+        case 156: case 157: case 158: case 159: case 160: case 161: case 162:
+        case 163: case 164: case 165: case 166: case 167: case 168: case 169:
+        case 170: case 171: case 172: case 173: case 174: case 175: case 176:
+        case 177: case 178: case 179: case 180: case 181: case 182: case 183:
+        case 184: case 185: case 186: case 187: case 188: case 189: case 190:
+        case 191: case 192: case 193: case 194: case 195: case 196: case 197:
+        case 198: case 199: case 200: case 201: case 202: case 203: case 204:
+        case 205: case 206: case 207: case 208: case 209: case 210: case 211:
+        case 212: case 213: case 214: case 215: case 216: case 217: case 218:
+        case 219: case 220: case 221: case 222: case 223: case 224: case 225:
+        case 226: case 227: case 228: case 229: case 230: case 231: case 232:
+        case 233: case 234: case 235: case 236: case 237: case 238: case 239:
+        case 240: case 241: case 242: case 243: case 244: case 245: case 246:
+        case 247: case 248: case 249: case 250: case 251: case 252: case 253:
+        case 254: case 255:
           bufpos = 0;
           for (;;)
             {
@@ -853,7 +919,7 @@ phase4_get (token_ty *tp)
                   buffer = xrealloc (buffer, bufmax);
                 }
               buffer[bufpos++] = c;
-              c = phase1_getc ();
+              c = phase1_getc (xp);
               switch (c)
                 {
                 case 'A': case 'B': case 'C': case 'D': case 'E': case 'F':
@@ -869,32 +935,32 @@ phase4_get (token_ty *tp)
                 case 'y': case 'z':
                 case '0': case '1': case '2': case '3': case '4':
                 case '5': case '6': case '7': case '8': case '9':
-                case 127: case 128: case 129: case 130: case 131: case 132:
-                case 133: case 134: case 135: case 136: case 137: case 138:
-                case 139: case 140: case 141: case 142: case 143: case 144:
-                case 145: case 146: case 147: case 148: case 149: case 150:
-                case 151: case 152: case 153: case 154: case 155: case 156:
-                case 157: case 158: case 159: case 160: case 161: case 162:
-                case 163: case 164: case 165: case 166: case 167: case 168:
-                case 169: case 170: case 171: case 172: case 173: case 174:
-                case 175: case 176: case 177: case 178: case 179: case 180:
-                case 181: case 182: case 183: case 184: case 185: case 186:
-                case 187: case 188: case 189: case 190: case 191: case 192:
-                case 193: case 194: case 195: case 196: case 197: case 198:
-                case 199: case 200: case 201: case 202: case 203: case 204:
-                case 205: case 206: case 207: case 208: case 209: case 210:
-                case 211: case 212: case 213: case 214: case 215: case 216:
-                case 217: case 218: case 219: case 220: case 221: case 222:
-                case 223: case 224: case 225: case 226: case 227: case 228:
-                case 229: case 230: case 231: case 232: case 233: case 234:
-                case 235: case 236: case 237: case 238: case 239: case 240:
-                case 241: case 242: case 243: case 244: case 245: case 246:
-                case 247: case 248: case 249: case 250: case 251: case 252:
-                case 253: case 254: case 255:
+                case 128: case 129: case 130: case 131: case 132: case 133:
+                case 134: case 135: case 136: case 137: case 138: case 139:
+                case 140: case 141: case 142: case 143: case 144: case 145:
+                case 146: case 147: case 148: case 149: case 150: case 151:
+                case 152: case 153: case 154: case 155: case 156: case 157:
+                case 158: case 159: case 160: case 161: case 162: case 163:
+                case 164: case 165: case 166: case 167: case 168: case 169:
+                case 170: case 171: case 172: case 173: case 174: case 175:
+                case 176: case 177: case 178: case 179: case 180: case 181:
+                case 182: case 183: case 184: case 185: case 186: case 187:
+                case 188: case 189: case 190: case 191: case 192: case 193:
+                case 194: case 195: case 196: case 197: case 198: case 199:
+                case 200: case 201: case 202: case 203: case 204: case 205:
+                case 206: case 207: case 208: case 209: case 210: case 211:
+                case 212: case 213: case 214: case 215: case 216: case 217:
+                case 218: case 219: case 220: case 221: case 222: case 223:
+                case 224: case 225: case 226: case 227: case 228: case 229:
+                case 230: case 231: case 232: case 233: case 234: case 235:
+                case 236: case 237: case 238: case 239: case 240: case 241:
+                case 242: case 243: case 244: case 245: case 246: case 247:
+                case 248: case 249: case 250: case 251: case 252: case 253:
+                case 254: case 255:
                   continue;
 
                 default:
-                  phase1_ungetc (c);
+                  phase1_ungetc (xp, c);
                   break;
                 }
               break;
@@ -904,7 +970,7 @@ phase4_get (token_ty *tp)
               bufmax = 2 * bufmax + 10;
               buffer = xrealloc (buffer, bufmax);
             }
-          buffer[bufpos] = 0;
+          buffer[bufpos] = '\0';
           tp->string = xstrdup (buffer);
           tp->type = token_type_symbol;
           return;
@@ -914,15 +980,15 @@ phase4_get (token_ty *tp)
           bufpos = 0;
           for (;;)
             {
-              c = phase1_getc ();
+              c = phase1_getc (xp);
               if (c == EOF || c == '\'')
                 break;
               if (c == '\\')
                 {
-                  c = phase1_getc ();
+                  c = phase1_getc (xp);
                   if (c != '\\' && c != '\'')
                     {
-                      phase1_ungetc (c);
+                      phase1_ungetc (xp, c);
                       c = '\\';
                     }
                 }
@@ -938,7 +1004,7 @@ phase4_get (token_ty *tp)
               bufmax = 2 * bufmax + 10;
               buffer = xrealloc (buffer, bufmax);
             }
-          buffer[bufpos] = 0;
+          buffer[bufpos] = '\0';
           tp->type = token_type_string_literal;
           tp->string = xstrdup (buffer);
           tp->comment = add_reference (savable_comment);
@@ -947,42 +1013,43 @@ phase4_get (token_ty *tp)
         case '"':
           /* Double-quoted string literal.  */
           tp->type = token_type_string_literal;
+        string_literal_continued:
           bufpos = 0;
           for (;;)
             {
-              c = phase1_getc ();
+              c = phase1_getc (xp);
               if (c == EOF || c == '"')
                 break;
               if (c == '$')
                 {
-                  c = phase1_getc ();
+                  c = phase1_getc (xp);
                   if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
-                      || c == '_' || c == '{' || c >= 0x7f)
+                      || c == '_' || c >= 0x7f)
                     {
                       /* String with variables.  */
                       tp->type = token_type_other;
                       continue;
                     }
-                  phase1_ungetc (c);
+                  if (c == '{')
+                    /* String with embedded expressions.  */
+                    goto string_with_embedded_expressions;
+                  phase1_ungetc (xp, c);
                   c = '$';
                 }
               if (c == '{')
                 {
-                  c = phase1_getc ();
+                  c = phase1_getc (xp);
                   if (c == '$')
-                    {
-                      /* String with expressions.  */
-                      tp->type = token_type_other;
-                      continue;
-                    }
-                  phase1_ungetc (c);
+                    /* String with embedded expressions.  */
+                    goto string_with_embedded_expressions;
+                  phase1_ungetc (xp, c);
                   c = '{';
                 }
               if (c == '\\')
                 {
                   int n, j;
 
-                  c = phase1_getc ();
+                  c = phase1_getc (xp);
                   switch (c)
                     {
                     case '"':
@@ -996,7 +1063,7 @@ phase4_get (token_ty *tp)
                       for (j = 0; j < 3; ++j)
                         {
                           n = n * 8 + c - '0';
-                          c = phase1_getc ();
+                          c = phase1_getc (xp);
                           switch (c)
                             {
                             default:
@@ -1008,7 +1075,7 @@ phase4_get (token_ty *tp)
                             }
                           break;
                         }
-                      phase1_ungetc (c);
+                      phase1_ungetc (xp, c);
                       c = n;
                       break;
 
@@ -1016,7 +1083,7 @@ phase4_get (token_ty *tp)
                       n = 0;
                       for (j = 0; j < 2; ++j)
                         {
-                          c = phase1_getc ();
+                          c = phase1_getc (xp);
                           switch (c)
                             {
                             case '0': case '1': case '2': case '3': case '4':
@@ -1032,7 +1099,7 @@ phase4_get (token_ty *tp)
                               n = n * 16 + 10 + c - 'a';
                               break;
                             default:
-                              phase1_ungetc (c);
+                              phase1_ungetc (xp, c);
                               c = 0;
                               break;
                             }
@@ -1041,7 +1108,7 @@ phase4_get (token_ty *tp)
                         }
                       if (j == 0)
                         {
-                          phase1_ungetc ('x');
+                          phase1_ungetc (xp, 'x');
                           c = '\\';
                         }
                       else
@@ -1059,7 +1126,7 @@ phase4_get (token_ty *tp)
                       break;
 
                     default:
-                      phase1_ungetc (c);
+                      phase1_ungetc (xp, c);
                       c = '\\';
                       break;
                     }
@@ -1076,7 +1143,7 @@ phase4_get (token_ty *tp)
               bufmax = 2 * bufmax + 10;
               buffer = xrealloc (buffer, bufmax);
             }
-          buffer[bufpos] = 0;
+          buffer[bufpos] = '\0';
           if (tp->type == token_type_string_literal)
             {
               tp->string = xstrdup (buffer);
@@ -1084,20 +1151,98 @@ phase4_get (token_ty *tp)
             }
           return;
 
+        string_with_embedded_expressions:
+          tp->type = token_type_other;
+          {
+            size_t nesting_stack_alloc = 10;
+            char *nesting_stack = malloc (nesting_stack_alloc);
+            size_t nesting_stack_depth = 0;
+            /* We just read a '{', so expect a matching '}'.  */
+            nesting_stack[nesting_stack_depth++] = '}';
+
+            /* Find the extent of the expression.  */
+            bufpos = 0;
+            for (;;)
+              {
+                c = phase1_getc (xp);
+                if (c == EOF)
+                  break;
+                if (c == '"')
+                  {
+                    if (nesting_stack_depth > 0)
+                      if_error (IF_SEVERITY_WARNING,
+                                logical_file_name, xp->line_number, (size_t)(-1), false,
+                                _("unterminated expression in string literal, expected a '%c'"),
+                                nesting_stack[nesting_stack_depth - 1]);
+                    break;
+                  }
+                if (c == '{' || c == '[' || c == '(')
+                  {
+                    if (nesting_stack_depth >= nesting_stack_alloc)
+                      {
+                        nesting_stack_alloc = 2 * nesting_stack_alloc;
+                        nesting_stack =
+                          xrealloc (nesting_stack, nesting_stack_alloc);
+                      }
+                    nesting_stack[nesting_stack_depth++] =
+                      (c == '{' ? '}' : c == '[' ? ']' : ')');
+                  }
+                else if (c == '}' || c == ']' || c == ')')
+                  {
+                    if (nesting_stack_depth > 0
+                        && c == nesting_stack[nesting_stack_depth - 1])
+                      {
+                        if (--nesting_stack_depth == 0)
+                          break;
+                      }
+                    else
+                      if_error (IF_SEVERITY_WARNING,
+                                logical_file_name, xp->line_number, (size_t)(-1), false,
+                                _("unterminated expression in string literal contains unbalanced '%c'"),
+                                c);
+                  }
+                if (bufpos >= bufmax)
+                  {
+                    bufmax = 2 * bufmax + 10;
+                    buffer = xrealloc (buffer, bufmax);
+                  }
+                buffer[bufpos++] = c;
+              }
+
+            /* Recursively extract messages from the expression.  */
+            char *substring = xmalloc (bufpos);
+            memcpy (substring, buffer, bufpos);
+
+            struct php_extractor *rxp = XMALLOC (struct php_extractor);
+            rxp->mlp = xp->mlp;
+            rxp->fp = NULL;
+            rxp->input = substring;
+            rxp->input_end = substring + bufpos;
+            rxp->line_number = xp->line_number;
+            php_extractor_init_rest (rxp);
+
+            extract_php_input (rxp);
+
+            free (rxp);
+            free (substring);
+            free (nesting_stack);
+          }
+          goto string_literal_continued;
+
         case '?':
         case '%':
           {
-            int c2 = phase1_getc ();
+            int c2 = phase1_getc (xp);
             if (c2 == '>')
               {
                 /* ?> and %> terminate PHP mode and switch back to HTML
                    mode.  */
-                skip_html ();
+                skip_html (xp);
                 tp->type = token_type_other;
               }
             else
               {
-                phase1_ungetc (c2);
+                phase1_ungetc (xp, c2);
                 tp->type = (c == '%' ? token_type_operator1 : token_type_other);
               }
             return;
@@ -1135,14 +1280,14 @@ phase4_get (token_ty *tp)
         case '+':
         case '-':
           {
-            int c2 = phase1_getc ();
+            int c2 = phase1_getc (xp);
             if (c2 == c)
               /* ++ or -- */
               tp->type = token_type_operator1;
             else
               /* + or - */
               {
-                phase1_ungetc (c2);
+                phase1_ungetc (xp, c2);
                 tp->type = token_type_operator2;
               }
             return;
@@ -1156,10 +1301,10 @@ phase4_get (token_ty *tp)
 
         case '<':
           {
-            int c2 = phase1_getc ();
+            int c2 = phase1_getc (xp);
             if (c2 == '<')
               {
-                int c3 = phase1_getc ();
+                int c3 = phase1_getc (xp);
                 if (c3 == '<')
                   {
                     int label_start = 0;
@@ -1167,7 +1312,7 @@ phase4_get (token_ty *tp)
                     /* Start of here and now document.
                        Parse whitespace, then label, then newline.  */
                     do
-                      c = phase3_getc ();
+                      c = phase3_getc (xp);
                     while (c == ' ' || c == '\t' || c == '\n' || c == '\r');
 
                     bufpos = 0;
@@ -1179,7 +1324,7 @@ phase4_get (token_ty *tp)
                             buffer = xrealloc (buffer, bufmax);
                           }
                         buffer[bufpos++] = c;
-                        c = phase3_getc ();
+                        c = phase3_getc (xp);
                       }
                     while (c != EOF && c != '\n' && c != '\r');
                     /* buffer[0..bufpos-1] now contains the label
@@ -1194,7 +1339,7 @@ phase4_get (token_ty *tp)
                     /* Now skip the here document.  */
                     for (;;)
                       {
-                        c = phase1_getc ();
+                        c = phase1_getc (xp);
                         if (c == EOF)
                           break;
                         if (c == '\n' || c == '\r')
@@ -1203,22 +1348,22 @@ phase4_get (token_ty *tp)
 
                             while (bufidx < bufpos)
                               {
-                                c = phase1_getc ();
+                                c = phase1_getc (xp);
                                 if (c == EOF)
                                   break;
                                 if (c != buffer[bufidx])
                                   {
-                                    phase1_ungetc (c);
+                                    phase1_ungetc (xp, c);
                                     break;
                                   }
                                 bufidx++;
                               }
                             if (bufidx == bufpos)
                               {
-                                c = phase1_getc ();
+                                c = phase1_getc (xp);
                                 if (c != ';')
-                                  phase1_ungetc (c);
-                                c = phase1_getc ();
+                                  phase1_ungetc (xp, c);
+                                c = phase1_getc (xp);
                                 if (c == '\n' || c == '\r')
                                   break;
                               }
@@ -1232,66 +1377,66 @@ phase4_get (token_ty *tp)
                     tp->type = token_type_other;
                     return;
                   }
-                phase1_ungetc (c3);
+                phase1_ungetc (xp, c3);
               }
 
             /* < / script > terminates PHP mode and switches back to HTML
                mode.  */
             while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r')
-              c2 = phase1_getc ();
+              c2 = phase1_getc (xp);
             if (c2 == '/')
               {
                 do
-                  c2 = phase1_getc ();
+                  c2 = phase1_getc (xp);
                 while (c2 == ' ' || c2 == '\t' || c2 == '\n' || c2 == '\r');
                 if (c2 == 's' || c2 == 'S')
                   {
-                    c2 = phase1_getc ();
+                    c2 = phase1_getc (xp);
                     if (c2 == 'c' || c2 == 'C')
                       {
-                        c2 = phase1_getc ();
+                        c2 = phase1_getc (xp);
                         if (c2 == 'r' || c2 == 'R')
                           {
-                            c2 = phase1_getc ();
+                            c2 = phase1_getc (xp);
                             if (c2 == 'i' || c2 == 'I')
                               {
-                                c2 = phase1_getc ();
+                                c2 = phase1_getc (xp);
                                 if (c2 == 'p' || c2 == 'P')
                                   {
-                                    c2 = phase1_getc ();
+                                    c2 = phase1_getc (xp);
                                     if (c2 == 't' || c2 == 'T')
                                       {
                                         do
-                                          c2 = phase1_getc ();
+                                          c2 = phase1_getc (xp);
                                         while (c2 == ' ' || c2 == '\t'
                                                || c2 == '\n' || c2 == '\r');
                                         if (c2 == '>')
                                           {
-                                            skip_html ();
+                                            skip_html (xp);
                                           }
                                         else
-                                          phase1_ungetc (c2);
+                                          phase1_ungetc (xp, c2);
                                       }
                                     else
-                                      phase1_ungetc (c2);
+                                      phase1_ungetc (xp, c2);
                                   }
                                 else
-                                  phase1_ungetc (c2);
+                                  phase1_ungetc (xp, c2);
                               }
                             else
-                              phase1_ungetc (c2);
+                              phase1_ungetc (xp, c2);
                           }
                         else
-                          phase1_ungetc (c2);
+                          phase1_ungetc (xp, c2);
                       }
                     else
-                      phase1_ungetc (c2);
+                      phase1_ungetc (xp, c2);
                   }
                 else
-                  phase1_ungetc (c2);
+                  phase1_ungetc (xp, c2);
               }
             else
-              phase1_ungetc (c2);
+              phase1_ungetc (xp, c2);
 
             tp->type = token_type_other;
             return;
@@ -1311,13 +1456,13 @@ phase4_get (token_ty *tp)
 
 /* Supports 3 tokens of pushback.  */
 static void
-phase4_unget (token_ty *tp)
+phase4_unget (struct php_extractor *xp, token_ty *tp)
 {
   if (tp->type != token_type_eof)
     {
-      if (phase4_pushback_length == SIZEOF (phase4_pushback))
+      if (xp->phase4_pushback_length == SIZEOF (xp->phase4_pushback))
         abort ();
-      phase4_pushback[phase4_pushback_length++] = *tp;
+      xp->phase4_pushback[xp->phase4_pushback_length++] = *tp;
     }
 }
 
@@ -1335,17 +1480,15 @@ phase4_unget (token_ty *tp)
        higher precedence as '.', such as a multiplicative or postincrement
        expression).  */
 
-static token_type_ty phase5_last;
-
 static void
-x_php_lex (token_ty *tp)
+x_php_lex (struct php_extractor *xp, token_ty *tp)
 {
-  phase4_get (tp);
+  phase4_get (xp, tp);
   if (tp->type == token_type_string_literal
-      && !(phase5_last == token_type_dot
-           || phase5_last == token_type_operator1
-           || phase5_last == token_type_operator2
-           || phase5_last == token_type_rparen))
+      && !(xp->phase5_last == token_type_dot
+           || xp->phase5_last == token_type_operator1
+           || xp->phase5_last == token_type_operator2
+           || xp->phase5_last == token_type_rparen))
     {
       char *sum = tp->string;
       size_t sum_len = strlen (sum);
@@ -1354,17 +1497,17 @@ x_php_lex (token_ty *tp)
         {
           token_ty token2;
 
-          phase4_get (&token2);
+          phase4_get (xp, &token2);
           if (token2.type == token_type_dot)
             {
               token_ty token3;
 
-              phase4_get (&token3);
+              phase4_get (xp, &token3);
               if (token3.type == token_type_string_literal)
                 {
                   token_ty token_after;
 
-                  phase4_get (&token_after);
+                  phase4_get (xp, &token_after);
                   if (token_after.type != token_type_operator1)
                     {
                       char *addend = token3.string;
@@ -1374,21 +1517,21 @@ x_php_lex (token_ty *tp)
                       memcpy (sum + sum_len, addend, addend_len + 1);
                       sum_len += addend_len;
 
-                      phase4_unget (&token_after);
+                      phase4_unget (xp, &token_after);
                       free_token (&token3);
                       free_token (&token2);
                       continue;
                     }
-                  phase4_unget (&token_after);
+                  phase4_unget (xp, &token_after);
                 }
-              phase4_unget (&token3);
+              phase4_unget (xp, &token3);
             }
-          phase4_unget (&token2);
+          phase4_unget (xp, &token2);
           break;
         }
       tp->string = sum;
     }
-  phase5_last = tp->type;
+  xp->phase5_last = tp->type;
 }
 
 
@@ -1397,14 +1540,6 @@ x_php_lex (token_ty *tp)
 
 /* Context lookup table.  */
 static flag_context_list_table_ty *flag_context_list_table;
-
-
-/* Maximum supported nesting depth.  */
-#define MAX_NESTING_DEPTH 1000
-
-/* Current nesting depths.  */
-static int paren_nesting_depth;
-static int bracket_nesting_depth;
 
 
 /* The file is broken into tokens.  Scan the token stream, looking for
@@ -1423,12 +1558,12 @@ static int bracket_nesting_depth;
 
 
 /* Extract messages until the next balanced closing parenthesis or bracket.
-   Extracted messages are added to MLP.
+   Extracted messages are added to XP->MLP.
    DELIM can be either token_type_rparen or token_type_rbracket, or
    token_type_eof to accept both.
    Return true upon eof, false upon closing parenthesis or bracket.  */
 static bool
-extract_balanced (message_list_ty *mlp,
+extract_balanced (struct php_extractor *xp,
                   token_type_ty delim,
                   flag_region_ty *outer_region,
                   flag_context_list_iterator_ty context_iter,
@@ -1455,7 +1590,7 @@ extract_balanced (message_list_ty *mlp,
     {
       token_ty token;
 
-      x_php_lex (&token);
+      x_php_lex (xp, &token);
       switch (token.type)
         {
         case token_type_symbol:
@@ -1481,20 +1616,20 @@ extract_balanced (message_list_ty *mlp,
           continue;
 
         case token_type_lparen:
-          if (++paren_nesting_depth > MAX_NESTING_DEPTH)
+          if (++(xp->paren_nesting_depth) > MAX_NESTING_DEPTH)
             if_error (IF_SEVERITY_FATAL_ERROR,
-                      logical_file_name, line_number, (size_t)(-1), false,
+                      logical_file_name, xp->line_number, (size_t)(-1), false,
                       _("too many open parentheses"));
-          if (extract_balanced (mlp, token_type_rparen,
+          if (extract_balanced (xp, token_type_rparen,
                                 inner_region, next_context_iter,
-                                arglist_parser_alloc (mlp,
+                                arglist_parser_alloc (xp->mlp,
                                                       state ? next_shapes : NULL)))
             {
               arglist_parser_done (argparser, arg);
               unref_region (inner_region);
               return true;
             }
-          paren_nesting_depth--;
+          xp->paren_nesting_depth--;
           next_context_iter = null_context_list_iterator;
           state = 0;
           continue;
@@ -1522,20 +1657,20 @@ extract_balanced (message_list_ty *mlp,
           continue;
 
         case token_type_lbracket:
-          if (++bracket_nesting_depth > MAX_NESTING_DEPTH)
+          if (++(xp->bracket_nesting_depth) > MAX_NESTING_DEPTH)
             if_error (IF_SEVERITY_FATAL_ERROR,
-                      logical_file_name, line_number, (size_t)(-1), false,
+                      logical_file_name, xp->line_number, (size_t)(-1), false,
                       _("too many open brackets"));
-          if (extract_balanced (mlp, token_type_rbracket,
+          if (extract_balanced (xp, token_type_rbracket,
                                 null_context_region (),
                                 null_context_list_iterator,
-                                arglist_parser_alloc (mlp, NULL)))
+                                arglist_parser_alloc (xp->mlp, NULL)))
             {
               arglist_parser_done (argparser, arg);
               unref_region (inner_region);
               return true;
             }
-          bracket_nesting_depth--;
+          xp->bracket_nesting_depth--;
           next_context_iter = null_context_list_iterator;
           state = 0;
           continue;
@@ -1558,7 +1693,7 @@ extract_balanced (message_list_ty *mlp,
             pos.line_number = token.line_number;
 
             if (extract_all)
-              remember_a_message (mlp, NULL, token.string, false, false,
+              remember_a_message (xp->mlp, NULL, token.string, false, false,
                                   inner_region, &pos,
                                   NULL, token.comment, false);
             else
@@ -1597,51 +1732,46 @@ extract_balanced (message_list_ty *mlp,
 }
 
 
+static void
+extract_php_input (struct php_extractor *xp)
+{
+  /* Eat tokens until eof is seen.  When extract_balanced returns
+     due to an unbalanced closing parenthesis, just restart it.  */
+  while (!extract_balanced (xp, token_type_eof,
+                            null_context_region (), null_context_list_iterator,
+                            arglist_parser_alloc (xp->mlp, NULL)))
+    ;
+}
+
+
 void
 extract_php (FILE *f,
              const char *real_filename, const char *logical_filename,
              flag_context_list_table_ty *flag_table,
              msgdomain_list_ty *mdlp)
 {
-  message_list_ty *mlp = mdlp->item[0]->messages;
-
-  fp = f;
-  real_file_name = real_filename;
-  logical_file_name = xstrdup (logical_filename);
-  line_number = 1;
-
-  phase1_pushback_length = 0;
-#if 0
-  phase2_pushback_length = 0;
-#endif
-
-  last_comment_line = -1;
-  last_non_comment_line = -1;
-
-  phase3_pushback_length = 0;
-  phase4_pushback_length = 0;
-
-  phase5_last = token_type_eof;
-
   flag_context_list_table = flag_table;
-  paren_nesting_depth = 0;
-  bracket_nesting_depth = 0;
 
   init_keywords ();
 
-  /* Initial mode is HTML mode, not PHP mode.  */
-  skip_html ();
+  struct php_extractor *xp = XMALLOC (struct php_extractor);
 
-  /* Eat tokens until eof is seen.  When extract_balanced returns
-     due to an unbalanced closing parenthesis, just restart it.  */
-  while (!extract_balanced (mlp, token_type_eof,
-                            null_context_region (), null_context_list_iterator,
-                            arglist_parser_alloc (mlp, NULL)))
-    ;
+  xp->mlp = mdlp->item[0]->messages;
+  xp->fp = f;
+  xp->input = NULL;
+  xp->input_end = NULL;
+  real_file_name = real_filename;
+  logical_file_name = xstrdup (logical_filename);
+  xp->line_number = 1;
+  php_extractor_init_rest (xp);
+
+  /* Initial mode is HTML mode, not PHP mode.  */
+  skip_html (xp);
+
+  extract_php_input (xp);
 
   /* Close scanner.  */
-  fp = NULL;
+  free (xp);
   real_file_name = NULL;
   logical_file_name = NULL;
-  line_number = 0;
 }
