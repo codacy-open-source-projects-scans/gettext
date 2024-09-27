@@ -117,6 +117,7 @@ if ! $skip_gnulib; then
     unistd
     unlocked-io
     xalloc
+    xstring-buffer
   '
   GNULIB_MODULES_RUNTIME_OTHER='
     gettext-runtime-misc
@@ -228,6 +229,7 @@ if ! $skip_gnulib; then
     relocatable-prog
     relocatable-script
     setlocale
+    sf-istream
     sh-filename
     sh-quote
     sigpipe
@@ -277,6 +279,7 @@ if ! $skip_gnulib; then
     xstrerror
     xstriconv
     xstriconveh
+    xstring-buffer
     xvasprintf
   '
   # Common dependencies of GNULIB_MODULES_TOOLS_FOR_SRC and GNULIB_MODULES_TOOLS_FOR_LIBGREP.
