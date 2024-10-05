@@ -1,6 +1,19 @@
 Version 0.23 - September 2024
 
 * Programming languages support:
+  - XML:
+    o The escaping of characters such as & < > has been changed:
+      - No escaping is done any more by xgettext, when creating a POT file.
+      - Instead, extra escaping can be requested for the msgfmt pass, when
+        merging into an XML file.
+      - The default value of 'escape' in the <gt:escapeRule> was "yes";
+        now it is "no".
+      This means that existing translations of older POT files may no longer
+      fully apply. As a maintainer of a package that has translatable XML files,
+      you need to regenerate the POT file and pass it on to your translators.
+    o XML schemas for .its and .loc files are now provided.
+    o The value of the xml:lang attribute, inserted by msgfmt, now conforms
+      to W3C standards.
   - Python:
     o xgettext now assumes source code for Python 3 rather than Python 2.
       This affects the interpretation of escape sequences in string literals.
@@ -16,7 +29,10 @@ Version 0.23 - September 2024
     o xgettext now recognizes comments of the form '#; <expression>'.
   - Java: Improved recognition of format strings when the String.formatted
     method is used.
-  - JavaScript: xgettext now parses template literals inside JSX correctly.
+  - JavaScript:
+    o xgettext now parses template literals inside JSX correctly.
+    o xgettext has a new option --tag that customizes the behaviour of tagged
+      template literals.
   - C#: Strings with embedded expressions (a.k.a. interpolated strings) are now
     recognized.
   - awk: String concatenation by juxtaposition is now recognized.

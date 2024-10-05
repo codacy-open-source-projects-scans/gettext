@@ -487,6 +487,11 @@ Internationalizable Data Formats
 * AppData::                     AppData - freedesktop.org application description
 * Preparing ITS Rules::         Preparing Rules for XML Internationalization
 
+Preparing Rules for XML Internationalization
+
+* ITS Rules::                   Specifying ITS Rules
+* Locating Rules::              Specifying where to find the ITS Rules
+
 Localized Data Formats
 
 * Editable Message Catalogs::   Editable Message Catalogs
@@ -2423,6 +2428,17 @@ into a statement involving a format string:
 @example
 print ('Replace %s with %s?'.format(object1.name, object2.name))
 @end example
+
+@noindent
+Specifically in JavaScript,
+an alternative is to use a @emph{tagged} template literal:
+
+@example
+print (@var{tag}`Replace $@{object1.name@} with $@{object2.name@}?`)
+@end example
+
+@noindent
+and pass an option @samp{--tag=@var{tag}:@var{format}} to @code{xgettext}.
 
 @subheading Format strings with embedded named references
 
@@ -10640,6 +10656,19 @@ appdata-tools, appstream, libappstream-glib-dev
 @subsection Preparing Rules for XML Internationalization
 @cindex preparing rules for XML translation
 
+@c The ITS support in GNU gettext was designed so as to supersede
+@c the GNOME itstool <https://itstool.org/>.  See
+@c <https://lists.gnu.org/archive/html/bug-gettext/2015-10/msg00001.html> and
+@c <https://mail.gnome.org/archives/desktop-devel-list/2015-October/msg00013.html>.
+
+@menu
+* ITS Rules::                   Specifying ITS Rules
+* Locating Rules::              Specifying where to find the ITS Rules
+@end menu
+
+@node ITS Rules
+@subsubsection Specifying ITS Rules
+
 Marking translatable strings in an XML file is done through a separate
 "rule" file, making use of the Internationalization Tag Set standard
 (ITS, @uref{https://www.w3.org/TR/its20/}).  The currently supported ITS
@@ -10650,6 +10679,7 @@ categories:
 
 @table @samp
 @item Context
+@c Rationale: Glade 2.
 
 This data category associates @code{msgctxt} to the extracted text.  In
 the global rule, the @code{contextRule} element contains the following:
@@ -10668,23 +10698,8 @@ An optional @code{textPointer} attribute that contains a relative
 selector pointing to a node that holds the @code{msgid} value.
 @end itemize
 
-@item Escape Special Characters
-
-This data category indicates whether the special XML characters
-(@code{<}, @code{>}, @code{&}, @code{"}) are escaped with entity
-reference.  In the global rule, the @code{escapeRule} element contains
-the following:
-
-@itemize @bullet
-@item
-A required @code{selector} attribute.  It contains an absolute selector
-that selects the nodes to which this rule applies.
-
-@item
-A required @code{escape} attribute with the value @code{yes} or @code{no}.
-@end itemize
-
 @item Extended Preserve Space
+@c Rationale: GSettings.
 
 This data category extends the standard @samp{Preserve Space} data
 category with the additional values @samp{trim} and @samp{paragraph}.
@@ -10703,6 +10718,28 @@ that selects the nodes to which this rule applies.
 A required @code{space} attribute with the value @code{default},
 @code{preserve}, @code{trim}, or @code{paragraph}.
 @end itemize
+
+@item Escape Special Characters
+
+This data category indicates whether the special XML characters
+(@code{<}, @code{>}, @code{&}, @code{"}) are escaped with entity
+references.  In the global rule, the @code{escapeRule} element contains
+the following:
+
+@itemize @bullet
+@item
+A required @code{selector} attribute.  It contains an absolute selector
+that selects the nodes to which this rule applies.
+
+@item
+A required @code{escape} attribute with the value @code{yes} or @code{no}.
+@end itemize
+
+@noindent
+The default value, @code{no}, should be good for most XML file types.
+A rule with @code{escape="no"},
+that was necessary with GNU gettext versions before 0.23,
+is now redundant.
 
 @end table
 
@@ -10740,9 +10777,16 @@ second ("A non-translatable string"), the following ITS rules can be used:
 </its:rules>
 @end example
 
-@samp{xgettext} needs another file called "locating rule" to associate
+ITS rules files must have the @file{.its} file extension and obey
+the XML schema encoded by
+@code{its.xsd} and its auxiliary schema @code{its-extensions.xsd}.
+
+@node Locating Rules
+@subsubsection Specifying where to find the ITS Rules
+
+@samp{xgettext} needs another file called "locating rules" to associate
 an ITS rule with an XML file.  If the above ITS file is saved as
-@file{messages.its}, the locating rule would look like:
+@file{messages.its}, the locating rules file would look like:
 
 @example
 <?xml version="1.0"?>
@@ -10768,37 +10812,49 @@ file.
 The first rule matches any file with the @file{.xml} file extension, but
 it only applies to XML files whose root element is @samp{<messages>}.
 
-The second rule indicates that the same ITS rule file are also
+The second rule indicates that the same ITS rules file are also
 applicable to any file with the @file{.msg} file extension.  The
 optional @code{name} attribute of @code{locatingRule} allows to choose
 rules by name, typically with @code{xgettext}'s @code{-L} option.
 
-The associated ITS rule file is indicated by the @code{target} attribute
+The associated ITS rules file is indicated by the @code{target} attribute
 of @code{locatingRule} or @code{documentRule}.  If it is specified in a
 @code{documentRule} element, the parent @code{locatingRule} shouldn't
 have the @code{target} attribute.
 
-Locating rule files must have the @file{.loc} file extension.  Both ITS
-rule files and locating rule files must be installed in the
+Locating rules files must have the @file{.loc} file extension and obey
+the XML schema encoded by @code{locating-rules.xsd}.
+Both ITS rules files and locating rules files must be installed in the
 @file{$prefix/share/gettext/its} directory.  Once those files are
 properly installed, @code{xgettext} can extract translatable strings
 from the matching XML files.
 
 @subsubsection Two Use-cases of Translated Strings in XML
 
-For XML, there are two use-cases of translated strings.  One is the case
-where the translated strings are directly consumed by programs, and the
-other is the case where the translated strings are merged back to the
-original XML document.  In the former case, special characters in the
-extracted strings shouldn't be escaped, while they should in the latter
-case.  To control whether to escape special characters, the @samp{Escape
-Special Characters} data category can be used.
+After strings have been extracted from an XML file to a POT file
+through @code{xgettext}
+and the translator has produced a PO file with translations,
+it can be used in two ways:
 
-To merge the translations, the @samp{msgfmt} program can be used with
-the option @code{--xml}.  @xref{msgfmt Invocation}, for more details
-about how one calls the @samp{msgfmt} program.  @samp{msgfmt}'s
-@code{--xml} option doesn't perform character escaping, so translated
-strings can have arbitrary XML constructs, such as elements for markup.
+@itemize @bullet
+@item
+The PO file (or the MO file generated from it) can be directly consumed
+by a program.
+
+@item
+Or the translated strings can be merged back to the original XML document.
+To do this use the @code{msgfmt} program with the option @code{--xml}.
+@xref{msgfmt Invocation}, for more details about how one calls
+the @samp{msgfmt} program.
+
+During this merge from a PO file into an XML file, it may happen that
+more escaping of special characters for XML is needed
+than what @code{msgfmt} does by default.
+In this case, you can enforce more escaping
+either throuch an @code{<escapeRule>} ITS rule,
+or through an attribute @code{gt:escape="yes"} on the particular XML element.
+
+@end itemize
 
 @c This is the template for new data formats.
 @ignore

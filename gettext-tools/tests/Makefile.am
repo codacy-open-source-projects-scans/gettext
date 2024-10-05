@@ -57,7 +57,7 @@ TESTS = gettext-1 gettext-2 \
 	msgfmt-tcl-1 msgfmt-tcl-2 \
 	msgfmt-qt-1 msgfmt-qt-2 \
 	msgfmt-desktop-1 msgfmt-desktop-2 msgfmt-desktop-3 \
-	msgfmt-xml-1 msgfmt-xml-2 \
+	msgfmt-xml-1 msgfmt-xml-2 msgfmt-xml-3 \
 	msggrep-1 msggrep-2 msggrep-3 msggrep-4 msggrep-5 msggrep-6 msggrep-7 \
 	msggrep-8 msggrep-9 msggrep-10 msggrep-11 \
 	msginit-1 msginit-2 msginit-3 msginit-4 \
@@ -84,7 +84,7 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-13 xgettext-14 xgettext-15 xgettext-16 xgettext-17 \
 	xgettext-18 \
 	xgettext-combine-1 xgettext-combine-2 xgettext-combine-3 \
-	xgettext-appdata-1 \
+	xgettext-appdata-1 xgettext-appdata-2 \
 	xgettext-awk-1 xgettext-awk-2 xgettext-awk-3 \
 	xgettext-awk-stackovfl-1 xgettext-awk-stackovfl-2 \
 	xgettext-c-2 xgettext-c-3 xgettext-c-4 xgettext-c-5 xgettext-c-6 \
@@ -119,6 +119,7 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-javascript-4 xgettext-javascript-5 xgettext-javascript-6 \
 	xgettext-javascript-7 xgettext-javascript-8 xgettext-javascript-9 \
 	xgettext-javascript-10 xgettext-javascript-11 xgettext-javascript-12 \
+	xgettext-javascript-13 \
 	xgettext-javascript-stackovfl-1 xgettext-javascript-stackovfl-2 \
 	xgettext-javascript-stackovfl-3 xgettext-javascript-stackovfl-4 \
 	xgettext-javascript-stackovfl-5 xgettext-javascript-stackovfl-6 \

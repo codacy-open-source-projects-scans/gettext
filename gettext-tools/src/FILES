@@ -63,9 +63,6 @@ xerror-handler.c
 | write-stringtable.c
 |               Output of a list-of-messages to a NeXTstep/GNUstep .strings
 |               file.
-| write-desktop.h
-| write-desktop.c
-|               Output of a list-of-messages to a .desktop file.
 +-------------- Writing PO files
 
 +-------------- Reading PO files
@@ -274,8 +271,8 @@ msgl-check.c
 | search-path.h
 | search-path.c
 |               Search path for locating *.loc and *.its files.
-| locating-rule.h
-| locating-rule.c
+| locating-rules.h
+| locating-rules.c
 |               Determining the appropriate *.its file for a given input.
 | its.h
 | its.c
@@ -305,6 +302,12 @@ msgl-check.c
 | write-qt.h
 | write-qt.c
 |               Generating Qt .qm files.
+| write-desktop.h
+| write-desktop.c
+|               Writing a .desktop file.
+| write-xml.h
+| write-xml.c
+|               Writing to an XML file.
 | msgfmt.c
 |               Main source for the 'msgfmt' program.
 |

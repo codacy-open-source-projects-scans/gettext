@@ -50,7 +50,7 @@ noinst_HEADERS = \
   str-list.h \
   write-catalog.h write-po.h write-properties.h write-stringtable.h \
   dir-list.h file-list.h read-po-gram.h cldr-plural.h \
-  cldr-plural-exp.h locating-rule.h its.h search-path.h \
+  cldr-plural-exp.h locating-rules.h its.h search-path.h \
   msgl-charset.h msgl-equal.h msgl-iconv.h msgl-ascii.h msgl-ofn.h msgl-cat.h \
   msgl-header.h msgl-english.h msgl-check.h msgl-fsearch.h msgfmt.h msgunfmt.h \
   plural-count.h plural-eval.h plural-distrib.h \
@@ -97,6 +97,7 @@ EXTRA_DIST += FILES project-id
 jardir = $(datadir)/gettext
 pkgdatadir = $(datadir)/gettext
 projectsdir = $(pkgdatadir)/projects
+schemadir = $(pkgdatadir)/schema
 pkglibdir = $(libdir)/gettext
 pkglibexecdir = $(libexecdir)/gettext
 
@@ -224,7 +225,7 @@ libgettextsrc_la_SOURCES = \
   sentence.h sentence.c \
   $(FORMAT_SOURCE) \
   read-desktop.c \
-  locating-rule.c its.c \
+  locating-rules.c its.c \
   search-path.c
 
 # msggrep needs pattern matching.
@@ -350,6 +351,34 @@ MOSTLYCLEANFILES += textstyle.h textstyle/stdbool.h textstyle/version.h textstyl
 # Where to find the built libtextstyle library.
 LT_LIBTEXTSTYLE = ../../libtextstyle/lib/libtextstyle.la
 endif
+
+# Version information according to Woe32 conventions.
+EXTRA_DIST += libgettextsrc.rc
+if WOE32
+WOE32_LIBADD = libgettextsrc.res.lo
+# This rule is executed only on Woe32 systems.
+# Use $(RC) with libtool, $(WINDRES) when not using libtool.
+# The following sed expressions come from the windres-options script. They are
+# inlined here, so that they can be written in a Makefile without requiring a
+# temporary file. They must contain literal newlines rather than semicolons,
+# so that they work with the sed-3.02 that is shipped with MSYS.
+libgettextsrc.res.lo: $(srcdir)/libgettextsrc.rc
+	nlinit=`echo 'nl="'; echo '"'`; eval "$$nlinit"; \
+	sed_extract_major='/^[0-9]/{'$${nl}'s/^\([0-9]*\).*/\1/p'$${nl}q$${nl}'}'$${nl}'c\'$${nl}0$${nl}q; \
+	sed_extract_minor='/^[0-9][0-9]*[.][0-9]/{'$${nl}'s/^[0-9]*[.]\([0-9]*\).*/\1/p'$${nl}q$${nl}'}'$${nl}'c\'$${nl}0$${nl}q; \
+	sed_extract_subminor='/^[0-9][0-9]*[.][0-9][0-9]*[.][0-9]/{'$${nl}'s/^[0-9]*[.][0-9]*[.]\([0-9]*\).*/\1/p'$${nl}q$${nl}'}'$${nl}'c\'$${nl}0$${nl}q; \
+	$(LIBTOOL) --tag=RC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(RC) \
+	  "-DPACKAGE_VERSION_STRING=\\\"$(VERSION)\\\"" \
+	  "-DPACKAGE_VERSION_MAJOR="`echo '$(VERSION)' | sed -n -e "$$sed_extract_major"` \
+	  "-DPACKAGE_VERSION_MINOR="`echo '$(VERSION)' | sed -n -e "$$sed_extract_minor"` \
+	  "-DPACKAGE_VERSION_SUBMINOR="`echo '$(VERSION)' | sed -n -e "$$sed_extract_subminor"` \
+	  -i $(srcdir)/libgettextsrc.rc -o libgettextsrc.res.lo --output-format=coff
+MOSTLYCLEANFILES += libgettextsrc.res.lo
+else
+WOE32_LIBADD =
+endif
+libgettextsrc_la_LIBADD       = $(WOE32_LIBADD)
+libgettextsrc_la_DEPENDENCIES = $(WOE32_LIBADD)
 
 # How to build libgettextsrc.la.
 # Need ../gnulib-lib/libgettextlib.la.
@@ -759,6 +788,14 @@ installdirs-tcl:
 uninstall-local: uninstall-tcl
 uninstall-tcl:
 	$(RM) $(DESTDIR)$(pkgdatadir)/msgunfmt.tcl
+
+
+# Special rules for XML schemas.
+
+schema_DATA = \
+  its.xsd its-extensions.xsd \
+  locating-rules.xsd
+EXTRA_DIST += $(schema_DATA)
 
 
 # Support for relocatability.
