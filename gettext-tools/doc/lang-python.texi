@@ -1,5 +1,5 @@
 @c This file is part of the GNU gettext manual.
-@c Copyright (C) 1995-2023 Free Software Foundation, Inc.
+@c Copyright (C) 1995-2024 Free Software Foundation, Inc.
 @c See the file gettext.texi for copying conditions.
 
 @node Python
@@ -109,3 +109,8 @@ _(f"The file @{file[i]@} does not exist.")
 @noindent
 because the translator is generally not a programmer and should thus not be
 confronted with expressions from the programming language.
+
+@subheading Related software
+
+An internationalization system based on GNU gettext and PO files is
+@url{https://babel.pocoo.org/, Babel}.
