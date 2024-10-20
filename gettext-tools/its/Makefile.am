@@ -24,24 +24,31 @@ itsdir = $(pkgdatadir)$(PACKAGE_SUFFIX)/its
 ITS_FILES = \
   glade1.its glade2.its gtkbuilder.its \
   gsettings.its \
-  metainfo.its
+  metainfo.its \
+  docbook4.its docbook5.its
 
 LOC_FILES = \
   glade.loc \
   gsettings.loc \
-  metainfo.loc
+  metainfo.loc \
+  docbook.loc
 
 dist_its_DATA = $(ITS_FILES) $(LOC_FILES)
 
 # Checks the XML files against their schemas.
+# Work around <https://gitlab.gnome.org/GNOME/libxml2/-/issues/809>.
 check-local:
 	@for file in $(ITS_FILES); do \
 	  echo "Checking $$file..."; \
-	  echo "$(XMLLINT) --noout --schema $(top_srcdir)/src/its.xsd $(srcdir)/$$file"; \
-	  $(XMLLINT) --noout --schema $(top_srcdir)/src/its.xsd $(srcdir)/$$file || exit 1; \
+	  echo "$(top_builddir)/build-aux/xml-validate-10 $(top_srcdir)/src/its.xsd10 $(srcdir)/$$file"; \
+	  $(top_builddir)/build-aux/xml-validate-10 $(top_srcdir)/src/its.xsd10 $(srcdir)/$$file || exit 1; \
+	  echo "$(top_builddir)/build-aux/xml-validate-11 $(top_srcdir)/src/its.xsd11 $(srcdir)/$$file"; \
+	  $(top_builddir)/build-aux/xml-validate-11 $(top_srcdir)/src/its.xsd11 $(srcdir)/$$file || exit 1; \
 	done
 	@for file in $(LOC_FILES); do \
 	  echo "Checking $$file..."; \
-	  echo "$(XMLLINT) --noout --schema $(top_srcdir)/src/locating-rules.xsd $(srcdir)/$$file"; \
-	  $(XMLLINT) --noout --schema $(top_srcdir)/src/locating-rules.xsd $(srcdir)/$$file || exit 1; \
+	  echo "$(top_builddir)/build-aux/xml-validate-10 $(top_srcdir)/src/locating-rules.xsd10 $(srcdir)/$$file"; \
+	  $(top_builddir)/build-aux/xml-validate-10 $(top_srcdir)/src/locating-rules.xsd10 $(srcdir)/$$file || exit 1; \
+	  echo "$(top_builddir)/build-aux/xml-validate-11 $(top_srcdir)/src/locating-rules.xsd11 $(srcdir)/$$file"; \
+	  $(top_builddir)/build-aux/xml-validate-11 $(top_srcdir)/src/locating-rules.xsd11 $(srcdir)/$$file || exit 1; \
 	done

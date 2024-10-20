@@ -56,19 +56,22 @@ TESTS = gettext-1 gettext-2 \
 	msgfmt-properties-1 \
 	msgfmt-tcl-1 msgfmt-tcl-2 \
 	msgfmt-qt-1 msgfmt-qt-2 \
-	msgfmt-desktop-1 msgfmt-desktop-2 msgfmt-desktop-3 \
-	msgfmt-xml-1 msgfmt-xml-2 msgfmt-xml-3 msgfmt-xml-4 \
+	msgfmt-desktop-1 msgfmt-desktop-2 msgfmt-desktop-3 msgfmt-desktop-4 \
+	msgfmt-xml-1 msgfmt-xml-2 msgfmt-xml-3 msgfmt-xml-4 msgfmt-xml-5 \
 	msggrep-1 msggrep-2 msggrep-3 msggrep-4 msggrep-5 msggrep-6 msggrep-7 \
 	msggrep-8 msggrep-9 msggrep-10 msggrep-11 \
-	msginit-1 msginit-2 msginit-3 msginit-4 \
+	msginit-1 msginit-2 msginit-3 msginit-4 msginit-5 \
 	msgmerge-1 msgmerge-2 msgmerge-3 msgmerge-4 msgmerge-5 msgmerge-6 \
 	msgmerge-7 msgmerge-8 msgmerge-9 msgmerge-10 msgmerge-11 msgmerge-12 \
-	msgmerge-13 msgmerge-14 msgmerge-15 msgmerge-16 msgmerge-17 \
-	msgmerge-18 msgmerge-19 msgmerge-20 msgmerge-21 msgmerge-22 \
-	msgmerge-23 msgmerge-24 msgmerge-25 msgmerge-26 msgmerge-27 \
-	msgmerge-28 msgmerge-29 \
+	msgmerge-13 msgmerge-14 msgmerge-15 \
+	msgmerge-charset-1 msgmerge-charset-2 msgmerge-charset-3 \
+	msgmerge-charset-4 \
 	msgmerge-compendium-1 msgmerge-compendium-2 msgmerge-compendium-3 \
 	msgmerge-compendium-4 msgmerge-compendium-5 msgmerge-compendium-6 \
+	msgmerge-domain-1 msgmerge-domain-2 \
+	msgmerge-format-1 msgmerge-format-2 msgmerge-format-3 \
+	msgmerge-plural-1 msgmerge-plural-2 msgmerge-plural-3 \
+	msgmerge-plural-4 msgmerge-plural-5 msgmerge-plural-6 \
 	msgmerge-properties-1 msgmerge-properties-2 \
 	msgmerge-update-1 msgmerge-update-2 msgmerge-update-3 \
 	msgmerge-update-4 \
@@ -102,7 +105,8 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-csharp-7 xgettext-csharp-8 xgettext-csharp-9 \
 	xgettext-csharp-stackovfl-1 xgettext-csharp-stackovfl-2 \
 	xgettext-csharp-stackovfl-3 xgettext-csharp-stackovfl-4 \
-	xgettext-desktop-1 xgettext-desktop-2 \
+	xgettext-desktop-1 xgettext-desktop-2 xgettext-desktop-3 \
+	xgettext-docbook-1 \
 	xgettext-elisp-1 xgettext-elisp-2 xgettext-elisp-3 \
 	xgettext-elisp-stackovfl-1 xgettext-elisp-stackovfl-2 \
 	xgettext-elisp-stackovfl-3 xgettext-elisp-stackovfl-4 \
@@ -149,7 +153,7 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-rst-1 xgettext-rst-2 \
 	xgettext-python-1 xgettext-python-2 xgettext-python-3 \
 	xgettext-python-4 xgettext-python-5 xgettext-python-6 \
-	xgettext-python-7 xgettext-python-8 \
+	xgettext-python-7 xgettext-python-8 xgettext-python-9 \
 	xgettext-python-stackovfl-1 xgettext-python-stackovfl-2 \
 	xgettext-python-stackovfl-3 xgettext-python-stackovfl-4 \
 	xgettext-ruby-1 xgettext-ruby-2 \
@@ -256,6 +260,7 @@ EXTRA_DIST += init.sh init.cfg $(TESTS) \
 	xgettext-1 \
 	xgettext-c-1 xg-c-comment-6.c xg-c-escape-3.c xg-vala-2.vala \
 	common/supplemental/plurals.xml \
+	testdata/nonascii.pot \
 	testdata/tcltest_pl.po testdata/tcltest_pl.msg \
 	testdata/tcltest_cs.po testdata/tcltest_cs.msg \
 	testdata/xg-el-so-3.el testdata/xg-el-so-4.el \

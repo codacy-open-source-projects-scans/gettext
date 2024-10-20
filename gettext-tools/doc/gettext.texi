@@ -1255,8 +1255,18 @@ prompt, merely execute
 @subsection Locale Names
 
 A locale name usually has the form @samp{@var{ll}_@var{CC}}.  Here
-@samp{@var{ll}} is an @w{ISO 639} two-letter language code, and
-@samp{@var{CC}} is an @w{ISO 3166} two-letter country code.  For example,
+
+@itemize
+@item
+@samp{@var{ll}} is an @w{ISO 639} two-letter language code.
+For some languages,
+a two-letter code does not exist, and a three-letter code is used instead.
+@item
+@samp{@var{CC}} is an @w{ISO 3166} two-letter code of a country or territory.
+@end itemize
+
+@noindent
+For example,
 for German in Germany, @var{ll} is @code{de}, and @var{CC} is @code{DE}.
 You find a list of the language codes in appendix @ref{Language Codes} and
 a list of the country codes in appendix @ref{Country Codes}.
@@ -3554,10 +3564,13 @@ forms:
 @itemize -
 @item
 @samp{@var{ll}}, an @w{ISO 639} two-letter language code (lowercase).
+For some languages,
+a two-letter code does not exist, and a three-letter code is used instead.
 See @ref{Language Codes} for the list of codes.
 
 @item
 @samp{@var{ll}_@var{CC}}, where @samp{@var{ll}} is an @w{ISO 639} two-letter
+or three-letter
 language code (lowercase) and @samp{@var{CC}} is an @w{ISO 3166} two-letter
 country code (uppercase).  The country code specification is not redundant:
 Some languages have dialects in different countries.  For example,
@@ -3567,7 +3580,9 @@ code serves to distinguish the dialects. See @ref{Language Codes} and
 
 @item
 @samp{@var{ll}_@var{CC}@@@var{variant}}, where @samp{@var{ll}} is an
-@w{ISO 639} two-letter language code (lowercase), @samp{@var{CC}} is an
+@w{ISO 639} two-letter
+or three-letter
+language code (lowercase), @samp{@var{CC}} is an
 @w{ISO 3166} two-letter country code (uppercase), and @samp{@var{variant}} is
 a variant designator. The variant designator (lowercase) can be a script
 designator, such as @samp{latin} or @samp{cyrillic}.
@@ -8909,7 +8924,7 @@ a terminal emulator which supports the VT100 escape sequences (such as
 These extra message catalogs @samp{en@@quot} and @samp{en@@boldquot}
 are constructed automatically, not by translators; to support them, you
 need the files @file{Rules-quot}, @file{quot.sed}, @file{boldquot.sed},
-@file{en@@quot.header}, @file{en@@boldquot.header}, @file{insert-header.sin}
+@file{en@@quot.header}, @file{en@@boldquot.header}, @file{insert-header.sed}
 in the @file{po/} directory.  You can copy them from GNU gettext's @file{po/}
 directory; they are also installed by running @code{gettextize}.
 
@@ -9879,12 +9894,25 @@ produces programs totally unable to translate messages.
 
 @vindex LINGUAS@r{, environment variable}
 Internationalized packages have usually many @file{@var{ll}.po}
-files.  Unless
-translations are disabled, all those available are installed together
+or @file{@var{ll}_@var{CC}.po} files, where
+
+@itemize @bullet
+@item
+@var{ll} gives an @w{ISO 639} two-letter code identifying the language.
+For some languages,
+a two-letter code does not exist, and a three-letter code is used instead.
+@item
+The optional @var{CC} is an @w{ISO 3166} two-letter code of a country or
+territory.
+@end itemize
+
+@noindent
+Unless translations are disabled, all those available are installed together
 with the package.  However, the environment variable @code{LINGUAS}
 may be set, prior to configuration, to limit the installed set.
-@code{LINGUAS} should then contain a space separated list of two-letter
-codes, stating which languages are allowed.
+@code{LINGUAS} should then contain a space separated list of locale names
+(of the form @code{@var{ll}} or @code{@var{ll}_@var{CC}}),
+stating which languages or language variants are allowed.
 
 GNU @code{gettext} uses *.its and *.loc files (@pxref{Preparing ITS Rules})
 from other packages, provided they are installed in
@@ -10812,13 +10840,35 @@ that selects the nodes to which this rule applies.
 
 @item
 A required @code{escape} attribute with the value @code{yes} or @code{no}.
+
+@item
+An optional @code{unescape-if} attribute with the value
+@code{xml}, @code{xhtml}, @code{html}, or @code{no}.
 @end itemize
 
 @noindent
-The default value, @code{no}, should be good for most XML file types.
+The default values, @code{escape="no"} and @code{unescape-if="no"},
+should be good for most XML file types.
 A rule with @code{escape="no"},
 that was necessary with GNU gettext versions before 0.23,
 is now redundant.
+
+The @code{unescape-if} attribute is useful for XML file types
+which present messages with embedded XML elements to the translator.
+Such file types are for example DocBook or XHTML.
+If @code{unescape-if="xml"} is specified and the translation
+of a message looks like valid XML, the usual escaping of @code{<},
+@code{>}, and character references is omitted.
+The resulting XML document then is likely what the translator intended.
+However, if the translator did not merely copy the XML markup from the
+message to the translation, but added or removed markup,
+the resulting XML document may be invalid.
+It is therefore useful if, after invoking @code{msgfmt}, you check
+the resulting XML document against the appropriate XML schema or DTD.
+
+Similarly, if @code{unescape-if="xhtml"} is specified and the translation
+looks like valid XHTML, the usual escaping is omitted.
+And likewise for @code{unescape-if="html"}.
 
 @end table
 
@@ -10857,8 +10907,9 @@ second ("A non-translatable string"), the following ITS rules can be used:
 @end example
 
 ITS rules files must have the @file{.its} file extension and obey
-the XML schema encoded by
-@code{its.xsd} and its auxiliary schema @code{its-extensions.xsd}.
+the XML schema version 1.0 encoded by @code{its.xsd10} or
+the XML schema version 1.1 encoded by @code{its.xsd11}
+and its auxiliary schema @code{its-extensions.xsd}.
 
 @node Locating Rules
 @subsubsection Specifying where to find the ITS Rules
@@ -10902,7 +10953,8 @@ of @code{locatingRule} or @code{documentRule}.  If it is specified in a
 have the @code{target} attribute.
 
 Locating rules files must have the @file{.loc} file extension and obey
-the XML schema encoded by @code{locating-rules.xsd}.
+the XML schema version 1.0 encoded by @code{locating-rules.xsd10} or
+the XML schema version 1.1 encoded by @code{locating-rules.xsd11}.
 Both ITS rules files and locating rules files must be installed in the
 @file{$prefix/share/gettext/its} directory.  Once those files are
 properly installed, @code{xgettext} can extract translatable strings

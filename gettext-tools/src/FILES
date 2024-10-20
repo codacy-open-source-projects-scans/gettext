@@ -123,6 +123,10 @@ xerror-handler.c
 |               Reading of a .desktop file, returning a list-of-messages.
 +-------------- Reading PO files
 
+msgl-header.h
+msgl-header.c
+                Message list header manipulation.
+
 msgl-iconv.h
 msgl-iconv.c
                 Convert a list-of-messages to another character encoding.
@@ -133,6 +137,10 @@ msgl-cat.c
                 of duplicate msgids.
 
 msgcmp.c        Main source for the 'msgcmp' program.
+
+msgl-charset.h
+msgl-charset.c
+                Checking the encoding of a list-of-messages.
 
 +-------------- The 'msgmerge' program
 | msgl-equal.h
@@ -146,20 +154,11 @@ msgcmp.c        Main source for the 'msgcmp' program.
 |
 +-------------- The 'msgmerge' program
 
-msgl-header.h
-msgl-header.c
-                Message list header manipulation.
-
 msgcomm.c       Main source for the 'msgcomm' program.
 msgattrib.c     Main source for the 'msgattrib' program.
 msgcat.c        Main source for the 'msgcat' program.
 msgconv.c       Main source for the 'msgconv' program.
 msguniq.c       Main source for the 'msguniq' program.
-
-msgl-charset.h
-msgl-charset.c
-                Compare the encoding of a list-of-messages with the locale
-                encoding.
 
 msgexec.c       Main source for the 'msgexec' program.
 msgfilter.c     Main source for the 'msgfilter' program.
