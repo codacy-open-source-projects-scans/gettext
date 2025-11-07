@@ -1,5 +1,5 @@
 /* XML resource locating rules
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
    This file was written by Daiki Ueno <ueno@gnu.org>, 2015.
 
@@ -88,9 +88,11 @@ extern bool
 
 /* Determines the location of the .its file to be used for FILENAME,
    when the "language name" is NAME (can be NULL if not provided),
-   accoding to the locating rules in the RULES object.
+   according to the locating rules in the RULES object.
    The result is just the base name of the .its file; the caller then
-   needs to find it, using "search-path.h".  */
+   needs to find it, using "search-path.h".
+   The lifetime of the result is limited by the lifetime of the RULES
+   object.  */
 extern const char *
        locating_rule_list_locate (const locating_rule_list_ty *rules,
                                   const char *filename,

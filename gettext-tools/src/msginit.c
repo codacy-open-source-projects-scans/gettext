@@ -1,5 +1,5 @@
 /* Initializes a new PO file.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <haible@clisp.cons.org>, 2001.
 
    This program is free software: you can redistribute it and/or modify
@@ -16,15 +16,12 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include <config.h>
 #include <alloca.h>
 
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <getopt.h>
 #include <limits.h>
 #include <locale.h>
 #include <stdint.h>
@@ -38,14 +35,14 @@
 #if HAVE_PWD_H
 # include <pwd.h>
 #endif
+#ifdef _OPENMP
+# include <omp.h>
+#endif
 
 #include <textstyle.h>
 
 #include <error.h>
-
-/* Get BINDIR.  */
-#include "configmake.h"
-
+#include "options.h"
 #include "noreturn.h"
 #include "closeout.h"
 #include "error-progname.h"
@@ -55,6 +52,7 @@
 #include "c-strstr.h"
 #include "c-strcase.h"
 #include "message.h"
+#include "msgl-merge.h"
 #include "read-catalog-file.h"
 #include "read-po.h"
 #include "read-properties.h"
@@ -80,7 +78,10 @@
 #include "plural-count.h"
 #include "spawn-pipe.h"
 #include "wait-process.h"
+#include "backupfile.h"
+#include "copy-file.h"
 #include "xsetenv.h"
+#include "xstriconv.h"
 #include "str-list.h"
 #include "propername.h"
 #include "gettext.h"
@@ -100,34 +101,11 @@ extern const char * _nl_expand_alias (const char *name);
 /* Locale name.  */
 static const char *locale;
 
-/* Language (ISO-639 code) and optional territory (ISO-3166 code).  */
-static const char *catalogname;
-
 /* Language (ISO-639 code).  */
 static const char *language;
 
 /* If true, the user is not considered to be the translator.  */
 static bool no_translator;
-
-/* Long options.  */
-static const struct option long_options[] =
-{
-  { "color", optional_argument, NULL, CHAR_MAX + 5 },
-  { "help", no_argument, NULL, 'h' },
-  { "input", required_argument, NULL, 'i' },
-  { "locale", required_argument, NULL, 'l' },
-  { "no-translator", no_argument, NULL, CHAR_MAX + 1 },
-  { "no-wrap", no_argument, NULL, CHAR_MAX + 2 },
-  { "output-file", required_argument, NULL, 'o' },
-  { "properties-input", no_argument, NULL, 'P' },
-  { "properties-output", no_argument, NULL, 'p' },
-  { "stringtable-input", no_argument, NULL, CHAR_MAX + 3 },
-  { "stringtable-output", no_argument, NULL, CHAR_MAX + 4 },
-  { "style", required_argument, NULL, CHAR_MAX + 6 },
-  { "version", no_argument, NULL, 'V' },
-  { "width", required_argument, NULL, 'w' },
-  { NULL, 0, NULL, 0 }
-};
 
 /* Forward declaration of local functions.  */
 _GL_NORETURN_FUNC static void usage (int status);
@@ -135,14 +113,13 @@ static const char *find_pot (void);
 static const char *catalogname_for_locale (const char *locale);
 static const char *language_of_locale (const char *locale);
 static char *get_field (const char *header, const char *field);
-static msgdomain_list_ty *fill_header (msgdomain_list_ty *mdlp);
+static msgdomain_list_ty *fill_header (msgdomain_list_ty *mdlp, bool fresh);
 static msgdomain_list_ty *update_msgstr_plurals (msgdomain_list_ty *mdlp);
 
 
 int
 main (int argc, char **argv)
 {
-  int opt;
   bool do_help;
   bool do_version;
   char *output_file;
@@ -161,6 +138,7 @@ main (int argc, char **argv)
 
   /* Set the text message domain.  */
   bindtextdomain (PACKAGE, relocate (LOCALEDIR));
+  bindtextdomain ("gnulib", relocate (GNULIB_LOCALEDIR));
   bindtextdomain ("bison-runtime", relocate (BISON_LOCALEDIR));
   textdomain (PACKAGE);
 
@@ -174,11 +152,32 @@ main (int argc, char **argv)
   input_file = NULL;
   locale = NULL;
 
-  while ((opt = getopt_long (argc, argv, "hi:l:o:pPVw:", long_options, NULL))
-         != EOF)
+  /* Parse command line options.  */
+  BEGIN_ALLOW_OMITTING_FIELD_INITIALIZERS
+  static const struct program_option options[] =
+  {
+    { "color",              CHAR_MAX + 5, optional_argument },
+    { "help",               'h',          no_argument       },
+    { "input",              'i',          required_argument },
+    { "locale",             'l',          required_argument },
+    { "no-translator",      CHAR_MAX + 1, no_argument       },
+    { "no-wrap",            CHAR_MAX + 2, no_argument       },
+    { "output-file",        'o',          required_argument },
+    { "properties-input",   'P',          no_argument       },
+    { "properties-output",  'p',          no_argument       },
+    { "stringtable-input",  CHAR_MAX + 3, no_argument       },
+    { "stringtable-output", CHAR_MAX + 4, no_argument       },
+    { "style",              CHAR_MAX + 6, required_argument },
+    { "version",            'V',          no_argument       },
+    { "width",              'w',          required_argument },
+  };
+  END_ALLOW_OMITTING_FIELD_INITIALIZERS
+  start_options (argc, argv, options, MOVE_OPTIONS_FIRST, 0);
+  int opt;
+  while ((opt = get_next_option ()) != -1)
     switch (opt)
       {
-      case '\0':                /* Long option.  */
+      case '\0':                /* Long option with key == 0.  */
         break;
 
       case 'h':
@@ -265,7 +264,7 @@ License GPLv3+: GNU GPL version 3 or later <%s>\n\
 This is free software: you are free to change and redistribute it.\n\
 There is NO WARRANTY, to the extent permitted by law.\n\
 "),
-              "2001-2023", "https://gnu.org/licenses/gpl.html");
+              "2001-2025", "https://gnu.org/licenses/gpl.html");
       printf (_("Written by %s.\n"), proper_name ("Bruno Haible"));
       exit (EXIT_SUCCESS);
     }
@@ -310,76 +309,54 @@ This is necessary so you can test your translations.\n"),
 
   /* Default output file name is CATALOGNAME.po.  */
   if (output_file == NULL)
+    output_file = xasprintf ("%s.po", catalogname);
+
+  if (strcmp (output_file, "-") != 0
+      && access (output_file, F_OK) == 0)
     {
-      output_file = xasprintf ("%s.po", catalogname);
+      /* The output PO file already exists.  Assume the translator wants to
+         continue, based on these translations.  */
 
-      /* But don't overwrite existing PO files.  */
-      if (access (output_file, F_OK) == 0)
-        {
-          multiline_error (xstrdup (""),
-                           xasprintf (_("\
-Output file %s already exists.\n\
-Please specify the locale through the --locale option or\n\
-the output .po file through the --output-file option.\n"),
-                                      output_file));
-          exit (EXIT_FAILURE);
-        }
+      /* First, create a backup file.  */
+      {
+        const char *backup_suffix_string = getenv ("SIMPLE_BACKUP_SUFFIX");
+        if (backup_suffix_string != NULL && backup_suffix_string[0] != '\0')
+          simple_backup_suffix = backup_suffix_string;
+      }
+      {
+        char *backup_file = find_backup_file_name (output_file, simple);
+        xcopy_file_preserving (output_file, backup_file);
+      }
+
+      /* Initialize OpenMP.  */
+      #ifdef _OPENMP
+      openmp_init ();
+      #endif
+
+      /* Read both files and merge them.  */
+      quiet = true;
+      keep_previous = true;
+      msgdomain_list_ty *def;
+      result = merge (output_file, input_file, input_syntax, &def);
+
+      /* Update the header entry.  */
+      result = fill_header (result, false);
     }
-
-  /* Read input file.  */
-  result = read_catalog_file (input_file, input_syntax);
-  check_pot_charset (result, input_file);
-
-#if defined _WIN32 || defined __CYGWIN__
-  /* The function fill_header invokes, directly or indirectly, some programs
-     that are installed in ${libdir}/gettext:
-       - hostname, invoked indirectly through 'user-email'.
-       - urlget, invoked indirectly through 'team-address'.
-       - cldr-plurals, invoked directly.
-     These programs depend on libintl.  In installations with shared libraries,
-     we need to guarantee that the programs find the DLL, which is installed
-     in ${bindir}, not in ${libdir}/gettext.  The preferred way to do so is to
-     extend $PATH, so that it contains ${bindir}.  */
-  {
-    const char *orig_path;
-    size_t orig_path_len;
-    char separator;
-    const char *bindir;
-    size_t bindir_len;
-    char *augmented_path;
-
-    orig_path = getenv ("PATH");
-    if (orig_path == NULL)
-      orig_path = "";
-    orig_path_len = strlen (orig_path);
-
-    #if defined __CYGWIN__
-    separator = ':';
-    #else /* native Windows */
-    separator = ';';
-    #endif
-
-    bindir = BINDIR;
-    bindir_len = strlen (bindir);
-
-    /* Concatenate bindir, separator, orig_path.  */
-    augmented_path = XNMALLOC (bindir_len + 1 + orig_path_len + 1, char);
-    memcpy (augmented_path, bindir, bindir_len);
-    augmented_path[bindir_len] = separator;
-    memcpy (augmented_path + bindir_len + 1, orig_path, orig_path_len + 1);
-
-    xsetenv ("PATH", augmented_path, 1);
-  }
-#endif
-
-  /* Fill the header entry.  */
-  result = fill_header (result);
-
-  /* Initialize translations.  */
-  if (strcmp (language, "en") == 0)
-    result = msgdomain_list_english (result);
   else
-    result = update_msgstr_plurals (result);
+    {
+      /* Read input file.  */
+      result = read_catalog_file (input_file, input_syntax);
+      check_pot_charset (result, input_file);
+
+      /* Fill the header entry.  */
+      result = fill_header (result, true);
+
+      /* Initialize translations.  */
+      if (strcmp (language, "en") == 0)
+        result = msgdomain_list_english (result);
+      else
+        result = update_msgstr_plurals (result);
+    }
 
   /* Write the modified message list out.  */
   msgdomain_list_print (result, output_file, output_syntax,
@@ -429,7 +406,11 @@ Output file location:\n"));
   -o, --output-file=FILE      write output to specified PO file\n"));
       printf (_("\
 If no output file is given, it depends on the --locale option or the user's\n\
-locale setting.  If it is -, the results are written to standard output.\n"));
+locale setting.\n\
+If the output file already exists, it is merged with the input file,\n\
+as if through '%s'.\n\
+If it is -, the results are written to standard output.\n"),
+              "msgmerge");
       printf ("\n");
       printf (_("\
 Input file syntax:\n"));
@@ -612,6 +593,7 @@ catalogname_for_locale (const char *locale)
     "fy_NL",    /* Western Frisian      Netherlands */
     "ga_IE",    /* Irish        Ireland */
     "gd_GB",    /* Scottish Gaelic      Britain */
+    "gl_ES",    /* Galician     Spain */
     "gon_IN",   /* Gondi        India */
     "gsw_CH",   /* Swiss German Switzerland */
     "gu_IN",    /* Gujarati     India */
@@ -729,6 +711,7 @@ catalogname_for_locale (const char *locale)
     "suk_TZ",   /* Sukuma       Tanzania */
     "sus_GN",   /* Susu         Guinea */
     "sv_SE",    /* Swedish      Sweden */
+    "ta_IN",    /* Tamil        India */
     "te_IN",    /* Telugu       India */
     "tem_SL",   /* Timne        Sierra Leone */
     "tet_ID",   /* Tetum        Indonesia */
@@ -823,6 +806,8 @@ language_of_locale (const char *locale)
 }
 
 
+/* ---------------------- fill_header and subroutines ---------------------- */
+
 /* Return the most likely desired charset for the PO file, as a portable
    charset name.  */
 static const char *
@@ -862,6 +847,11 @@ canonical_locale_charset ()
 
   return charset;
 }
+
+
+/* The desired charset for the PO file.
+   Determined at the beginning of fill_header().  */
+static const char *output_charset;
 
 
 /* Return the English name of the language.  */
@@ -937,7 +927,7 @@ project_id (const char *header)
     argv[0] = BOURNE_SHELL;
     argv[1] = prog;
     argv[2] = NULL;
-    child = create_pipe_in (prog, BOURNE_SHELL, argv, NULL,
+    child = create_pipe_in (prog, BOURNE_SHELL, argv, NULL, NULL,
                             DEV_NULL, false, true, false, fd);
     if (child == -1)
       goto failed;
@@ -1020,7 +1010,7 @@ project_id_version (const char *header)
     argv[1] = prog;
     argv[2] = "yes";
     argv[3] = NULL;
-    child = create_pipe_in (prog, BOURNE_SHELL, argv, NULL,
+    child = create_pipe_in (prog, BOURNE_SHELL, argv, NULL, NULL,
                             DEV_NULL, false, true, false, fd);
     if (child == -1)
       goto failed;
@@ -1172,6 +1162,7 @@ get_user_email ()
 #if !(defined _WIN32 && ! defined __CYGWIN__)
   {
     const char *prog = relocate (LIBEXECDIR "/gettext/user-email");
+    const char *dll_dirs[2];
     const char *argv[4];
     pid_t child;
     int fd[1];
@@ -1181,6 +1172,14 @@ get_user_email ()
     size_t linelen;
     int exitstatus;
 
+    /* The program 'hostname', that 'user-email' may invoke, is installed in
+       gettextlibdir and depends on libintl and libgettextlib.  On Windows,
+       in installations with shared libraries, these DLLs are installed in
+       ${bindir}.  Make sure that the program can find them, even if
+       ${bindir} is not in $PATH.  */
+    dll_dirs[0] = relocate (BINDIR);
+    dll_dirs[1] = NULL;
+
     /* Ask the user for his email address.  */
     argv[0] = BOURNE_SHELL;
     argv[1] = prog;
@@ -1189,7 +1188,7 @@ The new message catalog should contain your email address, so that users can\n\
 give you feedback about the translations, and so that maintainers can contact\n\
 you in case of unexpected technical problems.\n");
     argv[3] = NULL;
-    child = create_pipe_in (prog, BOURNE_SHELL, argv, NULL,
+    child = create_pipe_in (prog, BOURNE_SHELL, argv, dll_dirs, NULL,
                             DEV_NULL, false, true, false, fd);
     if (child == -1)
       goto failed;
@@ -1278,6 +1277,7 @@ language_team_address ()
 #if !(defined _WIN32 && ! defined __CYGWIN__)
   {
     const char *prog = relocate (PROJECTSDIR "/team-address");
+    const char *dll_dirs[2];
     const char *argv[7];
     pid_t child;
     int fd[1];
@@ -1288,6 +1288,14 @@ language_team_address ()
     const char *result;
     int exitstatus;
 
+    /* The program 'urlget', that 'team-address' may invoke, is installed in
+       gettextlibdir and depends on libintl and libgettextlib.  On Windows,
+       in installations with shared libraries, these DLLs are installed in
+       ${bindir}.  Make sure that the program can find them, even if
+       ${bindir} is not in $PATH.  */
+    dll_dirs[0] = relocate (BINDIR);
+    dll_dirs[1] = NULL;
+
     /* Call the team-address shell script.  */
     argv[0] = BOURNE_SHELL;
     argv[1] = prog;
@@ -1296,7 +1304,7 @@ language_team_address ()
     argv[4] = catalogname;
     argv[5] = language;
     argv[6] = NULL;
-    child = create_pipe_in (prog, BOURNE_SHELL, argv, NULL,
+    child = create_pipe_in (prog, BOURNE_SHELL, argv, dll_dirs, NULL,
                             DEV_NULL, false, true, false, fd);
     if (child == -1)
       goto failed;
@@ -1379,27 +1387,7 @@ mime_version ()
 static const char *
 content_type (const char *header)
 {
-  bool was_utf8;
-  const char *old_field;
-
-  /* If the POT file contains charset=UTF-8, it means that the POT file
-     contains non-ASCII characters, and we keep the UTF-8 encoding.
-     Otherwise, when the POT file is plain ASCII, we use the locale's
-     encoding.  */
-  was_utf8 = false;
-  old_field = get_field (header, "Content-Type");
-  if (old_field != NULL)
-    {
-      const char *charsetstr = c_strstr (old_field, "charset=");
-
-      if (charsetstr != NULL)
-        {
-          charsetstr += strlen ("charset=");
-          was_utf8 = (c_strcasecmp (charsetstr, "UTF-8") == 0);
-        }
-    }
-  return xasprintf ("text/plain; charset=%s",
-                    was_utf8 ? "UTF-8" : canonical_locale_charset ());
+  return xasprintf ("text/plain; charset=%s", output_charset);
 }
 
 
@@ -1435,6 +1423,7 @@ plural_forms ()
       const char *gettextlibdir;
       const char *dirs[3];
       char *last_dir;
+      const char *dll_dirs[2];
       const char *argv[4];
       pid_t child;
       int fd[1];
@@ -1461,6 +1450,14 @@ plural_forms ()
           last_dir = dir;
         }
 
+      /* The program 'cldr-plurals', that we invoke here, is installed in
+         gettextlibdir and depends on libintl and libgettextlib.  On Windows,
+         in installations with shared libraries, these DLLs are installed in
+         ${bindir}.  Make sure that the program can find them, even if
+         ${bindir} is not in $PATH.  */
+      dll_dirs[0] = relocate (BINDIR);
+      dll_dirs[1] = NULL;
+
       /* Call the cldr-plurals command.
          argv[0] must be prog, not just the base name "cldr-plurals",
          because on Cygwin in a build with --enable-shared, the libtool
@@ -1469,7 +1466,7 @@ plural_forms ()
       argv[1] = language;
       argv[2] = last_dir;
       argv[3] = NULL;
-      child = create_pipe_in (prog, prog, argv, NULL,
+      child = create_pipe_in (prog, prog, argv, dll_dirs, NULL,
                               DEV_NULL, false, true, false, fd);
       free (last_dir);
       if (child == -1)
@@ -1521,13 +1518,14 @@ plural_forms ()
 }
 
 
-static struct
+struct header_entry_field
 {
   const char *name;
   const char * (*getter0) (void);
   const char * (*getter1) (const char *header);
-}
-fields[] =
+};
+
+static struct header_entry_field fresh_fields[] =
   {
     { "Project-Id-Version", NULL, project_id_version },
     { "PO-Revision-Date", NULL, po_revision_date },
@@ -1539,9 +1537,13 @@ fields[] =
     { "Content-Transfer-Encoding", content_transfer_encoding, NULL },
     { "Plural-Forms", plural_forms, NULL }
   };
+#define FRESH_FIELDS_LAST_TRANSLATOR 2
 
-#define NFIELDS SIZEOF (fields)
-#define FIELD_LAST_TRANSLATOR 2
+static struct header_entry_field update_fields[] =
+  {
+    { "Last-Translator", last_translator, NULL }
+  };
+#define UPDATE_FIELDS_LAST_TRANSLATOR 0
 
 
 /* Retrieve a freshly allocated copy of a field's value.  */
@@ -1660,25 +1662,21 @@ get_title ()
   /* This is tricky.  We want the translation in the given locale specified by
      the command line, not the current locale.  But we want it in the encoding
      that we put into the header entry, not the encoding of that locale.
-     We could avoid the use of OUTPUT_CHARSET by using a separate message
-     catalog and bind_textdomain_codeset(), but that doesn't seem worth the
-     trouble for one single message.  */
-  const char *encoding;
+     We could avoid the use of xstr_iconv() by using a separate message catalog
+     and bind_textdomain_codeset(), but that doesn't seem worth the trouble
+     for one single message.  */
   const char *tmp;
   char *old_LC_ALL;
   char *old_LANGUAGE;
-  char *old_OUTPUT_CHARSET;
   const char *msgid;
   const char *english;
   const char *result;
-
-  encoding = canonical_locale_charset ();
 
   /* First, the English title.  */
   english = xasprintf ("%s translations for %%s package",
                        englishname_of_language ());
 
-  /* Save LC_ALL, LANGUAGE, OUTPUT_CHARSET environment variables.  */
+  /* Save LC_ALL, LANGUAGE environment variables.  */
 
   tmp = getenv ("LC_ALL");
   old_LC_ALL = (tmp != NULL ? xstrdup (tmp) : NULL);
@@ -1686,12 +1684,8 @@ get_title ()
   tmp = getenv ("LANGUAGE");
   old_LANGUAGE = (tmp != NULL ? xstrdup (tmp) : NULL);
 
-  tmp = getenv ("OUTPUT_CHARSET");
-  old_OUTPUT_CHARSET = (tmp != NULL ? xstrdup (tmp) : NULL);
-
   xsetenv ("LC_ALL", locale, 1);
   unsetenv ("LANGUAGE");
-  xsetenv ("OUTPUT_CHARSET", encoding, 1);
 
   if (setlocale (LC_ALL, "") == NULL)
     /* Nonexistent locale.  Use the English title.  */
@@ -1706,13 +1700,15 @@ get_title ()
       result = gettext (msgid);
       if (result != msgid && strcmp (result, msgid) != 0)
         /* Use the English and the foreign title.  */
-        result = xasprintf ("%s\n%s", english, result);
+        result = xasprintf ("%s\n%s", english,
+                            xstr_iconv (result, locale_charset (),
+                                        output_charset));
       else
         /* No translation found.  Use the English title.  */
         result = english;
     }
 
-  /* Restore LC_ALL, LANGUAGE, OUTPUT_CHARSET environment variables.  */
+  /* Restore LC_ALL, LANGUAGE environment variables.  */
 
   if (old_LC_ALL != NULL)
     xsetenv ("LC_ALL", old_LC_ALL, 1), free (old_LC_ALL);
@@ -1723,11 +1719,6 @@ get_title ()
     xsetenv ("LANGUAGE", old_LANGUAGE, 1), free (old_LANGUAGE);
   else
     unsetenv ("LANGUAGE");
-
-  if (old_OUTPUT_CHARSET != NULL)
-    xsetenv ("OUTPUT_CHARSET", old_OUTPUT_CHARSET, 1), free (old_OUTPUT_CHARSET);
-  else
-    unsetenv ("OUTPUT_CHARSET");
 
   setlocale (LC_ALL, "");
 
@@ -1804,14 +1795,75 @@ subst_string_list (string_list_ty *slp,
 
 /* Fill the templates in all fields of the header entry.  */
 static msgdomain_list_ty *
-fill_header (msgdomain_list_ty *mdlp)
+fill_header (msgdomain_list_ty *mdlp, bool fresh)
 {
+  /* Determine the desired encoding to the PO file.
+     If the POT file contains charset=UTF-8, it means that the POT file
+     contains non-ASCII characters, and we keep the UTF-8 encoding.
+     Otherwise, when the POT file is plain ASCII, we use the locale's
+     encoding.  */
+  bool was_utf8;
+  size_t k, j;
+
+  was_utf8 = false;
+  for (k = 0; k < mdlp->nitems; k++)
+    {
+      message_list_ty *mlp = mdlp->item[k]->messages;
+
+      if (mlp->nitems > 0)
+        {
+          message_ty *header_mp = NULL;
+
+          /* Search the header entry.  */
+          for (j = 0; j < mlp->nitems; j++)
+            if (is_header (mlp->item[j]) && !mlp->item[j]->obsolete)
+              {
+                header_mp = mlp->item[j];
+                break;
+              }
+
+          if (header_mp != NULL)
+            {
+              const char *header = header_mp->msgstr;
+              const char *old_field = get_field (header, "Content-Type");
+
+              if (old_field != NULL)
+                {
+                  const char *charsetstr = c_strstr (old_field, "charset=");
+                  if (charsetstr != NULL)
+                    {
+                      charsetstr += strlen ("charset=");
+                      if (c_strcasecmp (charsetstr, "UTF-8") == 0)
+                        was_utf8 = true;
+                    }
+                }
+            }
+        }
+    }
+
+  output_charset = (was_utf8 ? "UTF-8" : canonical_locale_charset ());
+
   /* Cache the strings filled in, for use when there are multiple domains
      and a header entry for each domain.  */
-  const char *field_value[NFIELDS];
-  size_t k, j, i;
+  struct header_entry_field *fields;
+  size_t nfields;
+  size_t field_last_translator;
+  if (fresh)
+    {
+      fields = fresh_fields;
+      nfields = SIZEOF (fresh_fields);
+      field_last_translator = FRESH_FIELDS_LAST_TRANSLATOR;
+    }
+  else
+    {
+      fields = update_fields;
+      nfields = SIZEOF (update_fields);
+      field_last_translator = UPDATE_FIELDS_LAST_TRANSLATOR;
+    }
+  const char **field_value = XNMALLOC (nfields, const char *);
+  size_t i;
 
-  for (i = 0; i < NFIELDS; i++)
+  for (i = 0; i < nfields; i++)
     field_value[i] = NULL;
 
   for (k = 0; k < mdlp->nitems; k++)
@@ -1843,7 +1895,7 @@ fill_header (msgdomain_list_ty *mdlp)
           header = xstrdup (header_mp->msgstr);
 
           /* Fill in the fields.  */
-          for (i = 0; i < NFIELDS; i++)
+          for (i = 0; i < nfields; i++)
             {
               if (field_value[i] == NULL)
                 field_value[i] =
@@ -1876,7 +1928,7 @@ fill_header (msgdomain_list_ty *mdlp)
               subst[1][0] = "PACKAGE";
               subst[1][1] = id;
               subst[2][0] = "FIRST AUTHOR <EMAIL@ADDRESS>";
-              subst[2][1] = field_value[FIELD_LAST_TRANSLATOR];
+              subst[2][1] = field_value[field_last_translator];
               subst[3][0] = "YEAR";
               subst[3][1] =
                 xasprintf ("%d",
@@ -1889,8 +1941,12 @@ fill_header (msgdomain_list_ty *mdlp)
         }
     }
 
+  free (field_value);
+
   return mdlp;
 }
+
+/* ------------------------------------------------------------------------- */
 
 
 /* Update the msgstr plural entries according to the nplurals count.  */

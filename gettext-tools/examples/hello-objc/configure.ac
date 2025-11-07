@@ -9,9 +9,12 @@ AM_INIT_AUTOMAKE([1.11])
 
 dnl Test for gobjc before gcc, since that's what the EPEL 9 package 'gcc-objc'
 dnl installs (on systems where gcc does not support Objective C).
+m4_pushdef([AC_MSG_FAILURE], m4_defn([AC_MSG_WARN]))
 AC_PROG_OBJC([gobjc gcc objcc objc cc CC clang])
+m4_popdef([AC_MSG_FAILURE])
+
 AM_GNU_GETTEXT([external])
-AM_GNU_GETTEXT_VERSION([0.22])
+AM_GNU_GETTEXT_VERSION([0.26])
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([m4/Makefile])

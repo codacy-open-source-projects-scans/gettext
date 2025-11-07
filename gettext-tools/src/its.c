@@ -1,5 +1,5 @@
 /* Internationalization Tag Set (ITS) handling
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
    This file was written by Daiki Ueno <ueno@gnu.org>, 2015.
 
@@ -16,18 +16,19 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
 #include <config.h>
-#endif
 
 /* Specification.  */
 #include "its.h"
 
 #include <assert.h>
 #include <errno.h>
+#include <setjmp.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
 
+#include <libxml/xmlversion.h>
 #include <libxml/xmlerror.h>
 #include <libxml/tree.h>
 #include <libxml/parser.h>
@@ -35,6 +36,7 @@
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 
+#define SB_NO_APPENDF
 #include <error.h>
 #include "mem-hash-map.h"
 #include "trim.h"
@@ -81,11 +83,36 @@
 
 /* ----------------------------- Error handling ----------------------------- */
 
+/* The non-local exit to invoke when a non-fatal libxml error occurs.  */
+static jmp_buf xml_error_exit;
+
 static void
+/* Adapt to API change in libxml 2.12.0.
+   See <https://gitlab.gnome.org/GNOME/libxml2/-/issues/622>.  */
+#if LIBXML_VERSION >= 21200
+structured_error (void *data, const xmlError *err)
+#else
 structured_error (void *data, xmlError *err)
+#endif
 {
-  error (0, err->level == XML_ERR_FATAL ? EXIT_FAILURE : 0,
+  error (err->level == XML_ERR_FATAL ? EXIT_FAILURE : 0, 0,
          _("%s error: %s"), "libxml2", err->message);
+  longjmp (xml_error_exit, 1);
+}
+
+/* Generic errors are marked "deprecated" in the documentation, but functions
+   like xmlDocFormatDump actually do produce them.  */
+static void generic_error (void *data, const char *message, ...)
+     LIBXML_ATTR_FORMAT (2, 3);
+static void
+generic_error (void *data, const char *message, ...)
+{
+  va_list args;
+
+  va_start (args, message);
+  vfprintf (stderr, message, args);
+  va_end (args);
+  longjmp (xml_error_exit, 1);
 }
 
 /* --------------------------------- Values --------------------------------- */
@@ -1592,16 +1619,25 @@ its_rule_list_add_from_file (struct its_rule_list_ty *rules,
   if (doc == NULL)
     {
       const xmlError *err = xmlGetLastError ();
-      error (0, err->level == XML_ERR_FATAL ? EXIT_FAILURE : 0,
+      error (err->level == XML_ERR_FATAL ? EXIT_FAILURE : 0, 0,
              _("cannot read %s: %s"), filename, err->message);
       return false;
     }
 
-  xmlSetStructuredErrorFunc (NULL, structured_error);
+  if (setjmp (xml_error_exit) == 0)
+    {
+      xmlSetStructuredErrorFunc (NULL, structured_error);
+      xmlSetGenericErrorFunc (NULL, generic_error);
 
-  result = its_rule_list_add_from_doc (rules, doc);
+      result = its_rule_list_add_from_doc (rules, doc);
+    }
+  else
+    /* Caught a libxml error.  */
+    result = false;
+
   xmlFreeDoc (doc);
 
+  xmlSetGenericErrorFunc (NULL, NULL);
   xmlSetStructuredErrorFunc (NULL, NULL);
   return result;
 }
@@ -1623,16 +1659,25 @@ its_rule_list_add_from_string (struct its_rule_list_ty *rules,
   if (doc == NULL)
     {
       const xmlError *err = xmlGetLastError ();
-      error (0, err->level == XML_ERR_FATAL ? EXIT_FAILURE : 0,
+      error (err->level == XML_ERR_FATAL ? EXIT_FAILURE : 0, 0,
              _("cannot read %s: %s"), "(internal)", err->message);
       return false;
     }
 
-  xmlSetStructuredErrorFunc (NULL, structured_error);
+  if (setjmp (xml_error_exit) == 0)
+    {
+      xmlSetStructuredErrorFunc (NULL, structured_error);
+      xmlSetGenericErrorFunc (NULL, generic_error);
 
-  result = its_rule_list_add_from_doc (rules, doc);
+      result = its_rule_list_add_from_doc (rules, doc);
+    }
+  else
+    /* Caught a libxml error.  */
+    result = false;
+
   xmlFreeDoc (doc);
 
+  xmlSetGenericErrorFunc (NULL, NULL);
   xmlSetStructuredErrorFunc (NULL, NULL);
   return result;
 }
@@ -2025,8 +2070,6 @@ its_rule_list_extract (its_rule_list_ty *rules,
                        its_extract_callback_ty callback)
 {
   xmlDoc *doc;
-  struct its_node_list_ty nodes;
-  size_t i;
 
   doc = xmlReadFd (fileno (fp), logical_filename, NULL,
                    XML_PARSE_NONET
@@ -2036,29 +2079,40 @@ its_rule_list_extract (its_rule_list_ty *rules,
   if (doc == NULL)
     {
       const xmlError *err = xmlGetLastError ();
-      error (0, err->level == XML_ERR_FATAL ? EXIT_FAILURE : 0,
+      error (err->level == XML_ERR_FATAL ? EXIT_FAILURE : 0, 0,
              _("cannot read %s: %s"), logical_filename, err->message);
       return;
     }
 
-  xmlSetStructuredErrorFunc (NULL, structured_error);
+  if (setjmp (xml_error_exit) == 0)
+    {
+      xmlSetStructuredErrorFunc (NULL, structured_error);
+      xmlSetGenericErrorFunc (NULL, generic_error);
 
-  its_rule_list_apply (rules, doc);
+      its_rule_list_apply (rules, doc);
 
-  memset (&nodes, 0, sizeof (struct its_node_list_ty));
-  its_rule_list_extract_nodes (rules,
-                               &nodes,
-                               xmlDocGetRootElement (doc));
+      struct its_node_list_ty nodes;
+      memset (&nodes, 0, sizeof (struct its_node_list_ty));
+      its_rule_list_extract_nodes (rules,
+                                   &nodes,
+                                   xmlDocGetRootElement (doc));
 
-  for (i = 0; i < nodes.nitems; i++)
-    its_rule_list_extract_text (rules, nodes.items[i],
-                                logical_filename,
-                                mdlp->item[0]->messages,
-                                callback);
+      size_t i;
+      for (i = 0; i < nodes.nitems; i++)
+        its_rule_list_extract_text (rules, nodes.items[i],
+                                    logical_filename,
+                                    mdlp->item[0]->messages,
+                                    callback);
 
-  free (nodes.items);
+      free (nodes.items);
+    }
+  else
+    /* Caught a libxml error.  */
+    ;
+
   xmlFreeDoc (doc);
 
+  xmlSetGenericErrorFunc (NULL, NULL);
   xmlSetStructuredErrorFunc (NULL, NULL);
 }
 
@@ -2235,9 +2289,9 @@ set_doc_encoding_utf8 (xmlDoc *doc)
       doc->encoding = BAD_CAST xstrdup ("UTF-8");
       return true;
     }
-  string_desc_t enc = string_desc_from_c ((char *) doc->encoding);
-  if (string_desc_c_casecmp (enc, string_desc_from_c ("UTF-8")) == 0
-      || string_desc_c_casecmp (enc, string_desc_from_c ("UTF8")) == 0)
+  string_desc_t enc = sd_from_c ((char *) doc->encoding);
+  if (sd_c_casecmp (enc, sd_from_c ("UTF-8")) == 0
+      || sd_c_casecmp (enc, sd_from_c ("UTF8")) == 0)
     return true;
   /* The document's encoding is not UTF-8.  Conversion would be expensive.  */
   return false;
@@ -2333,9 +2387,8 @@ _its_is_valid_simple_gen_xml (const char *contents,
           if (add_to_node != NULL && !slash_before_tag)
             {
               string_desc_t name =
-                string_desc_new_addr (name_end - name_start,
-                                      (char *) name_start);
-              char *name_c = xstring_desc_c (name);
+                sd_new_addr (name_end - name_start, name_start);
+              char *name_c = xsd_c (name);
               if (ignore_case)
                 {
                   /* Convert the name to lower case.  */
@@ -2426,13 +2479,13 @@ _its_is_valid_simple_gen_xml (const char *contents,
                   if (add_to_node != NULL)
                     {
                       string_desc_t attr_name =
-                        string_desc_new_addr (attr_name_end - attr_name_start,
-                                              (char *) attr_name_start);
+                        sd_new_addr (attr_name_end - attr_name_start,
+                                     attr_name_start);
                       string_desc_t attr_value =
-                        string_desc_new_addr (attr_value_end - attr_value_start,
-                                              (char *) attr_value_start);
-                      char *attr_name_c = xstring_desc_c (attr_name);
-                      char *attr_value_c = xstring_desc_c (attr_value);
+                        sd_new_addr (attr_value_end - attr_value_start,
+                                     attr_value_start);
+                      char *attr_name_c = xsd_c (attr_name);
+                      char *attr_value_c = xsd_c (attr_value);
                       xmlAttr *attr =
                         xmlNewProp (current_node, BAD_CAST attr_name_c,
                                     BAD_CAST attr_value_c);
@@ -2467,8 +2520,7 @@ _its_is_valid_simple_gen_xml (const char *contents,
             return false;
           /* Seen a complete <...> element start/end.  */
           /* Verify that the tag is allowed.  */
-          string_desc_t tag =
-            string_desc_new_addr (name_end - name_start, (char *) name_start);
+          string_desc_t tag = sd_new_addr (name_end - name_start, name_start);
           if (!(valid_element == NULL || valid_element (tag)))
             return false;
           if (slash_after_tag || (no_end_element != NULL && no_end_element (tag)))
@@ -2492,8 +2544,9 @@ _its_is_valid_simple_gen_xml (const char *contents,
               if (open_elements_count == 0)
                 /* The end of an element without a corresponding start.  */
                 return false;
-              if ((ignore_case ? string_desc_c_casecmp : string_desc_cmp)
-                  (open_elements[open_elements_count - 1], tag)
+              if ((ignore_case
+                   ? sd_c_casecmp (open_elements[open_elements_count - 1], tag)
+                   : sd_cmp (open_elements[open_elements_count - 1], tag))
                   != 0)
                 return false;
               open_elements_count--;
@@ -2659,7 +2712,7 @@ is_valid_xhtml_element (string_desc_t tag)
       /* Invariant:
          If tag occurs in the table, it is at an index >= lo, < hi.  */
       size_t i = (lo + hi) / 2; /* >= lo, < hi */
-      int cmp = string_desc_cmp (tag, string_desc_from_c (allowed[i]));
+      int cmp = sd_cmp (tag, sd_from_c (allowed[i]));
       if (cmp == 0)
         return true;
       if (cmp < 0)
@@ -2757,7 +2810,7 @@ is_valid_html_element (string_desc_t tag)
       /* Invariant:
          If tag occurs in the table, it is at an index >= lo, < hi.  */
       size_t i = (lo + hi) / 2; /* >= lo, < hi */
-      int cmp = string_desc_cmp (tag, string_desc_from_c (allowed[i]));
+      int cmp = sd_cmp (tag, sd_from_c (allowed[i]));
       if (cmp == 0)
         return true;
       if (cmp < 0)
@@ -2774,8 +2827,8 @@ is_no_end_html_element (string_desc_t tag)
   /* Specification:
      https://html.spec.whatwg.org/
      Search for "Tag omission in text/html: No end tag."  */
-  return string_desc_cmp (tag, string_desc_from_c ("br")) == 0
-         || string_desc_cmp (tag, string_desc_from_c ("hr")) == 0;
+  return sd_cmp (tag, sd_from_c ("br")) == 0
+         || sd_cmp (tag, sd_from_c ("hr")) == 0;
 }
 
 /* Returns true if the argument is a piece of simple well-formed HTML
@@ -3019,16 +3072,23 @@ its_merge_context_merge (its_merge_context_ty *context,
                          message_list_ty *mlp,
                          bool replace_text)
 {
-  size_t i;
+  if (setjmp (xml_error_exit) == 0)
+    {
+      xmlSetStructuredErrorFunc (NULL, structured_error);
+      xmlSetGenericErrorFunc (NULL, generic_error);
 
-  xmlSetStructuredErrorFunc (NULL, structured_error);
+      size_t i;
+      for (i = 0; i < context->nodes.nitems; i++)
+        its_merge_context_merge_node (context, context->nodes.items[i],
+                                      language,
+                                      mlp,
+                                      replace_text);
+    }
+  else
+    /* Caught a libxml error.  */
+    ;
 
-  for (i = 0; i < context->nodes.nitems; i++)
-    its_merge_context_merge_node (context, context->nodes.items[i],
-                                  language,
-                                  mlp,
-                                  replace_text);
-
+  xmlSetGenericErrorFunc (NULL, NULL);
   xmlSetStructuredErrorFunc (NULL, NULL);
 }
 
@@ -3047,25 +3107,38 @@ its_merge_context_alloc (its_rule_list_ty *rules,
   if (doc == NULL)
     {
       const xmlError *err = xmlGetLastError ();
-      error (0, err->level == XML_ERR_FATAL ? EXIT_FAILURE : 0,
+      error (err->level == XML_ERR_FATAL ? EXIT_FAILURE : 0, 0,
              _("cannot read %s: %s"), filename, err->message);
       return NULL;
     }
 
-  xmlSetStructuredErrorFunc (NULL, structured_error);
+  if (setjmp (xml_error_exit) == 0)
+    {
+      xmlSetStructuredErrorFunc (NULL, structured_error);
+      xmlSetGenericErrorFunc (NULL, generic_error);
 
-  its_rule_list_apply (rules, doc);
+      its_rule_list_apply (rules, doc);
 
-  result = XMALLOC (struct its_merge_context_ty);
-  result->rules = rules;
-  result->doc = doc;
+      result = XMALLOC (struct its_merge_context_ty);
+      result->rules = rules;
+      result->doc = doc;
 
-  /* Collect translatable nodes.  */
-  memset (&result->nodes, 0, sizeof (struct its_node_list_ty));
-  its_rule_list_extract_nodes (result->rules,
-                               &result->nodes,
-                               xmlDocGetRootElement (result->doc));
+      /* Collect translatable nodes.  */
+      memset (&result->nodes, 0, sizeof (struct its_node_list_ty));
+      its_rule_list_extract_nodes (result->rules,
+                                   &result->nodes,
+                                   xmlDocGetRootElement (result->doc));
+    }
+  else
+    {
+      /* Caught a libxml error.  */
+      if (result != NULL)
+        free (result);
+      result = NULL;
+      xmlFreeDoc (doc);
+    }
 
+  xmlSetGenericErrorFunc (NULL, NULL);
   xmlSetStructuredErrorFunc (NULL, NULL);
   return result;
 }
@@ -3074,10 +3147,18 @@ void
 its_merge_context_write (struct its_merge_context_ty *context,
                          FILE *fp)
 {
-  xmlSetStructuredErrorFunc (NULL, structured_error);
+  if (setjmp (xml_error_exit) == 0)
+    {
+      xmlSetStructuredErrorFunc (NULL, structured_error);
+      xmlSetGenericErrorFunc (NULL, generic_error);
 
-  xmlDocFormatDump (fp, context->doc, 1);
+      xmlDocFormatDump (fp, context->doc, 1);
+    }
+  else
+    /* Caught a libxml error.  */
+    ;
 
+  xmlSetGenericErrorFunc (NULL, NULL);
   xmlSetStructuredErrorFunc (NULL, NULL);
 }
 

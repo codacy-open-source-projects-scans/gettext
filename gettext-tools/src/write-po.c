@@ -1,5 +1,5 @@
 /* GNU gettext - internationalization aids
-   Copyright (C) 1995-2024 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
 
    This file was written by Peter Miller <millerp@canb.auug.org.au>
 
@@ -16,9 +16,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 #include <alloca.h>
 
 /* Specification.  */
@@ -70,6 +68,7 @@ make_format_description_string (enum is_format is_format, const char *lang,
 
   switch (is_format)
     {
+    /* Cf. possible_format_p.  */
     case possible:
       if (debug)
         {
@@ -81,6 +80,7 @@ make_format_description_string (enum is_format is_format, const char *lang,
     case yes:
       result = xasprintf ("%s-format", lang);
       break;
+    /* Cf. not_format_p.  */
     case no:
       result = xasprintf ("no-%s-format", lang);
       break;
@@ -94,7 +94,9 @@ make_format_description_string (enum is_format is_format, const char *lang,
 }
 
 
-/* Return true if IS_FORMAT is worth mentioning in a #, flags list.  */
+/* Return true if IS_FORMAT is worth mentioning in a #, flags list.
+   This is the same as
+     possible_format_p (is_format) || not_format_p (is_format).  */
 
 bool
 significant_format_p (enum is_format is_format)

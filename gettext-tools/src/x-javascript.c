@@ -1,5 +1,5 @@
 /* xgettext JavaScript backend.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
    This file was written by Andreas Stricker <andy@knitter.ch>, 2010
    It's based on x-python from Bruno Haible.
@@ -17,9 +17,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "x-javascript.h"
@@ -31,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SB_NO_APPENDF
 #include <error.h>
 #include "attribute.h"
 #include "message.h"
@@ -1074,37 +1073,79 @@ is_after_expression (void)
     }
 }
 
+/* Scans a regular expression literal.
+   The leading '/' has already been consumed.
+   See ECMA-262 15th edition sections
+   - § 12.9.5 Regular Expression Literals
+   - § 22.2.3.3 RegExpInitialize  */
 static void
 phase5_scan_regexp (void)
 {
+  bool at_start;
   int c;
 
   /* Scan for end of RegExp literal ('/').  */
-  for (;;)
+  for (at_start = true; ; at_start = false)
     {
       /* Must use phase2 as there can't be comments.  */
       c = phase2_getc ();
+      if (c == UEOF || c == '\n' || c == '\r' || c == 0x2028 || c == 0x2029)
+        goto unterminated;
+      if (at_start && c == '*')
+        {
+          if_error (IF_SEVERITY_WARNING,
+                    logical_file_name, line_number, (size_t)(-1), false,
+                    _("invalid RegExp literal"));
+          return;
+        }
       if (c == '/')
         break;
       if (c == '\\')
         {
           c = phase2_getc ();
-          if (c != UEOF)
-            continue;
+          if (c == UEOF || c == '\n' || c == '\r' || c == 0x2028 || c == 0x2029)
+            goto unterminated;
         }
-      if (c == UEOF)
+      else if (c == '[')
         {
-          if_error (IF_SEVERITY_WARNING,
-                    logical_file_name, line_number, (size_t)(-1), false,
-                    _("RegExp literal terminated too early"));
-          return;
+          for (;;)
+            {
+              c = phase2_getc ();
+              if (c == UEOF
+                  || c == '\n' || c == '\r' || c == 0x2028 || c == 0x2029)
+                goto unterminated_in_class;
+              if (c == ']')
+                break;
+              if (c == '\\')
+                {
+                  c = phase2_getc ();
+                  if (c == UEOF
+                      || c == '\n' || c == '\r' || c == 0x2028 || c == 0x2029)
+                    goto unterminated_in_class;
+                }
+            }
         }
     }
 
-  /* Scan for modifier flags (ECMA-262 5th section 15.10.4.1).  */
+  /* Scan for modifier flags (ECMA-262 15th edition § 22.2.3.3).  */
   c = phase2_getc ();
-  if (!(c == 'g' || c == 'i' || c == 'm'))
+  if (!(c == 'd' || c == 'g' || c == 'i' || c == 'm' || c == 's'
+        || c == 'u' || c == 'v' || c == 'y'))
     phase2_ungetc (c);
+
+  return;
+
+ unterminated:
+  if_error (IF_SEVERITY_WARNING,
+            logical_file_name, line_number, (size_t)(-1), false,
+            _("RegExp literal terminated too early"));
+  return;
+
+ unterminated_in_class:
+  if_error (IF_SEVERITY_WARNING,
+            logical_file_name, line_number, (size_t)(-1), false,
+            _("RegExp literal lacks a ']' to match the '['"));
+  return;
 }
 
 /* Various syntactic constructs can be nested:
@@ -1478,12 +1519,10 @@ phase5_get (token_ty *tp)
         case '<':
           {
             /* We assume:
-               - XMLMarkup and XMLElement are not allowed after an expression,
-               - embedded JavaScript expressions in XML do not recurse.
+               XMLMarkup and XMLElement are not allowed after an expression.
              */
             if (level_type () == level_xml_element
-                || (level_type () != level_embedded_js_in_xml
-                    && ! is_after_expression ()))
+                || ! is_after_expression ())
               {
                 /* Recognize XML markup: XML comment, CDATA, Processing
                    Instruction.  */

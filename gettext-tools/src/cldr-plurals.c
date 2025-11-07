@@ -1,5 +1,5 @@
 /* Unicode CLDR plural rule parser and converter
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
    This file was written by Daiki Ueno <ueno@gnu.org>, 2015.
 
@@ -16,9 +16,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include "basename-lgpl.h"
 #include "cldr-plural-exp.h"
@@ -26,7 +24,7 @@
 #include "c-ctype.h"
 #include <errno.h>
 #include <error.h>
-#include <getopt.h>
+#include "options.h"
 #include "gettext.h"
 #include <libxml/tree.h>
 #include <libxml/parser.h>
@@ -211,22 +209,12 @@ or by email to <%s>.\n"),
   exit (status);
 }
 
-/* Long options.  */
-static const struct option long_options[] =
-{
-  { "cldr", no_argument, NULL, 'c' },
-  { "help", no_argument, NULL, 'h' },
-  { "version", no_argument, NULL, 'V' },
-  { NULL, 0, NULL, 0 }
-};
-
 int
 main (int argc, char **argv)
 {
   bool opt_cldr_format = false;
   bool do_help = false;
   bool do_version = false;
-  int optchar;
 
   /* Set program name for messages.  */
   set_program_name (argv[0]);
@@ -236,16 +224,28 @@ main (int argc, char **argv)
 
   /* Set the text message domain.  */
   bindtextdomain (PACKAGE, relocate (LOCALEDIR));
+  bindtextdomain ("gnulib", relocate (GNULIB_LOCALEDIR));
   bindtextdomain ("bison-runtime", relocate (BISON_LOCALEDIR));
   textdomain (PACKAGE);
 
   /* Ensure that write errors on stdout are detected.  */
   atexit (close_stdout);
 
-  while ((optchar = getopt_long (argc, argv, "chV", long_options, NULL)) != EOF)
+  /* Parse command line options.  */
+  BEGIN_ALLOW_OMITTING_FIELD_INITIALIZERS
+  static const struct program_option options[] =
+  {
+    { "cldr",    'c', no_argument },
+    { "help",    'h', no_argument },
+    { "version", 'V', no_argument },
+  };
+  END_ALLOW_OMITTING_FIELD_INITIALIZERS
+  start_options (argc, argv, options, MOVE_OPTIONS_FIRST, 0);
+  int optchar;
+  while ((optchar = get_next_option ()) != -1)
     switch (optchar)
       {
-      case '\0':                /* Long option.  */
+      case '\0':          /* Long option with key == 0.  */
         break;
 
       case 'c':
@@ -276,7 +276,7 @@ License GPLv3+: GNU GPL version 3 or later <%s>\n\
 This is free software: you are free to change and redistribute it.\n\
 There is NO WARRANTY, to the extent permitted by law.\n\
 "),
-              "2015-2023", "https://gnu.org/licenses/gpl.html");
+              "2015-2025", "https://gnu.org/licenses/gpl.html");
       printf (_("Written by %s.\n"), proper_name ("Daiki Ueno"));
       exit (EXIT_SUCCESS);
     }

@@ -1,5 +1,5 @@
 ## Makefile for the gettext-tools/src subdirectory of GNU gettext
-## Copyright (C) 1995-2024 Free Software Foundation, Inc.
+## Copyright (C) 1995-2025 Free Software Foundation, Inc.
 ##
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -41,6 +41,8 @@ else
 noinst_LTLIBRARIES = libgettextsrc.la
 endif
 
+noinst_LIBRARIES = libxgettextx.a $(LIBXGETTEXTTS)
+
 noinst_HEADERS = \
   pos.h message.h po-error.h xerror-handler.h po-xerror.h \
   read-po-internal.h po-charset.h read-po-lex.h \
@@ -52,7 +54,8 @@ noinst_HEADERS = \
   dir-list.h file-list.h read-po-gram.h cldr-plural.h \
   cldr-plural-exp.h locating-rules.h its.h search-path.h \
   msgl-charset.h msgl-equal.h msgl-iconv.h msgl-ascii.h msgl-ofn.h msgl-cat.h \
-  msgl-header.h msgl-english.h msgl-check.h msgl-fsearch.h msgfmt.h msgunfmt.h \
+  msgl-header.h msgl-english.h msgl-check.h msgl-fsearch.h msgl-merge.h \
+  msgfmt.h msgunfmt.h \
   plural-count.h plural-eval.h plural-distrib.h \
   read-mo.h write-mo.h \
   read-java.h write-java.h \
@@ -74,14 +77,22 @@ noinst_HEADERS = \
   x-java.h \
   x-csharp.h \
   x-javascript.h \
+  x-typescript.h \
+  x-typescriptx.h \
+  x-typescript-impl.h \
   x-scheme.h \
   x-lisp.h \
   x-elisp.h \
   x-librep.h \
+  x-rust.h \
+  x-go.h \
   x-ruby.h \
   x-sh.h \
   x-awk.h \
   x-lua.h \
+  x-modula2.h \
+  x-d.h html5-entities.h \
+  x-ocaml.h \
   x-smalltalk.h \
   x-vala.h \
   x-tcl.h \
@@ -109,13 +120,15 @@ schemadir = $(pkgdatadir)/schema
 # The option -I$(top_srcdir) is needed so that woe32dll/export.h is found.
 AM_CPPFLAGS = \
   -I$(top_srcdir) \
+  -I$(top_srcdir)/tree-sitter-$(TREE_SITTER_VERSION)/lib/include \
   -I../libgrep -I$(top_srcdir)/libgrep \
   -I../gnulib-lib -I$(top_srcdir)/gnulib-lib \
   -I../../gettext-runtime/intl -I$(top_srcdir)/../gettext-runtime/intl
 DEFS = \
-  -DLOCALEDIR=$(localedir_c_make) -DBISON_LOCALEDIR=$(BISON_LOCALEDIR_c_make) \
+  -DLOCALEDIR=$(localedir_c_make) \
   -DUSEJAVA=$(USEJAVA) \
   -DGETTEXTJAR=$(jardir_c_make)\"/gettext.jar\" \
+  -DBINDIR=$(bindir_c_make) \
   -DLIBDIR=$(libdir_c_make) \
   -DLIBEXECDIR=$(libexecdir_c_make) \
   -DGETTEXTDATADIR=$(pkgdatadir_c_make) \
@@ -188,11 +201,17 @@ FORMAT_SOURCE += \
   format-lisp.c \
   format-elisp.c \
   format-librep.c \
+  format-rust.c \
+  format-go.c \
   format-ruby.c \
   format-sh.c \
+  format-sh-printf.c \
   format-awk.c \
   format-lua.c \
   format-pascal.c \
+  format-modula2.c \
+  format-d.c \
+  format-ocaml.c \
   format-smalltalk.c \
   format-qt.c \
   format-qt-plural.c \
@@ -206,7 +225,8 @@ FORMAT_SOURCE += \
   format-gcc-internal.c \
   format-gfc-internal.c
 
-# libgettextsrc contains all code that is needed by at least two programs.
+# libgettextsrc contains all code that is needed by at least two programs
+# and that does not use OpenMP.
 libgettextsrc_la_SOURCES = \
   $(COMMON_SOURCE) \
   read-catalog-special.c \
@@ -222,8 +242,11 @@ libgettextsrc_la_SOURCES = \
   msgl-check.c \
   file-list.c \
   msgl-charset.c \
+  msgl-fsearch.c \
+  lang-table.c \
   po-time.c \
   plural-exp.c plural-eval.c plural-table.c \
+  plural-count.c \
   quote.h \
   sentence.h sentence.c \
   $(FORMAT_SOURCE) \
@@ -231,8 +254,47 @@ libgettextsrc_la_SOURCES = \
   locating-rules.c its.c \
   search-path.c
 
+# xgettext has some tree-sitter based backends.
+LIBXGETTEXTTS = libxgettextts2.a libxgettextts3.a libxgettextts4.a libxgettextts5.a libxgettextts1.a
+libxgettextts1_a_SOURCES = \
+  ../tree-sitter-$(TREE_SITTER_VERSION)/lib/src/lib.c
+libxgettextts1_a_CPPFLAGS = \
+  -I$(top_srcdir)/tree-sitter-$(TREE_SITTER_VERSION)/lib/include \
+  -I$(top_srcdir)/tree-sitter-$(TREE_SITTER_VERSION)/lib/src
+libxgettextts1_a_CFLAGS = $(AM_CFLAGS) @FOREIGN_WARN_CFLAGS@ @NO_EXPENSIVE_WARN_CFLAGS@
+libxgettextts2_a_SOURCES = \
+  ../tree-sitter-rust-$(TREE_SITTER_RUST_VERSION)/src/rust-parser.c \
+  ../tree-sitter-rust-$(TREE_SITTER_RUST_VERSION)/src/rust-scanner.c \
+  ../tree-sitter-go-$(TREE_SITTER_GO_VERSION)/src/go-parser.c \
+  ../tree-sitter-d-$(TREE_SITTER_D_VERSION)/src/d-parser.c \
+  ../tree-sitter-d-$(TREE_SITTER_D_VERSION)/src/d-scanner.c
+libxgettextts2_a_CPPFLAGS = \
+  -I$(top_srcdir)/tree-sitter-$(TREE_SITTER_VERSION)/lib/include
+libxgettextts2_a_CFLAGS = $(AM_CFLAGS) @FOREIGN_WARN_CFLAGS@ @NO_EXPENSIVE_WARN_CFLAGS@
+libxgettextts3_a_SOURCES = \
+  ../tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/typescript/src/ts-parser.c \
+  ../tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/typescript/src/ts-scanner.c
+libxgettextts3_a_CPPFLAGS = \
+  -I$(top_srcdir)/tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/typescript/src \
+  -I$(top_srcdir)/tree-sitter-$(TREE_SITTER_VERSION)/lib/include
+libxgettextts3_a_CFLAGS = $(AM_CFLAGS) @FOREIGN_WARN_CFLAGS@ @NO_EXPENSIVE_WARN_CFLAGS@
+libxgettextts4_a_SOURCES = \
+  ../tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/tsx/src/tsx-parser.c \
+  ../tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/tsx/src/tsx-scanner.c
+libxgettextts4_a_CPPFLAGS = \
+  -I$(top_srcdir)/tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/tsx/src \
+  -I$(top_srcdir)/tree-sitter-$(TREE_SITTER_VERSION)/lib/include
+libxgettextts4_a_CFLAGS = $(AM_CFLAGS) @FOREIGN_WARN_CFLAGS@ @NO_EXPENSIVE_WARN_CFLAGS@
+libxgettextts5_a_SOURCES = \
+  ../tree-sitter-ocaml-$(TREE_SITTER_OCAML_VERSION)/grammars/ocaml/src/ocaml-parser.c \
+  ../tree-sitter-ocaml-$(TREE_SITTER_OCAML_VERSION)/grammars/ocaml/src/ocaml-scanner.c
+libxgettextts5_a_CPPFLAGS = \
+  -I$(top_srcdir)/tree-sitter-ocaml-$(TREE_SITTER_OCAML_VERSION)/grammars/ocaml/src \
+  -I$(top_srcdir)/tree-sitter-$(TREE_SITTER_VERSION)/lib/include
+libxgettextts5_a_CFLAGS = $(AM_CFLAGS) @FOREIGN_WARN_CFLAGS@ @NO_EXPENSIVE_WARN_CFLAGS@
+
 # msggrep needs pattern matching.
-LIBGREP = ../libgrep/libgrep.a
+LIBGREP = ../libgrep/libgrep.a ../libgrep/gnulib-lib/libgnu.a
 
 # Source dependencies.
 msgcmp_SOURCES = msgcmp.c
@@ -247,7 +309,7 @@ msgmerge_SOURCES = msgmerge.c
 else
 msgmerge_SOURCES = ../woe32dll/c++msgmerge.cc
 endif
-msgmerge_SOURCES += msgl-fsearch.c lang-table.c plural-count.c
+msgmerge_SOURCES += msgl-merge.c
 msgunfmt_SOURCES = msgunfmt.c
 msgunfmt_SOURCES += \
   read-mo.c read-java.c read-csharp.c read-resources.c read-tcl.c \
@@ -272,14 +334,20 @@ xgettext_SOURCES += \
   x-java.c \
   x-csharp.c \
   x-javascript.c \
+  x-typescript.c \
+  x-typescriptx.c \
   x-scheme.c \
   x-lisp.c \
   x-elisp.c \
   x-librep.c \
+  x-rust.c \
   x-ruby.c \
   x-sh.c ../../gettext-runtime/src/escapes.h \
   x-awk.c \
   x-lua.c \
+  x-modula2.c \
+  x-d.c \
+  x-ocaml.c \
   x-smalltalk.c \
   x-vala.c \
   x-tcl.c \
@@ -288,6 +356,12 @@ xgettext_SOURCES += \
   x-ycp.c \
   x-rst.c \
   x-desktop.c
+# x-go.c cannot be compiled by GCC 11 with '-fanalyzer' in 1 GB of RAM.
+# Therefore use special CFLAGS for this compilation unit.
+libxgettextx_a_SOURCES = \
+  x-go.c
+libxgettextx_a_CPPFLAGS = $(xgettext_CPPFLAGS)
+libxgettextx_a_CFLAGS = $(AM_CFLAGS) @NO_EXPENSIVE_WARN_CFLAGS@
 if !WOE32DLL
 msgattrib_SOURCES = msgattrib.c
 else
@@ -327,7 +401,7 @@ else
 msggrep_SOURCES = ../woe32dll/c++msggrep.cc
 endif
 msginit_SOURCES = msginit.c
-msginit_SOURCES += lang-table.c plural-count.c
+msginit_SOURCES += msgl-merge.c
 msginit_SOURCES += ../../gettext-runtime/intl/localealias.c
 if !WOE32DLL
 msguniq_SOURCES = msguniq.c
@@ -402,11 +476,14 @@ endif
 
 libgettextsrc_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCXML)
 
+# Needed for the expansion of LIBGETTEXTSRC_DLL_VARIABLE on MSVC.
+libgettextsrc_la_CPPFLAGS += -DIN_LIBGETTEXTSRC
+
 # Tell the mingw or Cygwin linker which symbols to export.
 if WOE32DLL
-libgettextsrc_la_SOURCES += ../woe32dll/gettextsrc-exports.c
+if !WINDOWS_MSVC
 libgettextsrc_la_LDFLAGS += -Wl,--export-all-symbols
-libgettextsrc_la_CPPFLAGS += $(GETTEXTLIB_EXPORTS_FLAGS)
+endif
 endif
 
 # Specify installation directory, for --enable-relocatable.
@@ -418,6 +495,18 @@ endif
 # Compile-time flags for particular source files.
 msgmerge_CFLAGS = $(AM_CFLAGS) $(OPENMP_CFLAGS)
 msgmerge_CXXFLAGS = $(AM_CXXFLAGS) $(OPENMP_CFLAGS)
+msginit_CFLAGS = $(AM_CFLAGS) $(OPENMP_CFLAGS)
+msginit_CXXFLAGS = $(AM_CXXFLAGS) $(OPENMP_CFLAGS)
+# On mingw, the compiler option '-fno-threadsafe-statics' avoids requiring
+# the symbols __cxa_guard_acquire and __cxa_guard_release, which in turn
+# avoids a dependency towards libstdc++.
+if WOE32DLL
+if WINDOWS_NATIVE
+if !WINDOWS_MSVC
+xgettext_CXXFLAGS = $(AM_CXXFLAGS) -fno-threadsafe-statics
+endif
+endif
+endif
 
 # Link dependencies.
 # INTL_MACOSX_LIBS is needed because the programs depend on libintl.la
@@ -427,7 +516,7 @@ msgcmp_LDADD = libgettextsrc.la @INTL_MACOSX_LIBS@ @MSGMERGE_LIBM@ $(WOE32_LDADD
 msgfmt_LDADD = libgettextsrc.la @INTL_MACOSX_LIBS@ $(WOE32_LDADD)
 msgmerge_LDADD = libgettextsrc.la @INTL_MACOSX_LIBS@ @MSGMERGE_LIBM@ $(WOE32_LDADD) $(OPENMP_CFLAGS)
 msgunfmt_LDADD = libgettextsrc.la @INTL_MACOSX_LIBS@ $(WOE32_LDADD)
-xgettext_LDADD = libgettextsrc.la @INTL_MACOSX_LIBS@ @LTLIBICONV@ $(WOE32_LDADD)
+xgettext_LDADD = libxgettextx.a $(LIBXGETTEXTTS) libgettextsrc.la @INTL_MACOSX_LIBS@ @LTLIBICONV@ $(WOE32_LDADD)
 msgattrib_LDADD = libgettextsrc.la @INTL_MACOSX_LIBS@ $(WOE32_LDADD)
 msgcat_LDADD = libgettextsrc.la @INTL_MACOSX_LIBS@ $(WOE32_LDADD)
 msgcomm_LDADD = libgettextsrc.la @INTL_MACOSX_LIBS@ $(WOE32_LDADD)
@@ -445,7 +534,7 @@ msgcmp_DEPENDENCIES = libgettextsrc.la ../gnulib-lib/libgettextlib.la $(WOE32_LD
 msgfmt_DEPENDENCIES = libgettextsrc.la ../gnulib-lib/libgettextlib.la $(WOE32_LDADD)
 msgmerge_DEPENDENCIES = libgettextsrc.la ../gnulib-lib/libgettextlib.la $(WOE32_LDADD)
 msgunfmt_DEPENDENCIES = libgettextsrc.la ../gnulib-lib/libgettextlib.la $(WOE32_LDADD)
-xgettext_DEPENDENCIES = libgettextsrc.la ../gnulib-lib/libgettextlib.la $(WOE32_LDADD)
+xgettext_DEPENDENCIES = libxgettextx.a $(LIBXGETTEXTTS) libgettextsrc.la ../gnulib-lib/libgettextlib.la $(WOE32_LDADD)
 msgattrib_DEPENDENCIES = libgettextsrc.la ../gnulib-lib/libgettextlib.la $(WOE32_LDADD)
 msgcat_DEPENDENCIES = libgettextsrc.la ../gnulib-lib/libgettextlib.la $(WOE32_LDADD)
 msgcomm_DEPENDENCIES = libgettextsrc.la ../gnulib-lib/libgettextlib.la $(WOE32_LDADD)
@@ -500,6 +589,17 @@ recode_sr_latin_LDFLAGS = `$(RELOCATABLE_LDFLAGS) $(bindir)`
 hostname_LDFLAGS = `$(RELOCATABLE_LDFLAGS) $(pkglibexecdir)`
 urlget_LDFLAGS = `$(RELOCATABLE_LDFLAGS) $(pkglibexecdir)`
 cldr_plurals_LDFLAGS = `$(RELOCATABLE_LDFLAGS) $(pkglibexecdir)`
+else
+xgettext_LDFLAGS =
+endif
+
+# Link-time flags for particular programs.
+# With MSVC 14/x86_64, the default stack size of 1 MB is sufficient only for
+# a recursion depth in "xgettext -L Rust" invocations of 501. To guarantee a
+# recursion depth of 1000, we need to increase the stack size. Cf.
+# <https://learn.microsoft.com/en-us/cpp/build/reference/f-set-stack-size>.
+if PLATFORM_IS_MSVC
+xgettext_LDFLAGS += -Wl,-F4000000
 endif
 
 # Linking with C++ libraries is needed _only_ on mingw and Cygwin.

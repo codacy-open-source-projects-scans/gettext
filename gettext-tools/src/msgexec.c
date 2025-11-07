@@ -1,5 +1,5 @@
 /* Pass translations to a subprocess.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <haible@clisp.cons.org>, 2001.
 
    This program is free software: you can redistribute it and/or modify
@@ -16,12 +16,9 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include <config.h>
 
 #include <errno.h>
-#include <getopt.h>
 #include <limits.h>
 #include <locale.h>
 #include <signal.h>
@@ -32,6 +29,7 @@
 #include <unistd.h>
 
 #include <error.h>
+#include "options.h"
 #include "noreturn.h"
 #include "closeout.h"
 #include "dir-list.h"
@@ -77,19 +75,6 @@ static bool newline;
 /* Maximum exit code encountered.  */
 static int exitcode;
 
-/* Long options.  */
-static const struct option long_options[] =
-{
-  { "directory", required_argument, NULL, 'D' },
-  { "help", no_argument, NULL, 'h' },
-  { "input", required_argument, NULL, 'i' },
-  { "newline", no_argument, NULL, CHAR_MAX + 2 },
-  { "properties-input", no_argument, NULL, 'P' },
-  { "stringtable-input", no_argument, NULL, CHAR_MAX + 1 },
-  { "version", no_argument, NULL, 'V' },
-  { NULL, 0, NULL, 0 }
-};
-
 
 /* Forward declaration of local functions.  */
 _GL_NORETURN_FUNC static void usage (int status);
@@ -99,7 +84,6 @@ static void process_msgdomain_list (const msgdomain_list_ty *mdlp);
 int
 main (int argc, char **argv)
 {
-  int opt;
   bool do_help;
   bool do_version;
   const char *input_file;
@@ -117,6 +101,7 @@ main (int argc, char **argv)
 
   /* Set the text message domain.  */
   bindtextdomain (PACKAGE, relocate (LOCALEDIR));
+  bindtextdomain ("gnulib", relocate (GNULIB_LOCALEDIR));
   bindtextdomain ("bison-runtime", relocate (BISON_LOCALEDIR));
   textdomain (PACKAGE);
 
@@ -128,13 +113,27 @@ main (int argc, char **argv)
   do_version = false;
   input_file = NULL;
 
-  /* The '+' in the options string causes option parsing to terminate when
-     the first non-option, i.e. the subprogram name, is encountered.  */
-  while ((opt = getopt_long (argc, argv, "+D:hi:PV", long_options, NULL))
-         != EOF)
+  /* Parse command line options.  */
+  BEGIN_ALLOW_OMITTING_FIELD_INITIALIZERS
+  static const struct program_option options[] =
+  {
+    { "directory",         'D',          required_argument },
+    { "help",              'h',          no_argument       },
+    { "input",             'i',          required_argument },
+    { "newline",           CHAR_MAX + 2, no_argument       },
+    { "properties-input",  'P',          no_argument       },
+    { "stringtable-input", CHAR_MAX + 1, no_argument       },
+    { "version",           'V',          no_argument       },
+  };
+  END_ALLOW_OMITTING_FIELD_INITIALIZERS
+  /* The flag NON_OPTION_TERMINATES_OPTIONS causes option parsing to terminate
+     when the first non-option, i.e. the subprogram name, is encountered.  */
+  start_options (argc, argv, options, NON_OPTION_TERMINATES_OPTIONS, 0);
+  int opt;
+  while ((opt = get_next_option ()) != -1)
     switch (opt)
       {
-      case '\0':                /* Long option.  */
+      case '\0':                /* Long option with key == 0.  */
         break;
 
       case 'D':
@@ -186,7 +185,7 @@ License GPLv3+: GNU GPL version 3 or later <%s>\n\
 This is free software: you are free to change and redistribute it.\n\
 There is NO WARRANTY, to the extent permitted by law.\n\
 "),
-              "2001-2023", "https://gnu.org/licenses/gpl.html");
+              "2001-2025", "https://gnu.org/licenses/gpl.html");
       printf (_("Written by %s.\n"), proper_name ("Bruno Haible"));
       exit (EXIT_SUCCESS);
     }
@@ -407,7 +406,7 @@ process_string (const message_ty *mp, const char *str, size_t len)
         unsetenv ("MSGEXEC_PREV_MSGID_PLURAL");
 
       /* Open a pipe to a subprocess.  */
-      child = create_pipe_out (sub_name, sub_path, sub_argv, NULL,
+      child = create_pipe_out (sub_name, sub_path, sub_argv, NULL, NULL,
                                NULL, false, true, true, fd);
 
       /* Ignore SIGPIPE here.  We don't care if the subprocesses terminates

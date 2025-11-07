@@ -1,5 +1,5 @@
 /* Format strings.
-   Copyright (C) 2001-2010, 2012-2013, 2015, 2019-2020, 2023 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <haible@clisp.cons.org>, 2001.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "format.h"
@@ -47,11 +45,17 @@ struct formatstring_parser *formatstring_parsers[NFORMATS] =
   /* format_lisp */             &formatstring_lisp,
   /* format_elisp */            &formatstring_elisp,
   /* format_librep */           &formatstring_librep,
+  /* format_rust */             &formatstring_rust,
+  /* format_go */               &formatstring_go,
   /* format_ruby */             &formatstring_ruby,
   /* format_sh */               &formatstring_sh,
+  /* format_sh_printf */        &formatstring_sh_printf,
   /* format_awk */              &formatstring_awk,
   /* format_lua */              &formatstring_lua,
   /* format_pascal */           &formatstring_pascal,
+  /* format_modula2 */          &formatstring_modula2,
+  /* format_d */                &formatstring_d,
+  /* format_ocaml */            &formatstring_ocaml,
   /* format_smalltalk */        &formatstring_smalltalk,
   /* format_qt */               &formatstring_qt,
   /* format_qt_plural */        &formatstring_qt_plural,

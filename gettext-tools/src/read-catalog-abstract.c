@@ -1,5 +1,5 @@
 /* Reading textual message catalogs (such as PO files), abstract class.
-   Copyright (C) 1995-2024 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
 
    This file was written by Peter Miller <millerp@canb.auug.org.au>
 
@@ -17,9 +17,7 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "read-catalog-abstract.h"
@@ -261,8 +259,7 @@ parse_comment_filepos (abstract_catalog_reader_ty *catr, const char *s)
         {
           bool isolated_filename =
             (catr->po_lex_isolate_start != NULL
-             && strncmp (s, catr->po_lex_isolate_start,
-                         strlen (catr->po_lex_isolate_start)) == 0);
+             && str_startswith (s, catr->po_lex_isolate_start));
           if (isolated_filename)
             s += strlen (catr->po_lex_isolate_start);
 
@@ -278,8 +275,7 @@ parse_comment_filepos (abstract_catalog_reader_ty *catr, const char *s)
                       filename_end = s;
                       break;
                     }
-                  if (strncmp (s, catr->po_lex_isolate_end,
-                               strlen (catr->po_lex_isolate_end)) == 0)
+                  if (str_startswith (s, catr->po_lex_isolate_end))
                     {
                       filename_end = s;
                       s += strlen (catr->po_lex_isolate_end);
@@ -560,7 +556,7 @@ parse_comment_solaris_filepos (abstract_catalog_reader_ty *catr, const char *s)
 }
 
 
-/* This callback is called whenever a generic comment line has been seeen.
+/* This callback is called whenever a generic comment line has been seen.
    It parses s and invokes the appropriate method: call_comment,
    call_comment_dot, call_comment_filepos (via parse_comment_filepos), or
    call_comment_special.  */
@@ -583,7 +579,7 @@ catalog_reader_seen_generic_comment (abstract_catalog_reader_ty *catr,
          invoked.  */
       parse_comment_filepos (catr, s + 1);
     }
-  else if (*s == ',' || *s == '!')
+  else if (*s == ',' || *s == '=' || *s == '!')
     {
       /* Get all entries in the special comment line.  */
       catalog_reader_seen_comment_special (catr, s + 1);

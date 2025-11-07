@@ -1,5 +1,5 @@
 /* Reading Java .properties files.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <bruno@clisp.org>, 2003.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "read-properties.h"
@@ -29,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SB_NO_APPENDF
 #include <error.h>
 #include "message.h"
 #include "read-catalog-abstract.h"
@@ -54,7 +53,7 @@
 
    The encoding of Java .properties files is:
      - ASCII with Java \uxxxx escape sequences,
-     - ISO-8859-1 if non-ASCII bytes are encounterd,
+     - ISO-8859-1 if non-ASCII bytes are encountered,
      - UTF-8 if non-ASCII bytes are encountered and the entire file is
        valid UTF-8 (in Java 9 or newer), see
        https://docs.oracle.com/javase/9/intl/internationalization-enhancements-jdk-9.htm */

@@ -1,5 +1,5 @@
 /* Checking of messages in PO files.
-   Copyright (C) 1995-2023 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    Written by Ulrich Drepper <drepper@gnu.ai.mit.edu>, April 1995.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "msgl-check.h"
@@ -213,9 +211,7 @@ plural_help (const char *nullentry)
 
           language += 15;
           for (j = 0; j < plural_table_size; j++)
-            if (strncmp (language,
-                         plural_table[j].language,
-                         strlen (plural_table[j].language)) == 0)
+            if (str_startswith (language, plural_table[j].language))
               {
                 ptentry = &plural_table[j];
                 break;
@@ -243,7 +239,7 @@ plural_help (const char *nullentry)
    If no errors, returns in *DISTRIBUTION information about the plural_eval
    values distribution.  */
 static int
-check_plural (message_list_ty *mlp,
+check_plural (const message_list_ty *mlp,
               int ignore_untranslated_messages,
               int ignore_fuzzy_messages,
               struct plural_distribution *distributionp,
@@ -782,8 +778,7 @@ check_header_entry (const message_ty *mp, const char *msgstr_string,
               if (*p == ' ')
                 p++;
               if (default_values[cnt] != NULL
-                  && strncmp (p, default_values[cnt],
-                              strlen (default_values[cnt])) == 0)
+                  && str_startswith (p, default_values[cnt]))
                 {
                   p += strlen (default_values[cnt]);
                   if (*p == '\0' || *p == '\n')
@@ -853,7 +848,7 @@ check_message (const message_ty *mp,
 /* Perform all checks on a message list.
    Return the number of errors that were seen.  */
 int
-check_message_list (message_list_ty *mlp,
+check_message_list (const message_list_ty *mlp,
                     int ignore_untranslated_messages,
                     int ignore_fuzzy_messages,
                     int check_newlines,

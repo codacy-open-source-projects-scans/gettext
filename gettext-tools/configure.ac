@@ -1,5 +1,5 @@
 dnl Configuration for the gettext-tools directory of GNU gettext
-dnl Copyright (C) 1995-2024 Free Software Foundation, Inc.
+dnl Copyright (C) 1995-2025 Free Software Foundation, Inc.
 dnl
 dnl This program is free software: you can redistribute it and/or modify
 dnl it under the terms of the GNU General Public License as published by
@@ -17,11 +17,12 @@ dnl along with this program.  If not, see <https://www.gnu.org/licenses/>.
 dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.64])
-AC_INIT([gettext-tools],
-	m4_esyscmd([../build-aux/git-version-gen ../.tarball-version]),
-	[bug-gettext@gnu.org])
+AC_INIT([gettext-tools], [package], [bug-gettext@gnu.org])
 AC_CONFIG_SRCDIR([src/msgfmt.c])
 AC_CONFIG_AUX_DIR([../build-aux])
+VERSION_NUMBER=`cd $srcdir/.. \
+                && build-aux/git-version-gen .tarball-version`
+gl_INIT_PACKAGE_VERSION([$VERSION_NUMBER])
 AM_INIT_AUTOMAKE([1.11.1 silent-rules parallel-tests])
 AC_CONFIG_HEADERS([config.h])
 
@@ -101,6 +102,19 @@ else
 fi
 AC_SUBST([TESTCSHARP])
 
+gt_D_CHOICE
+AS_IF([test "$D_CHOICE" != no],
+  [gt_DCOMP
+   if test -n "$DC"; then
+     BUILDD=yes
+   else
+     BUILDD=no
+   fi
+  ],
+  [BUILDD=no
+  ])
+AC_SUBST([BUILDD])
+
 dnl Check for host type.
 AC_CANONICAL_HOST
 
@@ -113,6 +127,11 @@ gl_PROG_AR_RANLIB
 
 dnl Set preferences for the gnulib module 'threadlib'.
 gl_AVOID_WINPTHREAD
+
+dnl Customization of libunistring gnulib modules: The code of these modules
+dnl is compiled into libgettextlib, which is associated with the C macro
+dnl 'DLL_VARIABLE' (see below).
+GL_GNULIB_LIBUNISTRING_DLL_VARIABLE_NAME='DLL_VARIABLE'
 
 dnl Make sure we see all GNU and Solaris extensions.
 gl_EARLY
@@ -159,6 +178,21 @@ case "$host_os" in
 esac
 AM_CONDITIONAL([WINDOWS_NATIVE], [test $is_windows_native = yes])
 
+dnl Linking a shared library works slightly differently on MSVC than on
+dnl Cygwin and mingw.
+is_msvc=false
+case "$host_os" in
+  windows*-msvc*) is_msvc=true ;;
+  mingw* | windows*)
+    AC_EGREP_CPP([Special], [
+#ifdef _MSC_VER
+ Special
+#endif
+], [is_msvc=true])
+    ;;
+esac
+gl_CONDITIONAL([WINDOWS_MSVC], [$is_msvc])
+
 dnl Package-private libraries do not need to be installed when we build only
 dnl static libraries. Don't install them in this case. This avoids a build
 dnl error on AIX with --enable-shared, when some other version of GNU gettext,
@@ -174,7 +208,7 @@ AM_GNU_GETTEXT([use-libtool], [need-ngettext], [\${top_builddir}/../gettext-runt
 dnl When not cross-compiling, use the 'msgmerge' program from this package,
 dnl for output consistency with the 'msgfilter' program used to create
 dnl en@quot.po and en@boldquot.po.
-if test "$CROSS_COMPILING" != yes; then
+if test "$cross_compiling" != yes; then
   MSGMERGE='msgmerge'
   MSGMERGE_FOR_MSGFMT_OPTION='--for-msgfmt'
 fi
@@ -328,21 +362,10 @@ else
   is_woe32dll=no
 fi
 AM_CONDITIONAL([WOE32DLL], [test $is_woe32dll = yes])
-
-GETTEXTLIB_EXPORTS_FLAGS=
-dnl woe32dll/gettextlib-exports.c needs to know whether the getopt facility
-dnl is replaced by gnulib. GETOPT_H is set by gl_FUNC_GETOPT_POSIX, inside
-dnl gl_INIT.
-if test -n "$GETOPT_H"; then
-  GETTEXTLIB_EXPORTS_FLAGS="-DGNULIB_DEFINED_GETOPT $GETTEXTLIB_EXPORTS_FLAGS"
+if test $is_woe32dll = yes; then
+  AC_DEFINE([WOE32DLL], [1],
+    [Define when --enable-shared is used on Windows.])
 fi
-dnl woe32dll/gettextlib-exports.c needs to know whether the error
-dnl facility is replaced by gnulib. ac_cv_lib_error_at_line is set by
-dnl gl_ERROR, inside gl_INIT.
-if test "$ac_cv_lib_error_at_line" = no; then
-  GETTEXTLIB_EXPORTS_FLAGS="-DGNULIB_DEFINED_ERROR $GETTEXTLIB_EXPORTS_FLAGS"
-fi
-AC_SUBST([GETTEXTLIB_EXPORTS_FLAGS])
 
 dnl Tell the source files that the error facility is overridden by gnulib,
 dnl to make sure to prepend "rpl_" prefix to the error_* symbols.
@@ -362,6 +385,9 @@ AH_TOP([
 #define DEFAULT_OUTPUT_ALIGNMENT 1
 ])
 AH_BOTTOM([
+/* Parameterization of the 'gcd' module.  */
+#define GCD_WORD_T size_t
+
 /* A file name cannot consist of any character possible.  INVALID_PATH_CHAR
    contains the characters not allowed.  */
 #if defined _MSC_VER || defined __MINGW32__
@@ -389,10 +415,34 @@ AH_BOTTOM([
    the C macro DLL_EXPORT (together with PIC) when compiling for a shared
    library (called DLL under Windows) and does not define it when compiling
    an object file meant to be linked statically into some executable.  */
-#if (defined _WIN32 || defined __CYGWIN__) && defined DLL_EXPORT && !defined IN_RELOCWRAPPER
-# define DLL_VARIABLE __declspec (dllimport)
+/* DLL_VARIABLE               is used for variables defined in libgettextlib.
+   LIBGETTEXTSRC_DLL_VARIABLE is used for variables defined in libgettextsrc.
+ */
+#if (defined _WIN32 || defined __CYGWIN__) && WOE32DLL && !defined IN_RELOCWRAPPER
+# if IN_LIBGETTEXTLIB
+#  if defined DLL_EXPORT
+#   define DLL_VARIABLE __declspec (dllexport)
+#  else
+#   define DLL_VARIABLE
+#  endif
+# else
+#  define DLL_VARIABLE __declspec (dllimport)
+# endif
 #else
 # define DLL_VARIABLE
+#endif
+#if (defined _WIN32 || defined __CYGWIN__) && WOE32DLL && !defined IN_RELOCWRAPPER
+# if IN_LIBGETTEXTSRC
+#  if defined DLL_EXPORT
+#   define LIBGETTEXTSRC_DLL_VARIABLE __declspec (dllexport)
+#  else
+#   define LIBGETTEXTSRC_DLL_VARIABLE
+#  endif
+# else
+#  define LIBGETTEXTSRC_DLL_VARIABLE __declspec (dllimport)
+# endif
+#else
+# define LIBGETTEXTSRC_DLL_VARIABLE
 #endif
 
 /* Extra OS/2 (emx+gcc) defines.  */
@@ -413,6 +463,19 @@ AH_BOTTOM([
 
 dnl Check for nm output filter that yields the exported symbols.
 gt_GLOBAL_SYMBOL_PIPE
+
+gt_MODULA2_CHOICE
+AS_IF([test "$MODULA2_CHOICE" != no],
+  [gt_MODULA2COMP
+   if test -n "$M2C"; then
+     BUILDMODULA2=yes
+   else
+     BUILDMODULA2=no
+   fi
+  ],
+  [BUILDMODULA2=no
+  ])
+AC_SUBST([BUILDMODULA2])
 
 dnl Check for Emacs and where to install .elc files.
 dnl Sometimes Emacs is badly installed. Allow the user to work around it.
@@ -559,13 +622,29 @@ changequote([,])dnl
 fi
 AC_SUBST([ARCHIVE_FORMAT])
 
-ARCHIVE_VERSION=0.22.5
+dnl Get versions of files brought in by autopull.sh.
+ARCHIVE_VERSION=0.26
 AC_SUBST([ARCHIVE_VERSION])
+dnl We don't offer a --with-tree-sitter-prefix option, but instead always use
+dnl the tree-sitter version included in the tarball. This is required because
+dnl there is no stability guarantee for grammar elements: grammar elements can
+dnl be changed, extended, or even removed in future tree-sitter-<lang> versions,
+dnl whereas the x-<lang>.c code assumes that certain grammar elements have a
+dnl specific structure. We may need to change x-<lang>.c so that it works with
+dnl a newer version of tree-sitter-<lang>.
+. $srcdir/tree-sitter.cfg
+AC_SUBST([TREE_SITTER_VERSION])
+AC_SUBST([TREE_SITTER_GO_VERSION])
+AC_SUBST([TREE_SITTER_RUST_VERSION])
+AC_SUBST([TREE_SITTER_TYPESCRIPT_VERSION])
+AC_SUBST([TREE_SITTER_OCAML_VERSION])
+AC_SUBST([TREE_SITTER_D_VERSION])
 
-PACKAGE_SUFFIX="-$ARCHIVE_VERSION"
+dnl Determine the directory name to use for version-specific data files.
+PACKAGE_SUFFIX="-$PACKAGE_VERSION"
 AC_SUBST([PACKAGE_SUFFIX])
 AC_DEFINE_UNQUOTED(PACKAGE_SUFFIX, "$PACKAGE_SUFFIX",
-  [Define to the suffix of this package])
+  [Define to the suffix of the directory name for version-specific data files.])
 
 dnl Check for tools needed for formatting the documentation.
 ac_aux_dir_abs=`cd $ac_aux_dir && pwd`
@@ -620,6 +699,28 @@ dnl Checks for optional programs for the its/* tests.
 AC_PATH_PROGS([XMLLINT], [xmllint], [:])
 AC_SUBST([HAVE_JAVAEXEC])
 
+dnl Test for features used in install-tests.
+dnl shlibpath_var and PATH_SEPARATOR are set by LT_INIT.
+if test $USE_INCLUDED_LIBINTL = yes; then
+  INSTALLED_LIBINTL="-lintl $LIBICONV $INTL_MACOSX_LIBS"
+  INSTALLED_LIBGETTEXTPO_DEPS="$INSTALLED_LIBINTL"
+else
+  INSTALLED_LIBINTL=
+  INSTALLED_LIBGETTEXTPO_DEPS="$LIBICONV"
+fi
+AC_SUBST([INSTALLED_LIBGETTEXTPO_DEPS])
+AC_SUBST([PATH_SEPARATOR])
+if test -n "${shlibpath_var}"; then
+  if test "${shlibpath_var}" = PATH; then
+    AUGMENT_SHLIBPATH="PATH='\$(bindir)'${PATH_SEPARATOR}\"\$\$PATH\";"
+  else
+    AUGMENT_SHLIBPATH="${shlibpath_var}='\$(libdir)':\"\$\$${shlibpath_var}\"; export ${shlibpath_var};"
+  fi
+else
+  AUGMENT_SHLIBPATH=
+fi
+AC_SUBST([AUGMENT_SHLIBPATH])
+
 AC_CONFIG_SUBDIRS([examples])
 
 AC_CONFIG_FILES([Makefile],
@@ -632,6 +733,7 @@ AC_CONFIG_FILES([its/Makefile])
 AC_CONFIG_FILES([gnulib-lib/Makefile])
 
 AC_CONFIG_FILES([libgrep/Makefile])
+AC_CONFIG_FILES([libgrep/gnulib-lib/Makefile])
 
 AC_CONFIG_FILES([src/Makefile])
 AC_CONFIG_FILES([src/user-email:src/user-email.sh.in])
@@ -645,12 +747,17 @@ AC_CONFIG_FILES([projects/Makefile])
 
 AC_CONFIG_FILES([styles/Makefile])
 
-AC_CONFIG_FILES([emacs/Makefile])
+AC_CONFIG_FILES([wizard/Makefile])
+AC_CONFIG_FILES([wizard/gettextize], [chmod a+x wizard/gettextize])
+
+AC_CONFIG_FILES([autotools/Makefile])
+AC_CONFIG_FILES([autotools/autopoint], [chmod a+x autotools/autopoint])
+AC_CONFIG_FILES([autotools/convert-archive], [chmod a+x autotools/convert-archive])
 
 AC_CONFIG_FILES([misc/Makefile])
-AC_CONFIG_FILES([misc/gettextize], [chmod a+x misc/gettextize])
-AC_CONFIG_FILES([misc/autopoint], [chmod a+x misc/autopoint])
-AC_CONFIG_FILES([misc/convert-archive], [chmod a+x misc/convert-archive])
+AC_CONFIG_FILES([misc/po-fetch], [chmod a+x misc/po-fetch])
+
+AC_CONFIG_FILES([emacs/Makefile])
 
 AC_CONFIG_FILES([man/Makefile])
 AC_CONFIG_FILES([man/x-to-1])
@@ -664,6 +771,8 @@ AC_CONFIG_FILES([tests/gnulib-lib/Makefile])
 AC_CONFIG_FILES([system-tests/Makefile])
 
 AC_CONFIG_FILES([gnulib-tests/Makefile])
+
+AC_CONFIG_FILES([install-tests/Makefile])
 
 AC_CONFIG_FILES([build-aux/xml-validate-10],
                 [chmod a+x build-aux/xml-validate-10])

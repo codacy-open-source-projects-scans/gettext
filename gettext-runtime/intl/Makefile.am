@@ -1,6 +1,6 @@
 ## Makefile for the gettext-runtime/intl and gettext-tools/intl subdirectories
 ## of GNU gettext.
-## Copyright (C) 1995-2024 Free Software Foundation, Inc.
+## Copyright (C) 1995-2025 Free Software Foundation, Inc.
 ##
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU Lesser General Public License as published by
@@ -240,6 +240,7 @@ libgnuintl.h: $(srcdir)/libgnuintl.in.h $(srcdir)/export.h
 	| sed -e 's,@''HAVE_VISIBILITY''@,@HAVE_VISIBILITY@,g' \
 	| sed -e 's,@''WOE32DLL''@,@WOE32DLL@,g' \
 	  > libgnuintl.h
+BUILT_SOURCES += libgnuintl.h
 MOSTLYCLEANFILES += libgnuintl.h
 
 libintl.h: $(srcdir)/libgnuintl.in.h
@@ -249,7 +250,13 @@ libintl.h: $(srcdir)/libgnuintl.in.h
 	    -e 's,@''HAVE_WPRINTF''@,@HAVE_WPRINTF@,g' \
 	    -e 's,@''HAVE_NEWLOCALE''@,@HAVE_NEWLOCALE@,g' \
 	    -e 's,@''ENHANCE_LOCALE_FUNCS''@,@ENHANCE_LOCALE_FUNCS@,g' \
-	  < $(srcdir)/libgnuintl.in.h > libintl.h
+	  < $(srcdir)/libgnuintl.in.h \
+	| if test '@WOE32DLL@' = 1; then \
+	    sed -e 's/extern \([^()]*\);/extern __declspec (dllimport) \1;/'; \
+	  else \
+	    cat; \
+	  fi \
+	| cat > libintl.h
 MOSTLYCLEANFILES += libintl.h
 
 # The Automake generated .y.c rule is broken: When executed in a VPATH build,
@@ -440,7 +447,7 @@ endif
 # Before making a gettext release, you must change this according to the
 # libtool documentation, section "Library interface versions".
 LTV_CURRENT=12
-LTV_REVISION=0
+LTV_REVISION=5
 LTV_AGE=4
 
 # How to build libintl.la and libgnuintl.la.
@@ -463,7 +470,7 @@ install-exec-local: install-exec-libintl
 install-exec-libintl: libintl.la
 	$(mkdir_p) $(DESTDIR)$(libdir)
 	$(LIBTOOL) --mode=install \
-	  $(INSTALL_DATA) libintl.la $(DESTDIR)$(libdir)/libintl.la; \
+	  $(INSTALL) libintl.la $(DESTDIR)$(libdir)/libintl.la; \
 	if test "@RELOCATABLE@" = yes; then \
 	  dependencies=`sed -n -e 's,^dependency_libs=\(.*\),\1,p' < $(DESTDIR)$(libdir)/libintl.la | sed -e "s,^',," -e "s,'\$$,,"`; \
 	  if test -n "$$dependencies"; then \

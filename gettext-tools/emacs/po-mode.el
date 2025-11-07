@@ -1,6 +1,6 @@
 ;;; po-mode.el --- major mode for GNU gettext PO files
 
-;; Copyright (C) 1995-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2025 Free Software Foundation, Inc.
 
 ;; Authors: François Pinard <pinard@iro.umontreal.ca>
 ;;          Greg McGary <gkm@magilla.cichlid.com>
@@ -62,7 +62,7 @@
 
 ;;; Code:
 
-(defconst po-mode-version-string "2.30" "\
+(defconst po-mode-version-string "2.31" "\
 Version number of this version of po-mode.el.")
 
 ;;; Emacs portability matters - part I.
@@ -466,7 +466,7 @@ slightly different."
     )
   "*Association list giving team codes from team names.
 This is used for generating a submission file name for the 'M' command.
-If a string instead of an alist, it is a team code to use unconditionnally."
+If a string instead of an alist, it is a team code to use unconditionally."
   :type 'sexp
   :group 'po)
 
@@ -710,7 +710,7 @@ M-S  Ignore path          M-A  Ignore PO file      *M-L  Ignore lexicon
       :help "Initialize or replace current translation with the original message"])
     ("Other files"
      ["Other window" po-other-window
-      :help "Select other window; if necessay split current frame"]
+      :help "Select other window; if necessary split current frame"]
      "---"
      ;; "Program sources"
      ["Cycle reference in source file" po-cycle-source-reference t]
@@ -1002,7 +1002,7 @@ all reachable through 'M-x customize', in group 'Emacs.Editing.I18n.Po'."
 
   (add-hook 'write-contents-functions 'po-replace-revision-date)
 
-  (run-hooks 'po-mode-hook)
+  (run-mode-hooks 'po-mode-hook)
   (message (_"You may type 'h' or '?' for a short PO mode reminder.")))
 
 (defvar po-subedit-mode-map
@@ -1335,7 +1335,7 @@ fuzzy, untranslated, or translated."
                  nil t)
                 (replace-match "" t t)))))))
 
-;;; Entry positionning.
+;;; Entry positioning.
 
 (defun po-say-location-depth ()
   "Tell how many entries in the entry location stack."

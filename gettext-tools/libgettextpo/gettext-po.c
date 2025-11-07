@@ -1,5 +1,5 @@
 /* Public API for GNU gettext PO files.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <bruno@clisp.org>, 2003.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "gettext-po.h"
@@ -60,6 +58,13 @@ struct po_message_iterator
 /* A po_message_t is actually a 'struct message_ty *'.  */
 
 /* A po_filepos_t is actually a 'lex_pos_ty *'.  */
+
+struct po_flag_iterator
+{
+  po_message_t message;
+  int kind; /* 0: workflow flags, 1: sticky flags */
+  size_t index;
+};
 
 
 /* Version number: (major<<16) + (minor<<8) + subminor */
@@ -937,6 +942,44 @@ po_message_set_fuzzy (po_message_t message, int fuzzy)
 }
 
 
+/* Return true if the message has a given workflow flag.
+   This function is a generalization of po_message_is_fuzzy.  */
+
+int
+po_message_has_workflow_flag (po_message_t message, const char *workflow_flag)
+{
+  if (strcmp (workflow_flag, "fuzzy") == 0)
+    return po_message_is_fuzzy (message);
+  return 0;
+}
+
+
+/* Set or unset a given workflow flag on a message.
+   This function is a generalization of po_message_set_fuzzy.    */
+
+void
+po_message_set_workflow_flag (po_message_t message, const char *workflow_flag, int value)
+{
+  if (strcmp (workflow_flag, "fuzzy") == 0)
+    po_message_set_fuzzy (message, value);
+}
+
+
+/* Create an iterator for traversing the list of workflow flags of a message.
+   This includes the "fuzzy" flag.  */
+
+po_flag_iterator_t
+po_message_workflow_flags_iterator (po_message_t message)
+{
+  po_flag_iterator_t iterator = XMALLOC (struct po_flag_iterator);
+  iterator->message = message;
+  iterator->kind = 0;
+  iterator->index = 0;
+
+  return iterator;
+}
+
+
 /* Return true if the message is marked as being a format string of the given
    type (e.g. "c-format").  */
 
@@ -952,15 +995,18 @@ po_message_is_format (po_message_t message, const char *format_type)
       if (strlen (format_language[i]) == len - 7
           && memcmp (format_language[i], format_type, len - 7) == 0)
         /* The given format_type corresponds to (enum format_type) i.  */
+        /* See make_format_description_string in write-po.c.  */
         return (possible_format_p (mp->is_format[i]) ? 1 : 0);
   return 0;
 }
 
 
-/* Change the format string mark for a given type of a message.  */
+/* Return the format string mark for a given type (e.g. "c-format") of a
+   message.  Returns 1 if the the mark is set, 0 if the opposite mark ("no-*")
+   is set, -1 if neither the mark nor the opposite mark is set.  */
 
-void
-po_message_set_format (po_message_t message, const char *format_type, /*bool*/int value)
+int
+po_message_get_format (po_message_t message, const char *format_type)
 {
   message_ty *mp = (message_ty *) message;
   size_t len = strlen (format_type);
@@ -971,7 +1017,136 @@ po_message_set_format (po_message_t message, const char *format_type, /*bool*/in
       if (strlen (format_language[i]) == len - 7
           && memcmp (format_language[i], format_type, len - 7) == 0)
         /* The given format_type corresponds to (enum format_type) i.  */
-        mp->is_format[i] = (value ? yes : no);
+        {
+          enum is_format is_format = mp->is_format[i];
+          /* See significant_format_p and make_format_description_string
+             in write-po.c.  */
+          return (possible_format_p (is_format) ? 1 :
+                  not_format_p (is_format) ? 0 :
+                  -1);
+        }
+  return -1;
+}
+
+
+/* Change the format string mark for a given type of a message.  */
+
+void
+po_message_set_format (po_message_t message, const char *format_type, int value)
+{
+  message_ty *mp = (message_ty *) message;
+  size_t len = strlen (format_type);
+  size_t i;
+
+  if (len >= 7 && memcmp (format_type + len - 7, "-format", 7) == 0)
+    for (i = 0; i < NFORMATS; i++)
+      if (strlen (format_language[i]) == len - 7
+          && memcmp (format_language[i], format_type, len - 7) == 0)
+        /* The given format_type corresponds to (enum format_type) i.  */
+        mp->is_format[i] = (value >= 0 ? (value ? yes : no) : undecided);
+}
+
+
+/* Return true if the message has a given sticky flag.
+   This function is a generalization of po_message_is_format and
+   po_message_get_format.  */
+
+int
+po_message_has_sticky_flag (po_message_t message, const char *sticky_flag)
+{
+  message_ty *mp = (message_ty *) message;
+  size_t len = strlen (sticky_flag);
+
+  if (len >= 7 && memcmp (sticky_flag + len - 7, "-format", 7) == 0)
+    {
+      if (len >= 3 + 7 && memcmp (sticky_flag, "no-", 3) == 0)
+        {
+          size_t i;
+          for (i = 0; i < NFORMATS; i++)
+            if (strlen (format_language[i]) == len - 3 - 7
+                && memcmp (format_language[i], sticky_flag + 3, len - 3 - 7) == 0)
+              /* The given sticky_flag corresponds to the opposite of
+                 (enum format_type) i.  */
+              return not_format_p (mp->is_format[i]);
+        }
+      else
+        {
+          size_t i;
+          for (i = 0; i < NFORMATS; i++)
+            if (strlen (format_language[i]) == len - 7
+                && memcmp (format_language[i], sticky_flag, len - 7) == 0)
+              /* The given sticky_flag corresponds to (enum format_type) i.  */
+              return possible_format_p (mp->is_format[i]);
+        }
+    }
+  else if (strcmp (sticky_flag, "no-wrap") == 0)
+    return mp->do_wrap == no;
+  return 0;
+}
+
+
+/* Set or unset a given sticky flag on a message.
+   This function is a generalization of po_message_set_format.  */
+
+void
+po_message_set_sticky_flag (po_message_t message, const char *sticky_flag, int value)
+{
+  message_ty *mp = (message_ty *) message;
+  size_t len = strlen (sticky_flag);
+
+  if (len >= 7 && memcmp (sticky_flag + len - 7, "-format", 7) == 0)
+    {
+      if (len >= 3 + 7 && memcmp (sticky_flag, "no-", 3) == 0)
+        {
+          size_t i;
+          for (i = 0; i < NFORMATS; i++)
+            if (strlen (format_language[i]) == len - 3 - 7
+                && memcmp (format_language[i], sticky_flag + 3, len - 3 - 7) == 0)
+              /* The given sticky_flag corresponds to the opposite of
+                 (enum format_type) i.  */
+              {
+                if (value)
+                  mp->is_format[i] = no;
+                else
+                  if (!possible_format_p (mp->is_format[i]))
+                    mp->is_format[i] = undecided;
+              }
+        }
+      else
+        {
+          size_t i;
+          for (i = 0; i < NFORMATS; i++)
+            if (strlen (format_language[i]) == len - 7
+                && memcmp (format_language[i], sticky_flag, len - 7) == 0)
+              /* The given sticky_flag corresponds to (enum format_type) i.  */
+              {
+                if (value)
+                  mp->is_format[i] = yes;
+                else
+                  if (!not_format_p (mp->is_format[i]))
+                    mp->is_format[i] = undecided;
+              }
+        }
+    }
+  else if (strcmp (sticky_flag, "no-wrap") == 0)
+    mp->do_wrap = (value ? no : yes);
+}
+
+
+/* Create an iterator for traversing the list of sticky flags of a message.
+   This includes the "*-format" and "no-*-format" flags, as well as the
+   "no-wrap" flag.
+   It does *not* include the "range", because that is not a flag.  */
+
+po_flag_iterator_t
+po_message_sticky_flags_iterator (po_message_t message)
+{
+  po_flag_iterator_t iterator = XMALLOC (struct po_flag_iterator);
+  iterator->message = message;
+  iterator->kind = 1;
+  iterator->index = 0;
+
+  return iterator;
 }
 
 
@@ -1083,6 +1258,73 @@ po_format_pretty_name (const char *format_type)
           && memcmp (format_language[i], format_type, len - 7) == 0)
         /* The given format_type corresponds to (enum format_type) i.  */
         return format_language_pretty[i];
+  return NULL;
+}
+
+
+/* Free an iterator.  */
+
+void
+po_flag_iterator_free (po_flag_iterator_t iterator)
+{
+  free (iterator);
+}
+
+
+/* Return the next flag, and advance the iterator.
+   Return NULL at the end of the list of flags.  */
+const char *
+po_flag_next (po_flag_iterator_t iterator)
+{
+  message_ty *mp = (message_ty *) iterator->message;
+
+  if (mp != NULL)
+    switch (iterator->kind)
+      {
+      case 0:
+        /* Return the next workflow flag.  */
+        if (iterator->index == 0)
+          {
+            iterator->index++;
+            if (mp->is_fuzzy)
+              return "fuzzy";
+          }
+        /* Here iterator->index == 1.  */
+        return NULL;
+
+      case 1:
+        /* Return the next sticky flag.  */
+        while (iterator->index < 2 * NFORMATS + 1)
+          {
+            size_t i = iterator->index;
+            iterator->index++;
+            if (i < 2 * NFORMATS)
+              {
+                if ((i % 2) == 0)
+                  {
+                    i = i / 2;
+                    if (possible_format_p (mp->is_format[i]))
+                      return format_flag[i] + 3; /* without "no-" prefix */
+                  }
+                else
+                  {
+                    i = i / 2;
+                    if (not_format_p (mp->is_format[i]))
+                      return format_flag[i] + 0; /* with "no-" prefix */
+                  }
+              }
+            else if (i == 2 * NFORMATS)
+              {
+                if (mp->do_wrap == no)
+                  return "no-wrap";
+              }
+          }
+        /* Here iterator->index == 2 * NFORMATS + 1.  */
+        return NULL;
+
+      default:
+        abort ();
+      }
   return NULL;
 }
 

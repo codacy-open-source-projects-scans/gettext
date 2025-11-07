@@ -12,24 +12,18 @@ We assume that the following environment variables are set:
 
     ./gitsub.sh upgrade
     git add gnulib
-    git commit -m 'Update to the newest gnulib' gnulib
+    git commit -m 'Update to the newest gnulib.' gnulib
 
 ** Run these commands, in this order:
 
     # Forcing a specific version number, without having to set a git tag.
     echo $CURRENT_VERSION > .tarball-version
-    # Forcing a rebuild of the documentation and man pages.
-    rm -f .version
 
     ./autopull.sh
     ./autogen.sh
     ./configure --disable-shared
     make
-    make dist
-
-    # To prevent auto-updating '.version' file by GNUmakefile due to
-    # regenerated PO files, specify Makefile manually.
-    make -f Makefile distcheck
+    make distcheck
 
   Then you will get a distribution tarball:
 
@@ -72,8 +66,6 @@ We assume that the following environment variables are set:
 
     # Forcing a specific version number, without having to set a git tag.
     echo $CURRENT_VERSION > .tarball-version
-    # Forcing a rebuild of the documentation and man pages.
-    rm -f .version
 
 ** Update files:
 
@@ -82,10 +74,6 @@ We assume that the following environment variables are set:
     Update with information from the Translation Project, by running
     run.sh in gettext-runtime/doc/Admin/.  Copy resulting matrix.texi
     into gettext-runtime/doc/.  Update the STATUS date in nls.texi.
-
-  - gettext-runtime/intl/locale.alias
-
-    Update with glibc's intl/locale.alias.
 
   - gettext-runtime/po/Makefile.in.in
 
@@ -133,9 +121,11 @@ We assume that the following environment variables are set:
     gettext-runtime/src/gettext.c
     gettext-runtime/src/gettext.sh.in
     gettext-runtime/src/ngettext.c
-    gettext-tools/misc/autopoint.in
-    gettext-tools/misc/convert-archive.in
-    gettext-tools/misc/gettextize.in
+    gettext-runtime/src/printf_gettext.c
+    gettext-runtime/src/printf_ngettext.c
+    gettext-tools/wizard/gettextize.in
+    gettext-tools/autotools/autopoint.in
+    gettext-tools/autotools/convert-archive.in
     gettext-tools/src/cldr-plurals.c
     gettext-tools/src/hostname.c
     gettext-tools/src/msgattrib.c
@@ -171,44 +161,17 @@ We assume that the following environment variables are set:
 
     Update ARCHIVE_VERSION.
 
-  - gettext-tools/misc/autopoint.in
+  - gettext-tools/autotools/autopoint.in
 
-    Update the 'case' statement around line 371 to include the latest release.
+    Update the 'case' statement around line 395 to include the latest release.
 
 ** If you got any translation updates, update translations:
 
-    wget --mirror --level=1 -nd -nv -A.po -P gettext-runtime/po/new \
-         https://translationproject.org/latest/gettext-runtime/
-  Optionally merge:
-    cd gettext-runtime/po
-    make update-po
-    cd new
-    for f in *.po; do msgmerge --update --lang=${f%.po} --previous $f ../gettext-runtime.pot; done
-    mv *.po ../
-    cd ..; rm -rf new
+    (cd gettext-runtime/po && ./fetch-po)
+    (cd gettext-tools/po && ./fetch-po)
+    (cd gettext-tools/examples/po && ./fetch-po)
 
-    wget --mirror --level=1 -nd -nv -A.po -P gettext-tools/po/new \
-         https://translationproject.org/latest/gettext-tools/
-  Optionally merge:
-    cd gettext-tools/po
-    make update-po
-    cd new
-    for f in *.po; do msgmerge --update --lang=${f%.po} --previous $f ../gettext-tools.pot; done
-    mv *.po ../
-    cd ..; rm -rf new
-
-    wget --mirror --level=1 -nd -nv -A.po -P gettext-tools/examples/po/new \
-         https://translationproject.org/latest/gettext-examples/
-  Optionally merge:
-    cd gettext-tools/examples/po
-    make update-po
-    cd new
-    for f in *.po; do msgmerge --update --lang=${f%.po} --previous $f ../gettext-examples.pot; done
-    mv *.po ../
-    cd ..; rm -rf new
-
-  Adjust LINGUAS files if any of the languages has been added or
-  removed since the last release.  Commit the changes.
+    Commit the changes.
 
 ** Create a release:
 
@@ -217,8 +180,6 @@ We assume that the following environment variables are set:
 
     # Forcing a specific version number, without having to set a git tag.
     echo $CURRENT_VERSION > .tarball-version
-    # Forcing a rebuild of the documentation and man pages.
-    rm -f .version
 
     ./autogen.sh
     ./configure --disable-shared
@@ -231,7 +192,7 @@ We assume that the following environment variables are set:
 
   Make 'autopoint' work in the new release:
 
-    (cd gettext-tools/misc
+    (cd gettext-tools/autotools
      ./add-to-archive ../../gettext-$CURRENT_VERSION.tar.gz)
 
   Update the examples:
@@ -270,12 +231,12 @@ We assume that the following environment variables are set:
     Then check the build infrastructure of the examples by running
       $ cd gettext-tools/examples
       $ ./check-examples
+    (This currently does not work with GCC 15 for the hello-go* examples,
+    due to <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=119098>.)
 
   Finally really make the release tarball:
 
-    # To prevent auto-updating '.version' file by GNUmakefile due to
-    # regenerated PO files, specify Makefile manually.
-    make -f Makefile distcheck
+    make distcheck
 
   If necessary, produce variants with higher compression (takes 7 minutes):
 
@@ -291,16 +252,6 @@ We assume that the following environment variables are set:
 
     gnulib/build-aux/gnupload --to ftp.gnu.org:gettext \
                               gettext-$CURRENT_VERSION.tar.{gz,xz,lz}
-
-** Upload autopoint archive to alpha.gnu.org:
-
-  This is needed to compile git master after the release (as
-  autopull.sh fetches the archive).
-
-    xz -c -e < gettext-tools/misc/archive.dir.tar > archive.dir-$CURRENT_VERSION.tar.xz
-    gnulib/build-aux/gnupload \
-      --to alpha.gnu.org:gettext \
-      --symlink-regex archive.dir-$CURRENT_VERSION.tar.xz
 
 ** Finally:
 

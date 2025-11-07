@@ -1,5 +1,5 @@
 /* Message list test for ASCII character set.
-   Copyright (C) 2001-2002, 2005-2006, 2023 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <haible@clisp.cons.org>, 2001.
 
    This program is free software: you can redistribute it and/or modify
@@ -16,9 +16,7 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "msgl-ascii.h"
@@ -41,16 +39,16 @@ is_ascii_string (const char *string)
 bool
 is_ascii_string_desc (string_desc_t string)
 {
-  size_t len = string_desc_length (string);
+  size_t len = sd_length (string);
   size_t i;
   for (i = 0; i < len; i++)
-    if (!c_isascii ((unsigned char) string_desc_char_at (string, i)))
+    if (!c_isascii ((unsigned char) sd_char_at (string, i)))
       return false;
   return true;
 }
 
 bool
-is_ascii_string_list (string_list_ty *slp)
+is_ascii_string_list (const string_list_ty *slp)
 {
   size_t i;
 
@@ -62,7 +60,7 @@ is_ascii_string_list (string_list_ty *slp)
 }
 
 bool
-is_ascii_message (message_ty *mp)
+is_ascii_message (const message_ty *mp)
 {
   const char *p = mp->msgstr;
   const char *p_end = p + mp->msgstr_len;
@@ -99,7 +97,7 @@ is_ascii_message (message_ty *mp)
 }
 
 bool
-is_ascii_message_list (message_list_ty *mlp)
+is_ascii_message_list (const message_list_ty *mlp)
 {
   size_t j;
 
@@ -111,7 +109,7 @@ is_ascii_message_list (message_list_ty *mlp)
 }
 
 bool
-is_ascii_msgdomain_list (msgdomain_list_ty *mdlp)
+is_ascii_msgdomain_list (const msgdomain_list_ty *mdlp)
 {
   size_t k;
 

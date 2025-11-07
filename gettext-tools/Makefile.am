@@ -1,5 +1,5 @@
 ## Makefile for the gettext-tools directory of GNU gettext
-## Copyright (C) 1995-2024 Free Software Foundation, Inc.
+## Copyright (C) 1995-2025 Free Software Foundation, Inc.
 ##
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -19,17 +19,108 @@
 AUTOMAKE_OPTIONS = 1.5 gnu
 ACLOCAL_AMFLAGS = -I m4 -I ../gettext-runtime/m4 -I ../m4 -I gnulib-m4 -I libgrep/gnulib-m4 -I libgettextpo/gnulib-m4 -I tests/gnulib-m4
 
-SUBDIRS = gnulib-lib libgrep src libgettextpo po its projects styles emacs misc man m4 tests system-tests gnulib-tests examples doc
+SUBDIRS = gnulib-lib libgrep src libgettextpo po its projects styles wizard autotools misc emacs man m4 tests system-tests gnulib-tests install-tests examples doc
 
-EXTRA_DIST = misc/DISCLAIM
+EXTRA_DIST =
 MOSTLYCLEANFILES = core *.stackdump
 DISTCLEANFILES = build-aux/xml-validate-10 build-aux/xml-validate-11
 
 
+# Files imported from tree-sitter.
+EXTRA_DIST += \
+  tree-sitter.cfg \
+  build-aux/tree-sitter-portability.diff \
+  tree-sitter-$(TREE_SITTER_VERSION)/LICENSE \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/include/tree_sitter/api.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/alloc.c \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/alloc.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/array.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/atomic.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/clock.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/error_costs.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/get_changed_ranges.c \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/get_changed_ranges.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/host.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/language.c \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/language.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/length.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/lexer.c \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/lexer.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/lib.c \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/node.c \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/parser.c \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/parser.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/point.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/query.c \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/reduce_action.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/reusable_node.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/stack.c \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/stack.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/subtree.c \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/subtree.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/tree.c \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/tree.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/tree_cursor.c \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/tree_cursor.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/unicode.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/unicode/LICENSE \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/unicode/README.md \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/unicode/ptypes.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/unicode/umachine.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/unicode/urename.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/unicode/utf.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/unicode/utf8.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/unicode/utf16.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/wasm_store.c \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/wasm_store.h \
+  tree-sitter-$(TREE_SITTER_VERSION)/lib/src/wasm/wasm-stdlib.h \
+  build-aux/tree-sitter-go-portability.diff \
+  tree-sitter-go-$(TREE_SITTER_GO_VERSION)/LICENSE \
+  tree-sitter-go-$(TREE_SITTER_GO_VERSION)/src/go-parser.c \
+  tree-sitter-go-$(TREE_SITTER_GO_VERSION)/src/tree_sitter/alloc.h \
+  tree-sitter-go-$(TREE_SITTER_GO_VERSION)/src/tree_sitter/array.h \
+  tree-sitter-go-$(TREE_SITTER_GO_VERSION)/src/tree_sitter/parser.h \
+  build-aux/tree-sitter-rust-portability.diff \
+  tree-sitter-rust-$(TREE_SITTER_RUST_VERSION)/LICENSE \
+  tree-sitter-rust-$(TREE_SITTER_RUST_VERSION)/src/rust-parser.c \
+  tree-sitter-rust-$(TREE_SITTER_RUST_VERSION)/src/rust-scanner.c \
+  tree-sitter-rust-$(TREE_SITTER_RUST_VERSION)/src/tree_sitter/alloc.h \
+  tree-sitter-rust-$(TREE_SITTER_RUST_VERSION)/src/tree_sitter/array.h \
+  tree-sitter-rust-$(TREE_SITTER_RUST_VERSION)/src/tree_sitter/parser.h \
+  build-aux/tree-sitter-typescript-portability.diff \
+  tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/LICENSE \
+  tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/common/scanner.h \
+  tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/typescript/src/ts-parser.c \
+  tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/typescript/src/ts-scanner.c \
+  tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/typescript/src/tree_sitter/alloc.h \
+  tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/typescript/src/tree_sitter/array.h \
+  tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/typescript/src/tree_sitter/parser.h \
+  tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/tsx/src/tsx-parser.c \
+  tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/tsx/src/tsx-scanner.c \
+  tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/tsx/src/tree_sitter/alloc.h \
+  tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/tsx/src/tree_sitter/array.h \
+  tree-sitter-typescript-$(TREE_SITTER_TYPESCRIPT_VERSION)/tsx/src/tree_sitter/parser.h \
+  build-aux/tree-sitter-ocaml-portability.diff \
+  tree-sitter-ocaml-$(TREE_SITTER_OCAML_VERSION)/LICENSE \
+  tree-sitter-ocaml-$(TREE_SITTER_OCAML_VERSION)/common/scanner.h \
+  tree-sitter-ocaml-$(TREE_SITTER_OCAML_VERSION)/grammars/ocaml/src/ocaml-parser.c \
+  tree-sitter-ocaml-$(TREE_SITTER_OCAML_VERSION)/grammars/ocaml/src/ocaml-scanner.c \
+  tree-sitter-ocaml-$(TREE_SITTER_OCAML_VERSION)/grammars/ocaml/src/tree_sitter/alloc.h \
+  tree-sitter-ocaml-$(TREE_SITTER_OCAML_VERSION)/grammars/ocaml/src/tree_sitter/array.h \
+  tree-sitter-ocaml-$(TREE_SITTER_OCAML_VERSION)/grammars/ocaml/src/tree_sitter/parser.h \
+  build-aux/tree-sitter-d-portability.diff \
+  build-aux/tree-sitter-d-optimization-bug.diff \
+  tree-sitter-d-$(TREE_SITTER_D_VERSION)/LICENSE \
+  tree-sitter-d-$(TREE_SITTER_D_VERSION)/src/d-parser.c \
+  tree-sitter-d-$(TREE_SITTER_D_VERSION)/src/d-scanner.c \
+  tree-sitter-d-$(TREE_SITTER_D_VERSION)/src/tree_sitter/alloc.h \
+  tree-sitter-d-$(TREE_SITTER_D_VERSION)/src/tree_sitter/array.h \
+  tree-sitter-d-$(TREE_SITTER_D_VERSION)/src/tree_sitter/parser.h
+
+
 # Files installed for use by gettextize.
 
-gettextsrcdir = $(datadir)/gettext
-gettextsrc_SCRIPTS = ../build-aux/config.rpath
+pkgdata_SCRIPTS = ../build-aux/config.rpath
 
 
 # Files installed for the examples.
@@ -37,7 +128,9 @@ gettextsrc_SCRIPTS = ../build-aux/config.rpath
 examplesbuildauxdir = $(docdir)/examples/build-aux
 examplesbuildaux_DATA = \
   ../build-aux/javacomp.sh.in ../build-aux/javaexec.sh.in \
-  ../build-aux/csharpcomp.sh.in ../build-aux/csharpexec.sh.in
+  ../build-aux/csharpcomp.sh.in ../build-aux/csharpexec.sh.in \
+  ../build-aux/gocomp.sh.in \
+  ../build-aux/dcomp.sh.in
 
 
 # Files copied from other directories.
@@ -168,7 +261,8 @@ gen-man1: programs-for-distdir \
 #distdir: distdir2
 .PHONY: distdir2
 distdir2: programs-for-distdir
-	cd misc && $(MAKE) $(AM_MAKEFLAGS)
+	cd wizard && $(MAKE) $(AM_MAKEFLAGS)
+	cd autotools && $(MAKE) $(AM_MAKEFLAGS)
 	cd examples && $(MAKE) $(AM_MAKEFLAGS)
 
 

@@ -1,5 +1,5 @@
 /* xgettext RST/RSJ backend.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
    This file was written by Bruno Haible <haible@clisp.cons.org>, 2001.
 
@@ -16,9 +16,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "x-rst.h"
@@ -29,6 +27,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#define SB_NO_APPENDF
 #include <error.h>
 #include "c-ctype.h"
 #include "po-charset.h"
@@ -357,7 +356,7 @@ parse_integer ()
       c = phase1_getc ();
     }
   phase1_ungetc (c);
-  return (string_desc_length (sb_contents (&buffer)) == 0 ? pr_none : pr_parsed);
+  return (sd_length (sb_contents (&buffer)) == 0 ? pr_none : pr_parsed);
 }
 
 static struct mixed_string_buffer stringbuf;

@@ -1,5 +1,5 @@
 ## Makefile for the toplevel directory of GNU gettext
-## Copyright (C) 1995-2024 Free Software Foundation, Inc.
+## Copyright (C) 1995-2025 Free Software Foundation, Inc.
 ##
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -51,7 +51,9 @@ changelog_etc = \
   gnulib-local/ChangeLog.0
 
 EXTRA_DIST = \
-  $(changelog_etc) DEPENDENCIES PACKAGING HACKING JOIN-GNU ChangeLog.0 \
+  $(changelog_etc) \
+  DEPENDENCIES INSTALL.generic PACKAGING HACKING \
+  JOIN-GNU ChangeLog.0 \
   autogen.sh \
   check-copyright-headers \
   build-aux/ac-help.sed build-aux/git-version-gen build-aux/jar-cf \
@@ -64,15 +66,23 @@ $(srcdir)/configure: $(srcdir)/gettext-runtime/configure.ac $(srcdir)/gettext-to
 
 distcheck-hook:
 # Verify that some files are the same.
-	cmp -s $(srcdir)/gettext-runtime/po/Makefile.in.in $(srcdir)/gettext-tools/po/Makefile.in.in
-	cmp -s $(srcdir)/gettext-runtime/po/Rules-quot $(srcdir)/gettext-tools/po/Rules-quot
-	cmp -s $(srcdir)/gettext-runtime/po/boldquot.sed $(srcdir)/gettext-tools/po/boldquot.sed
-	cmp -s $(srcdir)/gettext-runtime/po/quot.sed $(srcdir)/gettext-tools/po/quot.sed
-	cmp -s $(srcdir)/gettext-runtime/po/en@quot.header $(srcdir)/gettext-tools/po/en@quot.header
-	cmp -s $(srcdir)/gettext-runtime/po/en@boldquot.header $(srcdir)/gettext-tools/po/en@boldquot.header
-	cmp -s $(srcdir)/gettext-runtime/po/insert-header.sed $(srcdir)/gettext-tools/po/insert-header.sed
-	cmp -s $(srcdir)/gettext-runtime/po/remove-potcdate.sed $(srcdir)/gettext-tools/po/remove-potcdate.sed
-	cmp -s $(srcdir)/gettext-runtime/po/remove-potcdate.sed $(srcdir)/gettext-tools/examples/po/remove-potcdate.sed
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/Makefile.in.in $(srcdir)/gettext-runtime/po/Makefile.in.in
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/Rules-quot $(srcdir)/gettext-runtime/po/Rules-quot
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/boldquot.sed $(srcdir)/gettext-runtime/po/boldquot.sed
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/quot.sed $(srcdir)/gettext-runtime/po/quot.sed
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/en@quot.header $(srcdir)/gettext-runtime/po/en@quot.header
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/en@boldquot.header $(srcdir)/gettext-runtime/po/en@boldquot.header
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/insert-header.sed $(srcdir)/gettext-runtime/po/insert-header.sed
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/remove-potcdate.sed $(srcdir)/gettext-runtime/po/remove-potcdate.sed
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/Makefile.in.in $(srcdir)/gettext-tools/po/Makefile.in.in
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/Rules-quot $(srcdir)/gettext-tools/po/Rules-quot
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/boldquot.sed $(srcdir)/gettext-tools/po/boldquot.sed
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/quot.sed $(srcdir)/gettext-tools/po/quot.sed
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/en@quot.header $(srcdir)/gettext-tools/po/en@quot.header
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/en@boldquot.header $(srcdir)/gettext-tools/po/en@boldquot.header
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/insert-header.sed $(srcdir)/gettext-tools/po/insert-header.sed
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/remove-potcdate.sed $(srcdir)/gettext-tools/po/remove-potcdate.sed
+	cmp -s $(srcdir)/gettext-tools/wizard/po-templates/traditional/remove-potcdate.sed $(srcdir)/gettext-tools/examples/po/remove-potcdate.sed
 	cmp -s $(srcdir)/gettext-runtime/m4/build-to-host.m4 $(srcdir)/gettext-tools/gnulib-m4/build-to-host.m4
 	cmp -s $(srcdir)/gettext-runtime/m4/gettext.m4 $(srcdir)/gettext-tools/gnulib-m4/gettext.m4
 	cmp -s $(srcdir)/gettext-runtime/man/help2man $(srcdir)/gettext-tools/man/help2man
@@ -96,12 +106,13 @@ EXTRA_DIST += INSTALL.aix
 
 # Versioning based on Git release tags.
 
+dist-hook: dist-tarball-version
+.PHONY: dist-tarball-version
+dist-tarball-version:
+	echo '$(VERSION)' > $(distdir)/.tarball-version
+
 EXTRA_DIST += $(top_srcdir)/.version
 BUILT_SOURCES = $(top_srcdir)/.version
-$(top_srcdir)/.version:
-	echo $(VERSION) > $@-t && mv $@-t $@
-dist-hook: gen-ChangeLogs
-	echo $(VERSION) > $(distdir)/.tarball-version
 
 
 # Support for "make dist" without prior "make".
@@ -118,10 +129,12 @@ distdir1:
 
 # Generate ChangeLog.
 
+dist-hook: gen-ChangeLogs
+
 gen_start_date = 2015-10-13
 .PHONY: gen-ChangeLogs
 gen-ChangeLogs:
-	$(AM_V_GEN)if test -d .git; then                                       \
+	$(AM_V_GEN)if test -d $(srcdir)/.git; then                             \
 	  log_fix="$(srcdir)/build-aux/git-log-fix";                           \
 	  test -e "$$log_fix"                                                  \
 	    && amend_git_log="--amend=$$log_fix"                               \
@@ -132,6 +145,7 @@ gen-ChangeLogs:
 	      && cldir="$(distdir)"                                            \
 	      || cldir="$(distdir)/$$d";                                       \
 	    $(top_srcdir)/build-aux/gitlog-to-changelog                        \
+	      --srcdir=$(srcdir)                                               \
 	      $$amend_git_log --no-cluster --since=$(gen_start_date) -- "$$d"  \
 	      > "$$cldir/ChangeLog-t"                                          \
 	      && rm -f "$$cldir/ChangeLog"                                     \

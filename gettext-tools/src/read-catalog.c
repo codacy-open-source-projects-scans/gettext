@@ -1,5 +1,5 @@
 /* Reading textual message catalogs (such as PO files).
-   Copyright (C) 1995-2024 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file was written by Peter Miller <millerp@canb.auug.org.au>
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "read-catalog.h"
@@ -107,8 +105,6 @@ default_constructor (abstract_catalog_reader_ty *catr)
   dcatr->range.min = -1;
   dcatr->range.max = -1;
   dcatr->do_wrap = undecided;
-  for (i = 0; i < NSYNTAXCHECKS; i++)
-    dcatr->do_syntax_check[i] = undecided;
 }
 
 
@@ -176,8 +172,6 @@ default_copy_comment_state (default_catalog_reader_ty *dcatr, message_ty *mp)
     mp->is_format[i] = dcatr->is_format[i];
   mp->range = dcatr->range;
   mp->do_wrap = dcatr->do_wrap;
-  for (i = 0; i < NSYNTAXCHECKS; i++)
-    mp->do_syntax_check[i] = dcatr->do_syntax_check[i];
 }
 
 
@@ -211,8 +205,6 @@ default_reset_comment_state (default_catalog_reader_ty *dcatr)
   dcatr->range.min = -1;
   dcatr->range.max = -1;
   dcatr->do_wrap = undecided;
-  for (i = 0; i < NSYNTAXCHECKS; i++)
-    dcatr->do_syntax_check[i] = undecided;
 }
 
 
@@ -301,14 +293,39 @@ default_comment_filepos (abstract_catalog_reader_ty *catr,
 }
 
 
-/* Test for '#, fuzzy' comments and warn.  */
+/* Test for '#, fuzzy' or '#= fuzzy' comments and warn.  */
 void
 default_comment_special (abstract_catalog_reader_ty *catr, const char *s)
 {
   default_catalog_reader_ty *dcatr = (default_catalog_reader_ty *) catr;
+  bool tmp_fuzzy;
+  enum is_format tmp_format[NFORMATS];
+  struct argument_range tmp_range;
+  enum is_wrap tmp_wrap;
+  size_t i;
 
-  parse_comment_special (s, &dcatr->is_fuzzy, dcatr->is_format, &dcatr->range,
-                         &dcatr->do_wrap, dcatr->do_syntax_check);
+  parse_comment_special (s, &tmp_fuzzy, tmp_format, &tmp_range, &tmp_wrap,
+                         NULL);
+
+  if (tmp_fuzzy)
+    dcatr->is_fuzzy = true;
+  for (i = 0; i < NFORMATS; i++)
+    if (tmp_format[i] != undecided)
+      dcatr->is_format[i] = tmp_format[i];
+  if (has_range_p (tmp_range))
+    {
+      if (has_range_p (dcatr->range))
+        {
+          if (tmp_range.min < dcatr->range.min)
+            dcatr->range.min = tmp_range.min;
+          if (tmp_range.max > dcatr->range.max)
+            dcatr->range.max = tmp_range.max;
+        }
+      else
+        dcatr->range = tmp_range;
+    }
+  if (tmp_wrap != undecided)
+    dcatr->do_wrap = tmp_wrap;
 }
 
 

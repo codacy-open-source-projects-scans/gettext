@@ -1,5 +1,5 @@
 /* KUIT (KDE User Interface Text) format strings.
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    Written by Daiki Ueno <ueno@gnu.org>, 2015.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include <assert.h>
 #include <stdbool.h>
@@ -333,19 +331,32 @@ struct formatstring_parser formatstring_kde_kuit =
 };
 
 
-#ifdef TEST
+#ifdef TEST_KUIT
 
 /* Test program: Print the argument list specification returned by
    format_parse for strings read from standard input.  */
 
 #include <stdio.h>
 
+struct kde_numbered_arg
+{
+  size_t number;
+};
+
+struct kde_spec
+{
+  size_t directives;
+  size_t numbered_arg_count;
+  struct kde_numbered_arg *numbered;
+};
+
 static void
 format_print (void *descr)
 {
   struct spec *spec = (struct spec *) descr;
-  unsigned int last;
-  unsigned int i;
+  struct kde_spec *kspec;
+  size_t last;
+  size_t i;
 
   if (spec == NULL)
     {
@@ -353,11 +364,19 @@ format_print (void *descr)
       return;
     }
 
+  kspec = (struct kde_spec *) spec->base;
+
+  if (kspec == NULL)
+    {
+      printf ("INVALID");
+      return;
+    }
+
   printf ("(");
   last = 1;
-  for (i = 0; i < spec->numbered_arg_count; i++)
+  for (i = 0; i < kspec->numbered_arg_count; i++)
     {
-      unsigned int number = spec->numbered[i].number;
+      size_t number = kspec->numbered[i].number;
 
       if (i > 0)
         printf (" ");
@@ -365,6 +384,7 @@ format_print (void *descr)
         abort ();
       for (; last < number; last++)
         printf ("_ ");
+      printf ("*");
       last = number + 1;
     }
   printf (")");
@@ -405,7 +425,7 @@ main ()
 /*
  * For Emacs M-x compile
  * Local Variables:
- * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DHAVE_CONFIG_H -DTEST format-kde-kuit.c ../gnulib-lib/libgettextlib.la"
+ * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -I/usr/include/libxml2 -DTEST_KUIT format-kde-kuit.c format-kde.c ../gnulib-lib/libgettextlib.la"
  * End:
  */
 

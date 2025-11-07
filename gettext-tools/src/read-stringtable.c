@@ -1,5 +1,5 @@
 /* Reading NeXTstep/GNUstep .strings files.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <bruno@clisp.org>, 2003.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "read-stringtable.h"
@@ -37,6 +35,7 @@
 #include "xstrerror.h"
 #include "xerror-handler.h"
 #include "unistr.h"
+#include "c-ctype.h"
 #include "gettext.h"
 
 #define _(str) gettext (str)
@@ -557,7 +556,7 @@ comment_line_end (abstract_catalog_reader_ty *catr,
 
       if (strlen (line) >= 6 && memcmp (line, "File: ", 6) == 0
           && (last_colon = strrchr (line + 6, ':')) != NULL
-          && *(last_colon + 1) != '\0'
+          && c_isdigit (*(last_colon + 1))
           && (number = strtoul (last_colon + 1, &endp, 10), *endp == '\0'))
         {
           /* A "File: <filename>:<number>" type comment.  */

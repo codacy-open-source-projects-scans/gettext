@@ -1,5 +1,5 @@
 /* Smalltalk and YCP format strings.
-   Copyright (C) 2001-2023 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <haible@clisp.cons.org>, 2001.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -40,8 +38,8 @@
 
 struct spec
 {
-  unsigned int directives;
-  unsigned int arg_count;
+  size_t directives;
+  size_t arg_count;
   bool args_used[9];
 };
 
@@ -68,7 +66,7 @@ format_parse (const char *format, bool translated, char *fdi,
           format++;
         else if (*format >= '1' && *format <= '9')
           {
-            unsigned int number = *format - '1';
+            size_t number = *format - '1';
 
             while (spec.arg_count <= number)
               spec.args_used[spec.arg_count++] = false;
@@ -87,8 +85,8 @@ format_parse (const char *format, bool translated, char *fdi,
               {
                 *invalid_reason =
                   (c_isprint (*format)
-                   ? xasprintf (_("In the directive number %u, the character '%c' is not a digit between 1 and 9."), spec.directives, *format)
-                   : xasprintf (_("The character that terminates the directive number %u is not a digit between 1 and 9."), spec.directives));
+                   ? xasprintf (_("In the directive number %zu, the character '%c' is not a digit between 1 and 9."), spec.directives, *format)
+                   : xasprintf (_("The character that terminates the directive number %zu is not a digit between 1 and 9."), spec.directives));
                 FDI_SET (format, FMTDIR_ERROR);
               }
             goto bad_format;
@@ -129,7 +127,7 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
   struct spec *spec1 = (struct spec *) msgid_descr;
   struct spec *spec2 = (struct spec *) msgstr_descr;
   bool err = false;
-  unsigned int i;
+  size_t i;
 
   for (i = 0; i < spec1->arg_count || i < spec2->arg_count; i++)
     {
@@ -142,11 +140,11 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
             {
               if (arg_used1)
                 error_logger (error_logger_data,
-                              _("a format specification for argument %u doesn't exist in '%s'"),
+                              _("a format specification for argument %zu doesn't exist in '%s'"),
                               i + 1, pretty_msgstr);
               else
                 error_logger (error_logger_data,
-                              _("a format specification for argument %u, as in '%s', doesn't exist in '%s'"),
+                              _("a format specification for argument %zu, as in '%s', doesn't exist in '%s'"),
                               i + 1, pretty_msgstr, pretty_msgid);
             }
           err = true;
@@ -189,7 +187,7 @@ static void
 format_print (void *descr)
 {
   struct spec *spec = (struct spec *) descr;
-  unsigned int i;
+  size_t i;
 
   if (spec == NULL)
     {
@@ -245,7 +243,7 @@ main ()
 /*
  * For Emacs M-x compile
  * Local Variables:
- * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DHAVE_CONFIG_H -DTEST format-smalltalk.c ../gnulib-lib/libgettextlib.la"
+ * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DTEST format-smalltalk.c ../gnulib-lib/libgettextlib.la"
  * End:
  */
 

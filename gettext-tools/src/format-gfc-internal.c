@@ -1,5 +1,5 @@
 /* GFC (GNU Fortran Compiler) internal format strings.
-   Copyright (C) 2003-2023 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <bruno@clisp.org>, 2009.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -58,7 +56,10 @@
 
    When numbered argument specifications are used, specifying the Nth argument
    requires that all the leading arguments, from the first to the (N-1)th, are
-   specified in the format string.  */
+   specified in the format string.
+
+   These gfc-internal format strings were removed from GCC on 2024-10-11 (for
+   GCC 15.1.0).  */
 
 enum format_arg_type
 {
@@ -83,7 +84,7 @@ typedef enum format_arg_type format_arg_type_t;
 
 struct numbered_arg
 {
-  unsigned int number;
+  size_t number;
   format_arg_type_t type;
 };
 
@@ -94,24 +95,18 @@ struct unnumbered_arg
 
 struct spec
 {
-  unsigned int directives;
-  unsigned int unnumbered_arg_count;
+  size_t directives;
+  size_t unnumbered_arg_count;
   struct unnumbered_arg *unnumbered;
   bool uses_currentloc;
 };
-
-/* Locale independent test for a decimal digit.
-   Argument can be  'char' or 'unsigned char'.  (Whereas the argument of
-   <ctype.h> isdigit must be an 'unsigned char'.)  */
-#undef isdigit
-#define isdigit(c) ((unsigned int) ((c) - '0') < 10)
 
 
 static int
 numbered_arg_compare (const void *p1, const void *p2)
 {
-  unsigned int n1 = ((const struct numbered_arg *) p1)->number;
-  unsigned int n2 = ((const struct numbered_arg *) p2)->number;
+  size_t n1 = ((const struct numbered_arg *) p1)->number;
+  size_t n2 = ((const struct numbered_arg *) p2)->number;
 
   return (n1 > n2 ? 1 : n1 < n2 ? -1 : 0);
 }
@@ -122,11 +117,11 @@ format_parse (const char *format, bool translated, char *fdi,
 {
   const char *const format_start = format;
   struct spec spec;
-  unsigned int numbered_arg_count;
-  unsigned int numbered_allocated;
+  size_t numbered_arg_count;
+  size_t numbered_allocated;
   struct numbered_arg *numbered;
   struct spec *result;
-  unsigned int number;
+  size_t number;
 
   spec.directives = 0;
   numbered_arg_count = 0;
@@ -146,17 +141,17 @@ format_parse (const char *format, bool translated, char *fdi,
           {
             format_arg_type_t type;
 
-            if (isdigit (*format))
+            if (c_isdigit (*format))
               {
                 const char *f = format;
-                unsigned int m = 0;
+                size_t m = 0;
 
                 do
                   {
                     m = 10 * m + (*f - '0');
                     f++;
                   }
-                while (isdigit (*f));
+                while (c_isdigit (*f));
 
                 if (*f == '$')
                   {
@@ -233,7 +228,7 @@ format_parse (const char *format, bool translated, char *fdi,
   /* Sort the numbered argument array, and eliminate duplicates.  */
   if (numbered_arg_count > 1)
     {
-      unsigned int i, j;
+      size_t i, j;
       bool err;
 
       qsort (numbered, numbered_arg_count,
@@ -280,13 +275,13 @@ format_parse (const char *format, bool translated, char *fdi,
   /* Verify that the format string uses all arguments up to the highest
      numbered one.  */
   {
-    unsigned int i;
+    size_t i;
 
     for (i = 0; i < numbered_arg_count; i++)
       if (numbered[i].number != i + 1)
         {
           *invalid_reason =
-            xasprintf (_("The string refers to argument number %u but ignores argument number %u."), numbered[i].number, i + 1);
+            xasprintf (_("The string refers to argument number %zu but ignores argument number %zu."), numbered[i].number, i + 1);
           goto bad_format;
         }
   }
@@ -294,7 +289,7 @@ format_parse (const char *format, bool translated, char *fdi,
   /* So now the numbered arguments array is equivalent to a sequence
      of unnumbered arguments.  Eliminate the FAT_VOID placeholders.  */
   {
-    unsigned int i;
+    size_t i;
 
     spec.unnumbered_arg_count = 0;
     for (i = 0; i < numbered_arg_count; i++)
@@ -303,7 +298,7 @@ format_parse (const char *format, bool translated, char *fdi,
 
     if (spec.unnumbered_arg_count > 0)
       {
-        unsigned int j;
+        size_t j;
 
         spec.unnumbered = XNMALLOC (spec.unnumbered_arg_count, struct unnumbered_arg);
         j = 0;
@@ -352,7 +347,7 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
   struct spec *spec1 = (struct spec *) msgid_descr;
   struct spec *spec2 = (struct spec *) msgstr_descr;
   bool err = false;
-  unsigned int i;
+  size_t i;
 
   /* Check the argument types are the same.  */
   if (equality
@@ -371,7 +366,7 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
         {
           if (error_logger)
             error_logger (error_logger_data,
-                          _("format specifications in '%s' and '%s' for argument %u are not the same"),
+                          _("format specifications in '%s' and '%s' for argument %zu are not the same"),
                           pretty_msgid, pretty_msgstr, i + 1);
           err = true;
         }
@@ -418,7 +413,7 @@ static void
 format_print (void *descr)
 {
   struct spec *spec = (struct spec *) descr;
-  unsigned int i;
+  size_t i;
 
   if (spec == NULL)
     {
@@ -501,7 +496,7 @@ main ()
 /*
  * For Emacs M-x compile
  * Local Variables:
- * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DHAVE_CONFIG_H -DTEST format-gfc-internal.c ../gnulib-lib/libgettextlib.la"
+ * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DTEST format-gfc-internal.c ../gnulib-lib/libgettextlib.la"
  * End:
  */
 

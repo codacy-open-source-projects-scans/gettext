@@ -142,13 +142,21 @@ msgl-charset.h
 msgl-charset.c
                 Checking the encoding of a list-of-messages.
 
+plural-count.h
+plural-count.c
+                Extracting the plural count of a header of a lists-of-messages.
+
+msgl-fsearch.h
+msgl-fsearch.c
+                Fast fuzzy search among a list-of-messages.
+
 +-------------- The 'msgmerge' program
 | msgl-equal.h
 | msgl-equal.c
 |               Comparing two lists-of-messages.
-| plural-count.h
-| plural-count.c
-|               Extracting the plural count of a header of a lists-of-messages.
+| msgl-merge.h
+| msgl-merge.c
+|               Merging a definitions file with a references file.
 | msgmerge.c
 |               Main source for the 'msgmerge' program.
 |
@@ -236,11 +244,17 @@ format-scheme.c        Format string handling for Scheme.
 format-lisp.c          Format string handling for Common Lisp.
 format-elisp.c         Format string handling for Emacs Lisp.
 format-librep.c        Format string handling for librep.
+format-rust.c          Format string handling for Rust.
+format-go.c            Format string handling for Go.
 format-ruby.c          Format string handling for Ruby.
 format-sh.c            Format string handling for Shell.
+format-sh-printf.c     Format string handling for Shell, printf syntax.
 format-awk.c           Format string handling for awk.
 format-lua.c           Format string handling for Lua.
 format-pascal.c        Format string handling for Object Pascal.
+format-modula2.c       Format string handling for Modula-2.
+format-d.c             Format string handling for D.
+format-ocaml.c         Format string handling for OCaml.
 format-smalltalk.c     Format string handling for Smalltalk and YCP.
 format-qt.c            Format string handling for Qt.
 format-qt-plural.c     Format string handling for Qt plural forms.
@@ -372,6 +386,14 @@ msgl-check.c
 | x-javascript.h
 | x-javascript.c
 |               String extractor for JavaScript.
+| x-typescript.h
+| x-typescript.c
+| x-typescript-impl.h
+|               String extractor for TypeScript.
+| x-typescriptx.h
+| x-typescriptx.c
+| x-typescript-impl.h
+|               String extractor for TSX.
 | x-scheme.h
 | x-scheme.c
 |               String extractor for Scheme.
@@ -384,6 +406,12 @@ msgl-check.c
 | x-librep.h
 | x-librep.c
 |               String extractor for librep.
+| x-rust.h
+| x-rust.c
+|               String extractor for Rust.
+| x-go.h
+| x-go.c
+|               String extractor for Go.
 | x-ruby.h
 | x-ruby.c
 |               String extractor for Ruby.
@@ -396,6 +424,16 @@ msgl-check.c
 | x-lua.h
 | x-lua.c
 |               String extractor for Lua.
+| x-modula2.h
+| x-modula2.c
+|               String extractor for Modula-2.
+| x-d.h
+| x-d.c
+| html5-entities.h
+|               String extractor for D.
+| x-ocaml.h
+| x-ocaml.c
+|               String extractor for OCaml.
 | x-smalltalk.h
 | x-smalltalk.c
 |               String extractor for Smalltalk.

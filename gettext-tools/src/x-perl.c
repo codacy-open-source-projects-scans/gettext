@@ -1,5 +1,5 @@
 /* xgettext Perl backend.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
    This file was written by Guido Flohr <guido@imperia.net>, 2002-2010.
 
@@ -16,9 +16,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "x-perl.h"
@@ -29,12 +27,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SB_NO_APPENDF
 #include <error.h>
 #include "attribute.h"
 #include "message.h"
 #include "sf-istream.h"
 #include "rc-str-list.h"
 #include "string-desc.h"
+#include "xstring-desc.h"
 #include "xgettext.h"
 #include "xg-pos.h"
 #include "xg-encoding.h"
@@ -336,7 +336,7 @@ perl_extractor_init_rest (struct perl_extractor *xp)
   xp->token_stack.items = NULL;
   xp->token_stack.nitems = 0;
   xp->token_stack.nitems_max = 0;
-};
+}
 
 
 /* ======================== Reading of characters.  ======================== */
@@ -507,7 +507,8 @@ get_here_document (struct perl_extractor *xp, const char *delimiter)
         my_linebuf[read_bytes - 1] = '\n';
 
       /* Append this line to the accumulator.  */
-      sb_xappend_desc (&buffer, string_desc_new_addr (read_bytes, my_linebuf));
+      sb_xappend_desc (&buffer,
+                       sd_new_addr (read_bytes, (const char *) my_linebuf));
     }
 
   /* Done accumulating the here document.  */
@@ -536,7 +537,7 @@ skip_pod (struct perl_extractor *xp)
 
       ++(xp->line_number);
 
-      if (strncmp ("=cut", xp->linebuf, 4) == 0)
+      if (str_startswith (xp->linebuf, "=cut"))
         {
           /* Force reading of a new line on next call to phase1_getc().  */
           xp->linepos = xp->linesize;
@@ -555,7 +556,6 @@ phase2_getc (struct perl_extractor *xp)
 {
   int lineno;
   int c;
-  char *utf8_string;
 
   c = phase1_getc (xp);
   if (c == '#')
@@ -584,12 +584,15 @@ phase2_getc (struct perl_extractor *xp)
           sb_xappend1 (&buffer, c);
         }
       /* Convert it to UTF-8.  */
-      utf8_string =
-        from_current_source_encoding (sb_xcontents_c (&buffer), lc_comment,
+      const char *contents = sb_xcontents_c (&buffer);
+      char *utf8_contents =
+        from_current_source_encoding (contents, lc_comment,
                                       logical_file_name, lineno);
-      sb_free (&buffer);
       /* Save it until we encounter the corresponding string.  */
-      savable_comment_add (utf8_string);
+      savable_comment_add (utf8_contents);
+      if (utf8_contents != contents)
+        free (utf8_contents);
+      sb_free (&buffer);
       xp->last_comment_line = lineno;
     }
   return c;
@@ -734,7 +737,7 @@ free_token (token_ty *tp)
    of the semantics of the construct.  Return the complete string,
    including the starting and the trailing delimiter, with backslashes
    removed where appropriate.  */
-static string_desc_t
+static rw_string_desc_t
 extract_quotelike_pass1 (struct perl_extractor *xp, int delim)
 {
   struct string_buffer buffer;
@@ -780,9 +783,9 @@ extract_quotelike_pass1 (struct perl_extractor *xp, int delim)
 
       if (nested && c == delim)
         {
-          string_desc_t inner = extract_quotelike_pass1 (xp, delim);
-          sb_xappend_desc (&buffer, inner);
-          string_desc_free (inner);
+          rw_string_desc_t inner = extract_quotelike_pass1 (xp, delim);
+          sb_xappend_desc (&buffer, sd_readonly (inner));
+          sd_free (inner);
         }
       else if (c == '\\')
         {
@@ -812,16 +815,16 @@ extract_quotelike_pass1 (struct perl_extractor *xp, int delim)
 
 /* Like extract_quotelike_pass1, but return the complete string in UTF-8
    encoding.  */
-static string_desc_t
+static rw_string_desc_t
 extract_quotelike_pass1_utf8 (struct perl_extractor *xp, int delim)
 {
-  string_desc_t string = extract_quotelike_pass1 (xp, delim);
-  string_desc_t utf8_string =
-    string_desc_from_current_source_encoding (string, lc_string,
+  rw_string_desc_t string = extract_quotelike_pass1 (xp, delim);
+  rw_string_desc_t utf8_string =
+    string_desc_from_current_source_encoding (sd_readonly (string), lc_string,
                                               logical_file_name,
                                               xp->line_number);
-  if (string_desc_data (utf8_string) != string_desc_data (string))
-    string_desc_free (string);
+  if (sd_data (utf8_string) != sd_data (string))
+    sd_free (string);
   return utf8_string;
 }
 
@@ -912,15 +915,15 @@ extract_oct (const char *string, size_t len, unsigned int *result)
 static void
 extract_quotelike (struct perl_extractor *xp, token_ty *tp, int delim)
 {
-  string_desc_t string = extract_quotelike_pass1_utf8 (xp, delim);
-  size_t len = string_desc_length (string);
+  rw_string_desc_t string = extract_quotelike_pass1_utf8 (xp, delim);
+  size_t len = sd_length (string);
 
   tp->type = token_type_string;
   /* Take the string without the delimiters at the start and at the end.  */
   if (!(len >= 2))
     abort ();
-  tp->string = string_desc_c (string_desc_substring (string, 1, len - 1));
-  string_desc_free (string);
+  tp->string = xsd_c (sd_substring (string, 1, len - 1));
+  sd_free (string);
   tp->comment = add_reference (savable_comment);
 }
 
@@ -932,14 +935,14 @@ static void
 extract_triple_quotelike (struct perl_extractor *xp, token_ty *tp, int delim,
                           bool interpolate)
 {
-  string_desc_t string;
+  rw_string_desc_t string;
 
   tp->type = token_type_regex_op;
 
   string = extract_quotelike_pass1_utf8 (xp, delim);
   if (interpolate)
-    interpolate_keywords (xp, string, xp->line_number);
-  string_desc_free (string);
+    interpolate_keywords (xp, sd_readonly (string), xp->line_number);
+  sd_free (string);
 
   if (delim == '(' || delim == '<' || delim == '{' || delim == '[')
     {
@@ -955,8 +958,8 @@ extract_triple_quotelike (struct perl_extractor *xp, token_ty *tp, int delim,
     }
   string = extract_quotelike_pass1_utf8 (xp, delim);
   if (interpolate)
-    interpolate_keywords (xp, string, xp->line_number);
-  string_desc_free (string);
+    interpolate_keywords (xp, sd_readonly (string), xp->line_number);
+  sd_free (string);
 }
 
 /* Perform pass 3 of quotelike extraction (interpolation).
@@ -1090,7 +1093,7 @@ extract_quotelike_pass3 (struct perl_extractor *xp, token_ty *tp)
                   u8_uctomb ((unsigned char *) tmpbuf, oct_number, 2);
                 if (length > 0)
                   sb_xappend_desc (&buffer,
-                                   string_desc_new_addr (length, tmpbuf));
+                                   sd_new_addr (length, (const char *) tmpbuf));
               }
               continue;
             case 'x':
@@ -1140,7 +1143,7 @@ extract_quotelike_pass3 (struct perl_extractor *xp, token_ty *tp)
                   u8_uctomb ((unsigned char *) tmpbuf, hex_number, 6);
                 if (length > 0)
                   sb_xappend_desc (&buffer,
-                                   string_desc_new_addr (length, tmpbuf));
+                                   sd_new_addr (length, (const char *) tmpbuf));
               }
               continue;
             case 'c':
@@ -1178,7 +1181,7 @@ extract_quotelike_pass3 (struct perl_extractor *xp, token_ty *tp)
                             u8_uctomb ((unsigned char *) tmpbuf, unicode, 6);
                           if (length > 0)
                             sb_xappend_desc (&buffer,
-                                             string_desc_new_addr (length, tmpbuf));
+                                             sd_new_addr (length, (const char *) tmpbuf));
                         }
 
                       free (name);
@@ -1378,12 +1381,12 @@ extract_variable (struct perl_extractor *xp, token_ty *tp, int first)
     /* Hash references are treated in a special way, when looking for
        our keywords.  */
     string_desc_t contents = sb_contents (&buffer);
-    if (string_desc_char_at (contents, 0) == '$')
+    if (sd_char_at (contents, 0) == '$')
       {
-        if (string_desc_length (contents) == 1)
+        if (sd_length (contents) == 1)
           maybe_hash_value = true;
-        else if (string_desc_length (contents) == 2
-                 && string_desc_char_at (contents, 1) == '$')
+        else if (sd_length (contents) == 2
+                 && sd_char_at (contents, 1) == '$')
           {
             if (!(c == '{'
                   || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
@@ -1756,7 +1759,7 @@ interpolate_keywords (struct perl_extractor *xp, string_desc_t string,
   state = initial;
   region = null_context_region ();
 
-  length = string_desc_length (string);
+  length = sd_length (string);
   index = 0;
 
   token.type = token_type_string;
@@ -1773,7 +1776,7 @@ interpolate_keywords (struct perl_extractor *xp, string_desc_t string,
     {
       void *keyword_value;
 
-      c = string_desc_char_at (string, index++);
+      c = sd_char_at (string, index++);
       if (state == initial)
         buffer.length = 0;
 
@@ -1792,7 +1795,7 @@ interpolate_keywords (struct perl_extractor *xp, string_desc_t string,
                   sb_free (&buffer);
                   return;
                 }
-              c = string_desc_char_at (string, index++);
+              c = sd_char_at (string, index++);
               break;
             case '$':
               sb_xappend1 (&buffer, '$');
@@ -1849,8 +1852,8 @@ interpolate_keywords (struct perl_extractor *xp, string_desc_t string,
               {
                 string_desc_t contents = sb_contents (&buffer);
                 if (hash_find_entry (&keywords,
-                                     string_desc_data (contents),
-                                     string_desc_length (contents),
+                                     sd_data (contents),
+                                     sd_length (contents),
                                      &keyword_value)
                     == 0)
                   {
@@ -1858,8 +1861,8 @@ interpolate_keywords (struct perl_extractor *xp, string_desc_t string,
                       flag_context_list_iterator (
                         flag_context_list_table_lookup (
                           flag_context_list_table,
-                          string_desc_data (contents),
-                          string_desc_length (contents)));
+                          sd_data (contents),
+                          sd_length (contents)));
                     region =
                       inheriting_region (null_context_region (),
                                          flag_context_list_iterator_advance (
@@ -1878,10 +1881,10 @@ interpolate_keywords (struct perl_extractor *xp, string_desc_t string,
               {
                 string_desc_t contents = sb_contents (&buffer);
                 if (!maybe_hash_deref)
-                  string_desc_set_char_at (contents, 0, '%');
+                  ((char *) sd_data (contents))[0] = '%';
                 if (hash_find_entry (&keywords,
-                                     string_desc_data (contents),
-                                     string_desc_length (contents),
+                                     sd_data (contents),
+                                     sd_length (contents),
                                      &keyword_value)
                     == 0)
                   {
@@ -1889,8 +1892,8 @@ interpolate_keywords (struct perl_extractor *xp, string_desc_t string,
                       flag_context_list_iterator (
                         flag_context_list_table_lookup (
                           flag_context_list_table,
-                          string_desc_data (contents),
-                          string_desc_length (contents)));
+                          sd_data (contents),
+                          sd_length (contents)));
                     region =
                       inheriting_region (null_context_region (),
                                          flag_context_list_iterator_advance (
@@ -1962,7 +1965,7 @@ interpolate_keywords (struct perl_extractor *xp, string_desc_t string,
                 }
               else
                 {
-                  c = string_desc_char_at (string, index++);
+                  c = sd_char_at (string, index++);
                   if (c == '\"')
                     {
                       sb_xappend1 (&buffer, c);
@@ -1994,7 +1997,7 @@ interpolate_keywords (struct perl_extractor *xp, string_desc_t string,
                 }
               else
                 {
-                  c = string_desc_char_at (string, index++);
+                  c = sd_char_at (string, index++);
                   if (c == '\'')
                     {
                       sb_xappend1 (&buffer, c);
@@ -2091,7 +2094,7 @@ interpolate_keywords (struct perl_extractor *xp, string_desc_t string,
                 }
               else
                 {
-                  c = string_desc_char_at (string, index++);
+                  c = sd_char_at (string, index++);
                   if (c == '\"')
                     {
                       sb_xappend1 (&buffer, c);
@@ -2122,7 +2125,7 @@ interpolate_keywords (struct perl_extractor *xp, string_desc_t string,
                 }
               else
                 {
-                  c = string_desc_char_at (string, index++);
+                  c = sd_char_at (string, index++);
                   if (c == '\'')
                     {
                       sb_xappend1 (&buffer, c);
@@ -2479,7 +2482,7 @@ x_perl_prelex (struct perl_extractor *xp, token_ty *tp)
                 extract_quotelike (xp, tp, delim);
                 sb_free (&buffer);
                 if (delim != '\'')
-                  interpolate_keywords (xp, string_desc_from_c (tp->string),
+                  interpolate_keywords (xp, sd_from_c (tp->string),
                                         xp->line_number);
                 free (tp->string);
                 drop_reference (tp->comment);
@@ -2535,7 +2538,7 @@ x_perl_prelex (struct perl_extractor *xp, token_ty *tp)
                   case 'x':
                     tp->type = token_type_string;
                     tp->sub_type = string_type_qq;
-                    interpolate_keywords (xp, string_desc_from_c (tp->string),
+                    interpolate_keywords (xp, sd_from_c (tp->string),
                                           xp->line_number);
                     break;
                   case 'r':
@@ -2575,14 +2578,14 @@ x_perl_prelex (struct perl_extractor *xp, token_ty *tp)
         case '"':
           extract_quotelike (xp, tp, c);
           tp->sub_type = string_type_qq;
-          interpolate_keywords (xp, string_desc_from_c (tp->string),
+          interpolate_keywords (xp, sd_from_c (tp->string),
                                 xp->line_number);
           return;
 
         case '`':
           extract_quotelike (xp, tp, c);
           tp->sub_type = string_type_qq;
-          interpolate_keywords (xp, string_desc_from_c (tp->string),
+          interpolate_keywords (xp, sd_from_c (tp->string),
                                 xp->line_number);
           return;
 
@@ -2680,7 +2683,7 @@ x_perl_prelex (struct perl_extractor *xp, token_ty *tp)
                   tp->type = token_type_string;
                   tp->sub_type = string_type_qq;
                   tp->line_number = xp->line_number + 1;
-                  interpolate_keywords (xp, string_desc_from_c (tp->string),
+                  interpolate_keywords (xp, sd_from_c (tp->string),
                                         tp->line_number);
                   return;
                 }
@@ -2714,7 +2717,7 @@ x_perl_prelex (struct perl_extractor *xp, token_ty *tp)
                       tp->sub_type = string_type_qq;
                       tp->comment = add_reference (savable_comment);
                       tp->line_number = xp->line_number + 1;
-                      interpolate_keywords (xp, string_desc_from_c (tp->string),
+                      interpolate_keywords (xp, sd_from_c (tp->string),
                                             tp->line_number);
                       return;
                     }
@@ -2756,7 +2759,7 @@ x_perl_prelex (struct perl_extractor *xp, token_ty *tp)
           if (prefer_regexp_over_division (tp->last_type))
             {
               extract_quotelike (xp, tp, c);
-              interpolate_keywords (xp, string_desc_from_c (tp->string),
+              interpolate_keywords (xp, sd_from_c (tp->string),
                                     xp->line_number);
               free (tp->string);
               drop_reference (tp->comment);
@@ -3882,6 +3885,5 @@ extract_perl (FILE *f, const char *real_filename, const char *logical_filename,
   token_stack_free (&xp->token_stack);
   free (xp);
   real_file_name = NULL;
-  free (logical_file_name);
   logical_file_name = NULL;
 }

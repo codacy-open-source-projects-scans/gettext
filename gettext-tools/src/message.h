@@ -1,5 +1,5 @@
 /* GNU gettext - internationalization aids
-   Copyright (C) 1995-2024 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
 
    This file was written by Peter Miller <millerp@canb.auug.org.au>
 
@@ -56,11 +56,17 @@ enum format_type
   format_lisp,
   format_elisp,
   format_librep,
+  format_rust,
+  format_go,
   format_ruby,
   format_sh,
+  format_sh_printf,
   format_awk,
   format_lua,
   format_pascal,
+  format_modula2,
+  format_d,
+  format_ocaml,
   format_smalltalk,
   format_qt,
   format_qt_plural,
@@ -75,9 +81,10 @@ enum format_type
   format_gfc_internal,
   format_ycp
 };
-#define NFORMATS 31     /* Number of format_type enum values.  */
-extern DLL_VARIABLE const char *const format_language[NFORMATS];
-extern DLL_VARIABLE const char *const format_language_pretty[NFORMATS];
+#define NFORMATS 37     /* Number of format_type enum values.  */
+extern LIBGETTEXTSRC_DLL_VARIABLE const char *const format_language[NFORMATS];
+extern LIBGETTEXTSRC_DLL_VARIABLE const char *const format_language_pretty[NFORMATS];
+extern LIBGETTEXTSRC_DLL_VARIABLE const char *const format_flag[NFORMATS];
 
 /* Is current msgid a format string?  */
 enum is_format
@@ -92,6 +99,9 @@ enum is_format
 
 extern bool
        possible_format_p (enum is_format);
+
+extern bool
+       not_format_p (enum is_format);
 
 
 /* Range of an unsigned integer argument.  */
@@ -118,7 +128,7 @@ enum is_wrap
 #endif
 
 
-/* Kinds of syntax checks which apply to strings.  */
+/* Kinds of syntax checks which apply to an msgid.  */
 enum syntax_check_type
 {
   sc_ellipsis_unicode,
@@ -127,7 +137,7 @@ enum syntax_check_type
   sc_bullet_unicode
 };
 #define NSYNTAXCHECKS 4
-extern DLL_VARIABLE const char *const syntax_check_name[NSYNTAXCHECKS];
+extern LIBGETTEXTSRC_DLL_VARIABLE const char *const syntax_check_name[NSYNTAXCHECKS];
 
 /* Is current msgid subject to a syntax check?  */
 #if 0
@@ -203,7 +213,8 @@ struct message_ty
   /* Do we want the string to be wrapped in the emitted PO file?  */
   enum is_wrap do_wrap;
 
-  /* Do we want to apply extra syntax checks on the string?  */
+  /* Do we want to apply or inhibit extra syntax checks on the string?
+     This is only relevant within xgettext.  */
   enum is_syntax_check do_syntax_check[NSYNTAXCHECKS];
 
   /* The prev_msgctxt, prev_msgid and prev_msgid_plural strings appearing
@@ -290,7 +301,7 @@ extern bool
 extern message_list_ty *
        message_list_copy (message_list_ty *mlp, int copy_level);
 extern message_ty *
-       message_list_search (message_list_ty *mlp,
+       message_list_search (const message_list_ty *mlp,
                             const char *msgctxt, const char *msgid);
 /* Return the message in MLP which maximizes the fuzzy_search_goal_function.
    Only messages with a fuzzy_search_goal_function > FUZZY_THRESHOLD are

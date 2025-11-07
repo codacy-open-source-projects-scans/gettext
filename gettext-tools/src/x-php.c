@@ -1,5 +1,5 @@
 /* xgettext PHP backend.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
    This file was written by Bruno Haible <bruno@clisp.org>, 2002.
 
@@ -16,9 +16,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "x-php.h"
@@ -28,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define SB_NO_APPENDF
 #include <error.h>
 #include "attribute.h"
 #include "message.h"
@@ -322,18 +321,6 @@ skip_html (struct php_extractor *xp)
               return;
             }
 
-          if (c2 == '%')
-            {
-              /* <% and <%= are recognized by PHP depending on a configuration
-                 setting.  */
-              int c3 = phase1_getc (xp);
-
-              if (c3 != '=')
-                phase1_ungetc (xp, c3);
-
-              return;
-            }
-
           if (c2 == '<')
             {
               phase1_ungetc (xp, c2);
@@ -549,7 +536,6 @@ phase2_getc (struct php_extractor *xp)
   switch (c)
     {
     case '?':
-    case '%':
       {
         int c2 = phase1_getc (xp);
         if (c2 == '>')
@@ -705,7 +691,7 @@ phase3_getc (struct php_extractor *xp)
           /* We skip all leading white space, but not EOLs.  */
           if (!(xp->buflen == 0 && (c == ' ' || c == '\t')))
             comment_add (xp, c);
-          last_was_qmark = (c == '?' || c == '%');
+          last_was_qmark = (c == '?');
         }
       xp->last_comment_line = lineno;
       return '\n';
@@ -792,7 +778,7 @@ phase3_getc (struct php_extractor *xp)
                 /* We skip all leading white space, but not EOLs.  */
                 if (!(xp->buflen == 0 && (c == ' ' || c == '\t')))
                   comment_add (xp, c);
-                last_was_qmark = (c == '?' || c == '%');
+                last_was_qmark = (c == '?');
               }
             xp->last_comment_line = lineno;
             return '\n';
@@ -803,8 +789,7 @@ phase3_getc (struct php_extractor *xp)
     return c;
 }
 
-#ifdef unused
-static void
+MAYBE_UNUSED static void
 phase3_ungetc (struct php_extractor *xp, int c)
 {
   if (c != EOF)
@@ -814,7 +799,6 @@ phase3_ungetc (struct php_extractor *xp, int c)
       xp->phase3_pushback[xp->phase3_pushback_length++] = c;
     }
 }
-#endif
 
 
 /* ========================== Reading of tokens.  ========================== */
@@ -1236,20 +1220,18 @@ phase4_get (struct php_extractor *xp, token_ty *tp)
           return;
 
         case '?':
-        case '%':
           {
             int c2 = phase1_getc (xp);
             if (c2 == '>')
               {
-                /* ?> and %> terminate PHP mode and switch back to HTML
-                   mode.  */
+                /* ?> terminates PHP mode and switches back to HTML mode.  */
                 skip_html (xp);
                 tp->type = token_type_other;
               }
             else
               {
                 phase1_ungetc (xp, c2);
-                tp->type = (c == '%' ? token_type_operator1 : token_type_other);
+                tp->type = token_type_other;
               }
             return;
           }
@@ -1335,14 +1317,14 @@ phase4_get (struct php_extractor *xp, token_ty *tp)
                     bool heredoc = true;
                     string_desc_t label = sb_contents (&buffer);
                     size_t label_start = 0;
-                    size_t label_end = string_desc_length (label);
+                    size_t label_end = sd_length (label);
                     if (label_end >= 2
-                        && ((string_desc_char_at (label, label_start) == '\''
-                             && string_desc_char_at (label, label_end - 1) == '\'')
-                            || (string_desc_char_at (label, label_start) == '"'
-                                && string_desc_char_at (label, label_end - 1) == '"')))
+                        && ((sd_char_at (label, label_start) == '\''
+                             && sd_char_at (label, label_end - 1) == '\'')
+                            || (sd_char_at (label, label_start) == '"'
+                                && sd_char_at (label, label_end - 1) == '"')))
                       {
-                        heredoc = (string_desc_char_at (label, label_start) == '"');
+                        heredoc = (sd_char_at (label, label_start) == '"');
                         label_start++;
                         label_end--;
                       }
@@ -1383,7 +1365,7 @@ phase4_get (struct php_extractor *xp, token_ty *tp)
                           }
                         else if (in_label_pos >= 0
                                  && in_label_pos < label_end - label_start
-                                 && c == string_desc_char_at (label, label_start + in_label_pos))
+                                 && c == sd_char_at (label, label_start + in_label_pos))
                           {
                             in_label_pos++;
                           }
@@ -1473,16 +1455,16 @@ phase4_get (struct php_extractor *xp, token_ty *tp)
                         for (p = doc; p < doc + doc_len; p++)
                           {
                             /* Invariant: doc <= q <= p <= doc + doc_len.  */
-                            char c = *p;
-                            *q++ = c;
+                            char d = *p;
+                            *q++ = d;
                             if (curr_line_indent < end_label_indent)
                               {
-                                if (c == ' ')
+                                if (d == ' ')
                                   {
                                     curr_line_indent++;
                                     --q;
                                   }
-                                else if (c == '\t')
+                                else if (d == '\t')
                                   {
                                     curr_line_indent |= TAB_WIDTH - 1;
                                     curr_line_indent++;
@@ -1490,7 +1472,7 @@ phase4_get (struct php_extractor *xp, token_ty *tp)
                                       --q;
                                   }
                               }
-                            if (c == '\n')
+                            if (d == '\n')
                               curr_line_indent = 0;
                           }
                         doc_len = q - doc;

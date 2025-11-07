@@ -1,5 +1,5 @@
 /* Python brace format strings.
-   Copyright (C) 2004, 2006-2007, 2013-2014, 2016, 2019, 2023 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    Written by Daiki Ueno <ueno@gnu.org>, 2013.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -37,13 +35,15 @@
    Documentation:
      https://peps.python.org/pep-3101/
      https://docs.python.org/3/library/string.html#formatstrings
+   Here we assume Python >= 3.1, which allows unnamed argument specifications.
    A format string directive here consists of
      - an opening brace '{',
-     - an identifier [_A-Za-z][_0-9A-Za-z]*|[0-9]+,
-     - an optional sequence of
-         - getattr ('.' identifier) or
-         - getitem ('[' identifier ']')
-       operators,
+     - optionally:
+       - an identifier [_A-Za-z][_0-9A-Za-z]*|[0-9]+,
+       - an optional sequence of
+           - getattr ('.' identifier) or
+           - getitem ('[' identifier ']')
+         operators,
      - optionally, a ':' and a format specifier, where a format specifier is
        - either a format directive of the form '{' ... '}' without a format
          specifier, or
@@ -60,6 +60,8 @@
              - 'b', 'c', 'd', 'o', 'x', 'X', 'n' for integers,
              - 'e', 'E', 'f', 'F', 'g', 'G', 'n', '%' for floating-point values,
      - a closing brace '}'.
+   Numbered (identifier being a number) and unnamed argument specifications
+   cannot be used in the same string.
    Brace characters '{' and '}' can be escaped by doubling them: '{{' and '}}'.
 */
 
@@ -70,15 +72,24 @@ struct named_arg
 
 struct spec
 {
-  unsigned int directives;
-  unsigned int named_arg_count;
-  unsigned int allocated;
+  size_t directives;
+  size_t named_arg_count;
+  size_t allocated;
   struct named_arg *named;
 };
 
 
 /* Forward declaration of local functions.  */
 static void free_named_args (struct spec *spec);
+
+
+struct toplevel_counters
+{
+  /* Number of arguments seen whose identifier is a number.  */
+  size_t numbered_arg_counter;
+  /* Number of arguments with a missing identifier.  */
+  size_t unnamed_arg_counter;
+};
 
 
 /* All the parse_* functions (except parse_upto) follow the same
@@ -89,8 +100,8 @@ static void free_named_args (struct spec *spec);
 
 static bool
 parse_named_field (struct spec *spec,
-                   const char **formatp, bool translated, char *fdi,
-                   char **invalid_reason)
+                   const char **formatp,
+                   char *fdi, char **invalid_reason)
 {
   const char *format = *formatp;
   char c;
@@ -110,8 +121,8 @@ parse_named_field (struct spec *spec,
 
 static bool
 parse_numeric_field (struct spec *spec,
-                     const char **formatp, bool translated, char *fdi,
-                     char **invalid_reason)
+                     const char **formatp,
+                     char *fdi, char **invalid_reason)
 {
   const char *format = *formatp;
   char c;
@@ -136,12 +147,13 @@ parse_numeric_field (struct spec *spec,
  */
 static bool
 parse_directive (struct spec *spec,
-                 const char **formatp, bool is_toplevel,
-                 bool translated, char *fdi, char **invalid_reason)
+                 const char **formatp, struct toplevel_counters *toplevel,
+                 char *fdi, char **invalid_reason)
 {
   const char *format = *formatp;
   const char *const format_start = format;
   const char *name_start;
+  const char *name_end;
   char c;
 
   c = *++format;
@@ -153,72 +165,105 @@ parse_directive (struct spec *spec,
     }
 
   name_start = format;
-  if (!parse_named_field (spec, &format, translated, fdi, invalid_reason)
-      && !parse_numeric_field (spec, &format, translated, fdi, invalid_reason))
+  if (parse_named_field (spec, &format, fdi, invalid_reason)
+      || parse_numeric_field (spec, &format, fdi, invalid_reason))
     {
-      *invalid_reason =
-        xasprintf (_("In the directive number %u, '%c' cannot start a field name."),
-                   spec->directives, *format);
-      FDI_SET (format, FMTDIR_ERROR);
-      return false;
-    }
-
-  /* Parse '.' (getattr) or '[..]' (getitem) operators followed by a
-     name.  If must not recurse, but can be specifed in a chain, such
-     as "foo.bar.baz[0]".  */
-  for (;;)
-    {
-      c = *format;
-
-      if (c == '.')
+      /* Parse '.' (getattr) or '[..]' (getitem) operators followed by a
+         name.  If must not recurse, but can be specified in a chain, such
+         as "foo.bar.baz[0]".  */
+      for (;;)
         {
-          format++;
-          if (!parse_named_field (spec, &format, translated, fdi,
-                                  invalid_reason))
-            {
-              *invalid_reason =
-                xasprintf (_("In the directive number %u, '%c' cannot start a getattr argument."),
-                           spec->directives, *format);
-              FDI_SET (format, FMTDIR_ERROR);
-              return false;
-            }
-        }
-      else if (c == '[')
-        {
-          format++;
-          if (!parse_named_field (spec, &format, translated, fdi,
-                                  invalid_reason)
-              && !parse_numeric_field (spec, &format, translated, fdi,
-                                       invalid_reason))
-            {
-              *invalid_reason =
-                xasprintf (_("In the directive number %u, '%c' cannot start a getitem argument."),
-                           spec->directives, *format);
-              FDI_SET (format, FMTDIR_ERROR);
-              return false;
-            }
+          c = *format;
 
-          if (*format != ']')
+          if (c == '.')
             {
-              *invalid_reason =
-                xasprintf (_("In the directive number %u, there is an unterminated getitem argument."),
-                           spec->directives);
-              FDI_SET (format, FMTDIR_ERROR);
-              return false;
+              format++;
+              if (!parse_named_field (spec, &format, fdi, invalid_reason))
+                {
+                  if (*format == '\0')
+                    {
+                      *invalid_reason = INVALID_UNTERMINATED_DIRECTIVE ();
+                      FDI_SET (format - 1, FMTDIR_ERROR);
+                    }
+                  else
+                    {
+                      *invalid_reason =
+                        (c_isprint (*format)
+                         ? xasprintf (_("In the directive number %zu, '%c' cannot start a getattr argument."),
+                                      spec->directives, *format)
+                         : xasprintf (_("In the directive number %zu, a getattr argument starts with a character that is not alphabetical or underscore."),
+                                      spec->directives));
+                      FDI_SET (format, FMTDIR_ERROR);
+                    }
+                  return false;
+                }
             }
-          format++;
+          else if (c == '[')
+            {
+              format++;
+              if (!parse_named_field (spec, &format, fdi, invalid_reason)
+                  && !parse_numeric_field (spec, &format, fdi, invalid_reason))
+                {
+                  if (*format == '\0')
+                    {
+                      *invalid_reason = INVALID_UNTERMINATED_DIRECTIVE ();
+                      FDI_SET (format - 1, FMTDIR_ERROR);
+                    }
+                  else
+                    {
+                      *invalid_reason =
+                        (c_isprint (*format)
+                         ? xasprintf (_("In the directive number %zu, '%c' cannot start a getitem argument."),
+                                      spec->directives, *format)
+                         : xasprintf (_("In the directive number %zu, a getitem argument starts with a character that is not alphanumerical or underscore."),
+                                      spec->directives));
+                      FDI_SET (format, FMTDIR_ERROR);
+                    }
+                  return false;
+                }
+
+              if (*format != ']')
+                {
+                  *invalid_reason =
+                    xasprintf (_("In the directive number %zu, there is an unterminated getitem argument."),
+                               spec->directives);
+                  FDI_SET (format - 1, FMTDIR_ERROR);
+                  return false;
+                }
+              format++;
+            }
+          else
+            break;
         }
-      else
-        break;
     }
-
-  /* Here c == *format.  */
-  if (c == ':')
+  else
     {
-      if (!is_toplevel)
+      if (*format == '\0')
+        {
+          *invalid_reason = INVALID_UNTERMINATED_DIRECTIVE ();
+          FDI_SET (format - 1, FMTDIR_ERROR);
+          return false;
+        }
+      if (!(toplevel != NULL && (*format == ':' || *format == '}')))
         {
           *invalid_reason =
-            xasprintf (_("In the directive number %u, no more nesting is allowed in a format specifier."),
+            (c_isprint (*format)
+             ? xasprintf (_("In the directive number %zu, '%c' cannot start a field name."),
+                          spec->directives, *format)
+             : xasprintf (_("In the directive number %zu, a field name starts with a character that is not alphanumerical or underscore."),
+                          spec->directives));
+          FDI_SET (format, FMTDIR_ERROR);
+          return false;
+        }
+    }
+  name_end = format;
+
+  if (*format == ':')
+    {
+      if (toplevel == NULL)
+        {
+          *invalid_reason =
+            xasprintf (_("In the directive number %zu, no more nesting is allowed in a format specifier."),
                        spec->directives);
           FDI_SET (format, FMTDIR_ERROR);
           return false;
@@ -237,8 +282,7 @@ parse_directive (struct spec *spec,
       if (*format == '{')
         {
           /* Nested format directive.  */
-          if (!parse_directive (spec, &format, false, translated, fdi,
-                                invalid_reason))
+          if (!parse_directive (spec, &format, NULL, fdi, invalid_reason))
             {
               /* FDI and INVALID_REASON will be set by a recursive call of
                  parse_directive.  */
@@ -257,9 +301,9 @@ parse_directive (struct spec *spec,
           if (c1 == '\0')
             {
               *invalid_reason =
-                xasprintf (_("In the directive number %u, there is an unterminated format directive."),
+                xasprintf (_("The directive number %zu is unterminated."),
                            spec->directives);
-              FDI_SET (format, FMTDIR_ERROR);
+              FDI_SET (format - 1, FMTDIR_ERROR);
               return false;
             }
 
@@ -310,22 +354,48 @@ parse_directive (struct spec *spec,
   if (*format != '}')
     {
       *invalid_reason =
-        xasprintf (_("In the directive number %u, there is an unterminated format directive."),
+        xasprintf (_("The directive number %zu is unterminated."),
                    spec->directives);
-      FDI_SET (format, FMTDIR_ERROR);
+      FDI_SET (format - 1, FMTDIR_ERROR);
       return false;
     }
 
-  if (is_toplevel)
+  if (toplevel != NULL)
     {
       char *name;
-      size_t n = format - name_start;
+      size_t n = name_end - name_start;
 
       FDI_SET (name_start - 1, FMTDIR_START);
 
-      name = XNMALLOC (n + 1, char);
-      memcpy (name, name_start, n);
-      name[n] = '\0';
+      if (n == 0)
+        {
+          if (toplevel->numbered_arg_counter > 0)
+            {
+              *invalid_reason =
+                xstrdup (_("The string refers to arguments both through absolute argument numbers and through unnamed argument specifications."));
+              FDI_SET (format, FMTDIR_ERROR);
+              return false;
+            }
+          name = xasprintf ("%zu", toplevel->unnamed_arg_counter);
+          toplevel->unnamed_arg_counter++;
+        }
+      else
+        {
+          name = XNMALLOC (n + 1, char);
+          memcpy (name, name_start, n);
+          name[n] = '\0';
+          if (name_start[0] >= '0' && name_start[0] <= '9')
+            {
+              if (toplevel->unnamed_arg_counter > 0)
+                {
+                  *invalid_reason =
+                    xstrdup (_("The string refers to arguments both through absolute argument numbers and through unnamed argument specifications."));
+                  FDI_SET (format, FMTDIR_ERROR);
+                  return false;
+                }
+              toplevel->numbered_arg_counter++;
+            }
+        }
 
       spec->directives++;
 
@@ -346,8 +416,8 @@ parse_directive (struct spec *spec,
 
 static bool
 parse_upto (struct spec *spec,
-            const char **formatp, bool is_toplevel, char terminator,
-            bool translated, char *fdi, char **invalid_reason)
+            const char **formatp, struct toplevel_counters *toplevel,
+            char terminator, char *fdi, char **invalid_reason)
 {
   const char *format = *formatp;
 
@@ -355,8 +425,7 @@ parse_upto (struct spec *spec,
     {
       if (*format == '{')
         {
-          if (!parse_directive (spec, &format, is_toplevel, translated, fdi,
-                                invalid_reason))
+          if (!parse_directive (spec, &format, toplevel, fdi, invalid_reason))
             return false;
         }
       else
@@ -375,10 +444,11 @@ named_arg_compare (const void *p1, const void *p2)
 }
 
 static void *
-format_parse (const char *format, bool translated, char *fdi,
-              char **invalid_reason)
+format_parse (const char *format, bool translated,
+              char *fdi, char **invalid_reason)
 {
   struct spec spec;
+  struct toplevel_counters toplevel;
   struct spec *result;
 
   spec.directives = 0;
@@ -386,7 +456,9 @@ format_parse (const char *format, bool translated, char *fdi,
   spec.allocated = 0;
   spec.named = NULL;
 
-  if (!parse_upto (&spec, &format, true, '\0', translated, fdi, invalid_reason))
+  toplevel.numbered_arg_counter = 0;
+  toplevel.unnamed_arg_counter = 0;
+  if (!parse_upto (&spec, &format, &toplevel, '\0', fdi, invalid_reason))
     {
       free_named_args (&spec);
       return NULL;
@@ -395,7 +467,7 @@ format_parse (const char *format, bool translated, char *fdi,
   /* Sort the named argument array, and eliminate duplicates.  */
   if (spec.named_arg_count > 1)
     {
-      unsigned int i, j;
+      size_t i, j;
 
       qsort (spec.named, spec.named_arg_count, sizeof (struct named_arg),
              named_arg_compare);
@@ -423,7 +495,7 @@ free_named_args (struct spec *spec)
 {
   if (spec->named != NULL)
     {
-      unsigned int i;
+      size_t i;
       for (i = 0; i < spec->named_arg_count; i++)
         free (spec->named[i].name);
       free (spec->named);
@@ -458,12 +530,12 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
 
   if (spec1->named_arg_count + spec2->named_arg_count > 0)
     {
-      unsigned int i, j;
-      unsigned int n1 = spec1->named_arg_count;
-      unsigned int n2 = spec2->named_arg_count;
+      size_t i, j;
+      size_t n1 = spec1->named_arg_count;
+      size_t n2 = spec2->named_arg_count;
 
-      /* Check the argument names in spec1 are contained in those of spec2.
-         Both arrays are sorted.  We search for the differences.  */
+      /* Check the argument names in spec2 are contained in those of spec1.
+         Both arrays are sorted.  We search for the first difference.  */
       for (i = 0, j = 0; i < n1 || j < n2; )
         {
           int cmp = (i >= n1 ? 1 :
@@ -472,17 +544,13 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
 
           if (cmp > 0)
             {
-              if (equality)
-                {
-                  if (error_logger)
-                    error_logger (error_logger_data,
-                                  _("a format specification for argument '%s' doesn't exist in '%s'"),
-                                  spec2->named[i].name, pretty_msgid);
-                  err = true;
-                  break;
-                }
-              else
-                j++;
+              if (error_logger)
+                error_logger (error_logger_data,
+                              _("a format specification for argument '%s', as in '%s', doesn't exist in '%s'"),
+                              spec2->named[j].name, pretty_msgstr,
+                              pretty_msgid);
+              err = true;
+              break;
             }
           else if (cmp < 0)
             {
@@ -528,7 +596,7 @@ static void
 format_print (void *descr)
 {
   struct spec *spec = (struct spec *) descr;
-  unsigned int i;
+  size_t i;
 
   if (spec == NULL)
     {
@@ -581,7 +649,7 @@ main ()
 /*
  * For Emacs M-x compile
  * Local Variables:
- * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DHAVE_CONFIG_H -DTEST format-python-brace.c ../gnulib-lib/libgettextlib.la"
+ * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DTEST format-python-brace.c ../gnulib-lib/libgettextlib.la"
  * End:
  */
 

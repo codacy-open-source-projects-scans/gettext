@@ -1,5 +1,5 @@
 ## Makefile for the lib subdirectory of GNU libtextstyle.
-## Copyright (C) 2009-2024 Free Software Foundation, Inc.
+## Copyright (C) 2009-2025 Free Software Foundation, Inc.
 ##
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -194,10 +194,10 @@ libtextstyle.sym : $(srcdir)/libtextstyle.sym.in
 MOSTLYCLEANFILES += libtextstyle.sym libtextstyle.sym-t
 
 # Hide undesired symbols that are defined by libtextstyle_la_SOURCES or
-# gl_LIBOBJS or the dependency libraries from the global namespace,
-# by prefixing them with "libtextstyle_".
+# lts_libtextstyle_LTLIBOBJS or the dependency libraries from the global
+# namespace, by prefixing them with "libtextstyle_".
 all check install: config.h
-COMPILATION_UNITS = $(libtextstyle_la_SOURCES) $(gl_LIBOBJS)
+COMPILATION_UNITS = $(libtextstyle_la_SOURCES) $(lts_libtextstyle_LTLIBOBJS)
 if INCLUDED_LIBCROCO
 COMPILATION_UNITS += $(libcroco_rpl_la_SOURCES)
 endif
@@ -224,9 +224,9 @@ config.h: $(BUILT_SOURCES) libtextstyle.sym
 	        case $$f in \
 	          *.res.lo ) ;; \
 	          *.c | *.$(OBJEXT) | *.lo ) \
-	            sf=`echo "$$f" | sed -e 's,\\.[^.]*$$,,'`.c; \
+	            sf=`echo "$$f" | sed -e 's,^libtextstyle_la-,,' -e 's,\\.[^.]*$$,,'`.c; \
 	            test -f $$sf || sf=$(srcdir)/$$sf; \
-	            of=`echo "$$f" | sed -e 's,^.*/,,' -e 's,\\.[^.]*$$,,'`.$(OBJEXT); \
+	            of=`echo "$$f" | sed -e 's,^.*/,,' -e 's,^libtextstyle_la-,,' -e 's,\\.[^.]*$$,,'`.$(OBJEXT); \
 	            echo "$(COMPILE) $(GL_CFLAG_INHIBIT_WARNINGS) -c $$sf" 1>&6; \
 	            $(COMPILE) $(GL_CFLAG_INHIBIT_WARNINGS) -c $$sf || { rm -f config.h; exit 1; }; \
 	            sh ./exported.sh $$of 1>&5; \
@@ -237,6 +237,7 @@ config.h: $(BUILT_SOURCES) libtextstyle.sym
 	    } 5>&1 1>&2 \
 	      | sed -e 's,.* ,,' | grep -v '@' | LC_ALL=C sort | LC_ALL=C uniq \
 	      | LC_ALL=C $(top_srcdir)/build-aux/join-v-1 - libtextstyle.sym \
+	      | grep -v 'gl_get_setlocale_null_lock' \
 	      | sed -e 's,^\(.*\)$$,#define \1 libtextstyle_\1,' > config.h-t; \
 	  } 6>&1 && \
 	  if test -f config.h; then \
@@ -283,7 +284,7 @@ AM_CPPFLAGS += -DDEPENDS_ON_LIBICONV=1
 # Libtool's library version information for libtextstyle.
 # See the libtool documentation, section "Library interface versions".
 LTV_CURRENT=2
-LTV_REVISION=1
+LTV_REVISION=6
 LTV_AGE=2
 
 # How to build libtextstyle.la.

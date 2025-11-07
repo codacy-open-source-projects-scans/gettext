@@ -15,17 +15,23 @@
 /gettext-runtime/doc/Admin/jdom-1.0.jar
 /gettext-runtime/doc/Admin/Matrix*.class
 /gettext-runtime/doc/Admin/matrix.xml
-/gettext-tools/misc/archive.dir.tar
+
+# Files brought in by autopull.sh:
+/gettext-tools/tree-sitter-*
+/gettext-tools/tree-sitter.cfg
 
 # Files brought in by gnulib-tool:
 /GNUmakefile
+/INSTALL.generic
 /maint.mk
 /build-aux/config.libpath
 /build-aux/config.rpath
 /build-aux/csharpcomp.sh.in
 /build-aux/csharpexec.sh.in
+/build-aux/dcomp.sh.in
 /build-aux/git-version-gen
 /build-aux/gitlog-to-changelog
+/build-aux/gocomp.sh.in
 /build-aux/install-reloc
 /build-aux/javacomp.sh.in
 /build-aux/javaexec.sh.in
@@ -54,6 +60,7 @@
 !/gettext-tools/gnulib-tests/Makefile.am
 /gettext-tools/libgettextpo/glthread/
 /gettext-tools/libgettextpo/gnulib-m4/
+/gettext-tools/libgettextpo/unicase/
 /gettext-tools/libgettextpo/uniconv/
 /gettext-tools/libgettextpo/unictype/
 /gettext-tools/libgettextpo/unilbrk/
@@ -61,7 +68,6 @@
 /gettext-tools/libgettextpo/uniwidth/
 /gettext-tools/libgettextpo/Makefile.gnulib
 /gettext-tools/libgettextpo/_Noreturn.h
-/gettext-tools/libgettextpo/alignof.h
 /gettext-tools/libgettextpo/alloca.in.h
 /gettext-tools/libgettextpo/arg-nonnull.h
 /gettext-tools/libgettextpo/asnprintf.c
@@ -81,18 +87,29 @@
 /gettext-tools/libgettextpo/c-strstr.h
 /gettext-tools/libgettextpo/c++defs.h
 /gettext-tools/libgettextpo/c32is-impl.h
+/gettext-tools/libgettextpo/c32isalnum.c
+/gettext-tools/libgettextpo/c32isalpha.c
+/gettext-tools/libgettextpo/c32isblank.c
 /gettext-tools/libgettextpo/c32iscntrl.c
+/gettext-tools/libgettextpo/c32isdigit.c
+/gettext-tools/libgettextpo/c32isgraph.c
+/gettext-tools/libgettextpo/c32islower.c
+/gettext-tools/libgettextpo/c32isprint.c
+/gettext-tools/libgettextpo/c32ispunct.c
+/gettext-tools/libgettextpo/c32isspace.c
+/gettext-tools/libgettextpo/c32isupper.c
+/gettext-tools/libgettextpo/c32isxdigit.c
+/gettext-tools/libgettextpo/c32to-impl.h
+/gettext-tools/libgettextpo/c32tolower.c
 /gettext-tools/libgettextpo/c32width.c
 /gettext-tools/libgettextpo/calloc.c
+/gettext-tools/libgettextpo/cdefs.h
 /gettext-tools/libgettextpo/cloexec.c
 /gettext-tools/libgettextpo/cloexec.h
 /gettext-tools/libgettextpo/close.c
 /gettext-tools/libgettextpo/concat-filename.c
 /gettext-tools/libgettextpo/concat-filename.h
 /gettext-tools/libgettextpo/diffseq.h
-/gettext-tools/libgettextpo/dirname-lgpl.c
-/gettext-tools/libgettextpo/dirname.h
-/gettext-tools/libgettextpo/dosname.h
 /gettext-tools/libgettextpo/dup2.c
 /gettext-tools/libgettextpo/errno.in.h
 /gettext-tools/libgettextpo/error.c
@@ -105,6 +122,7 @@
 /gettext-tools/libgettextpo/fd-hook.h
 /gettext-tools/libgettextpo/fdopen.c
 /gettext-tools/libgettextpo/filename.h
+/gettext-tools/libgettextpo/flexmember.h
 /gettext-tools/libgettextpo/float+.h
 /gettext-tools/libgettextpo/float.c
 /gettext-tools/libgettextpo/float.in.h
@@ -113,6 +131,8 @@
 /gettext-tools/libgettextpo/free.c
 /gettext-tools/libgettextpo/frexp.c
 /gettext-tools/libgettextpo/frexpl.c
+/gettext-tools/libgettextpo/fseterr.c
+/gettext-tools/libgettextpo/fseterr.h
 /gettext-tools/libgettextpo/fstat.c
 /gettext-tools/libgettextpo/fstrcmp.c
 /gettext-tools/libgettextpo/fstrcmp.h
@@ -163,14 +183,21 @@
 /gettext-tools/libgettextpo/isnanf.c
 /gettext-tools/libgettextpo/isnanl-nolibm.h
 /gettext-tools/libgettextpo/isnanl.c
+/gettext-tools/libgettextpo/iswblank.c
+/gettext-tools/libgettextpo/iswdigit.c
+/gettext-tools/libgettextpo/iswpunct.c
+/gettext-tools/libgettextpo/iswxdigit.c
 /gettext-tools/libgettextpo/itold.c
 /gettext-tools/libgettextpo/lc-charset-dispatch.c
 /gettext-tools/libgettextpo/lc-charset-dispatch.h
+/gettext-tools/libgettextpo/libc-config.h
 /gettext-tools/libgettextpo/libunistring.valgrind
 /gettext-tools/libgettextpo/limits.in.h
 /gettext-tools/libgettextpo/localcharset.c
 /gettext-tools/libgettextpo/localcharset.h
 /gettext-tools/libgettextpo/locale.in.h
+/gettext-tools/libgettextpo/localeconv.c
+/gettext-tools/libgettextpo/lstat.c
 /gettext-tools/libgettextpo/malloc.c
 /gettext-tools/libgettextpo/malloca.c
 /gettext-tools/libgettextpo/malloca.h
@@ -178,13 +205,16 @@
 /gettext-tools/libgettextpo/markup.h
 /gettext-tools/libgettextpo/math.c
 /gettext-tools/libgettextpo/math.in.h
+/gettext-tools/libgettextpo/mbchar.c
+/gettext-tools/libgettextpo/mbchar.h
+/gettext-tools/libgettextpo/mbiterf.c
+/gettext-tools/libgettextpo/mbiterf.h
 /gettext-tools/libgettextpo/mbrtoc32.c
 /gettext-tools/libgettextpo/mbrtowc.c
 /gettext-tools/libgettextpo/mbrtowc-impl.h
 /gettext-tools/libgettextpo/mbrtowc-impl-utf8.h
 /gettext-tools/libgettextpo/mbsinit.c
-/gettext-tools/libgettextpo/mbswidth.c
-/gettext-tools/libgettextpo/mbswidth.h
+/gettext-tools/libgettextpo/mbsnlen.c
 /gettext-tools/libgettextpo/mbszero.c
 /gettext-tools/libgettextpo/mbtowc-lock.c
 /gettext-tools/libgettextpo/mbtowc-lock.h
@@ -199,6 +229,8 @@
 /gettext-tools/libgettextpo/msvc-inval.h
 /gettext-tools/libgettextpo/msvc-nothrow.c
 /gettext-tools/libgettextpo/msvc-nothrow.h
+/gettext-tools/libgettextpo/next-prime.c
+/gettext-tools/libgettextpo/next-prime.h
 /gettext-tools/libgettextpo/obstack.c
 /gettext-tools/libgettextpo/obstack.in.h
 /gettext-tools/libgettextpo/open.c
@@ -244,13 +276,17 @@
 /gettext-tools/libgettextpo/stdckdint.in.h
 /gettext-tools/libgettextpo/stddef.in.h
 /gettext-tools/libgettextpo/stdint.in.h
+/gettext-tools/libgettextpo/stdio-consolesafe.c
+/gettext-tools/libgettextpo/stdio-impl.h
 /gettext-tools/libgettextpo/stdio-read.c
 /gettext-tools/libgettextpo/stdio-write.c
 /gettext-tools/libgettextpo/stdio.in.h
+/gettext-tools/libgettextpo/stdlib.c
 /gettext-tools/libgettextpo/stdlib.in.h
 /gettext-tools/libgettextpo/stpcpy.c
 /gettext-tools/libgettextpo/stpncpy.c
 /gettext-tools/libgettextpo/str-two-way.h
+/gettext-tools/libgettextpo/str_startswith.c
 /gettext-tools/libgettextpo/strchrnul.c
 /gettext-tools/libgettextpo/strchrnul.valgrind
 /gettext-tools/libgettextpo/streq.h
@@ -267,7 +303,9 @@
 /gettext-tools/libgettextpo/string-desc-contains.c
 /gettext-tools/libgettextpo/string-desc.c
 /gettext-tools/libgettextpo/string-desc.h
+/gettext-tools/libgettextpo/string.c
 /gettext-tools/libgettextpo/string.in.h
+/gettext-tools/libgettextpo/strnlen.c
 /gettext-tools/libgettextpo/strstr.c
 /gettext-tools/libgettextpo/sys-limits.h
 /gettext-tools/libgettextpo/sys_stat.in.h
@@ -275,9 +313,11 @@
 /gettext-tools/libgettextpo/textstyle.in.h
 /gettext-tools/libgettextpo/time.in.h
 /gettext-tools/libgettextpo/uchar.in.h
+/gettext-tools/libgettextpo/unicase.in.h
 /gettext-tools/libgettextpo/uniconv.in.h
 /gettext-tools/libgettextpo/unictype.in.h
 /gettext-tools/libgettextpo/unilbrk.in.h
+/gettext-tools/libgettextpo/uninorm.in.h
 /gettext-tools/libgettextpo/unistd.c
 /gettext-tools/libgettextpo/unistd.in.h
 /gettext-tools/libgettextpo/unistr.in.h
@@ -322,67 +362,16 @@
 /gettext-tools/libgettextpo/xstriconv.h
 /gettext-tools/libgettextpo/xvasprintf.c
 /gettext-tools/libgettextpo/xvasprintf.h
-/gettext-tools/libgrep/glthread/
 /gettext-tools/libgrep/gnulib-m4/
-/gettext-tools/libgrep/malloc/
-/gettext-tools/libgrep/Makefile.gnulib
-/gettext-tools/libgrep/_Noreturn.h
-/gettext-tools/libgrep/arg-nonnull.h
-/gettext-tools/libgrep/attribute.h
-/gettext-tools/libgrep/btowc.c
-/gettext-tools/libgrep/c++defs.h
-/gettext-tools/libgrep/cdefs.h
-/gettext-tools/libgrep/dynarray.h
-/gettext-tools/libgrep/intprops-internal.h
-/gettext-tools/libgrep/intprops.h
-/gettext-tools/libgrep/inttypes.in.h
-/gettext-tools/libgrep/iswblank.c
-/gettext-tools/libgrep/iswctype-impl.h
-/gettext-tools/libgrep/iswctype.c
-/gettext-tools/libgrep/iswdigit.c
-/gettext-tools/libgrep/iswpunct.c
-/gettext-tools/libgrep/iswxdigit.c
-/gettext-tools/libgrep/langinfo.in.h
-/gettext-tools/libgrep/libc-config.h
-/gettext-tools/libgrep/limits.in.h
-/gettext-tools/libgrep/locale.in.h
-/gettext-tools/libgrep/localeconv.c
-/gettext-tools/libgrep/mbrlen.c
-/gettext-tools/libgrep/mbszero.c
-/gettext-tools/libgrep/mbtowc-impl.h
-/gettext-tools/libgrep/mbtowc.c
-/gettext-tools/libgrep/nl_langinfo.c
-/gettext-tools/libgrep/nl_langinfo-lock.c
-/gettext-tools/libgrep/pthread.in.h
-/gettext-tools/libgrep/pthread-once.c
-/gettext-tools/libgrep/regcomp.c
-/gettext-tools/libgrep/regex.c
-/gettext-tools/libgrep/regex.h
-/gettext-tools/libgrep/regex_internal.c
-/gettext-tools/libgrep/regex_internal.h
-/gettext-tools/libgrep/regexec.c
-/gettext-tools/libgrep/sched.in.h
-/gettext-tools/libgrep/stdckdint.in.h
-/gettext-tools/libgrep/stddef.in.h
-/gettext-tools/libgrep/stdint.in.h
-/gettext-tools/libgrep/stdlib.in.h
-/gettext-tools/libgrep/sys_types.in.h
-/gettext-tools/libgrep/time.in.h
-/gettext-tools/libgrep/unistd.c
-/gettext-tools/libgrep/unistd.in.h
-/gettext-tools/libgrep/warn-on-use.h
-/gettext-tools/libgrep/wchar.in.h
-/gettext-tools/libgrep/wcrtomb.c
-/gettext-tools/libgrep/wctype-h.c
-/gettext-tools/libgrep/wctype-impl.h
-/gettext-tools/libgrep/wctype.c
-/gettext-tools/libgrep/wctype.in.h
-/gettext-tools/libgrep/windows-initguard.h
+/gettext-tools/libgrep/gnulib-lib/
+!/gettext-tools/libgrep/gnulib-lib/Makefile.am
 /gettext-tools/man/x-to-1.in
 /gettext-tools/tests/gnulib-m4/
 /gettext-tools/tests/gnulib-lib/
 !/gettext-tools/tests/gnulib-lib/Makefile.am
 /gettext-tools/tests/init.sh
+/m4/init-package-version.m4
+/m4/version-stamp.m4
 
 # Files brought in by "automake --add-missing --copy":
 /build-aux/compile
@@ -403,7 +392,15 @@
 /gettext-runtime/libasprintf/ChangeLog
 /gettext-tools/ChangeLog
 /gettext-tools/examples/ChangeLog
-# Files copied from gettext-runtime:
+# Files copied:
+/gettext-runtime/po/Makefile.in.in
+/gettext-runtime/po/Rules-quot
+/gettext-runtime/po/boldquot.sed
+/gettext-runtime/po/en@boldquot.header
+/gettext-runtime/po/en@quot.header
+/gettext-runtime/po/insert-header.sed
+/gettext-runtime/po/quot.sed
+/gettext-runtime/po/remove-potcdate.sed
 /gettext-tools/ABOUT-NLS
 /gettext-tools/po/Makefile.in.in
 /gettext-tools/po/Rules-quot
@@ -413,6 +410,7 @@
 /gettext-tools/po/insert-header.sed
 /gettext-tools/po/quot.sed
 /gettext-tools/po/remove-potcdate.sed
+/gettext-tools/examples/po/remove-potcdate.sed
 
 # Files generated by the autotools:
 /aclocal.m4
@@ -429,6 +427,8 @@
 /gettext-runtime/intl/Makefile.in
 /gettext-runtime/intl-csharp/Makefile.in
 /gettext-runtime/intl-java/Makefile.in
+/gettext-runtime/intl-d/Makefile.in
+/gettext-runtime/intl-modula2/Makefile.in
 /gettext-runtime/libasprintf/aclocal.m4
 /gettext-runtime/libasprintf/configure
 /gettext-runtime/libasprintf/config.h.in
@@ -437,10 +437,12 @@
 /gettext-runtime/man/Makefile.in
 /gettext-runtime/src/Makefile.in
 /gettext-runtime/tests/Makefile.in
+/gettext-runtime/install-tests/Makefile.in
 /gettext-tools/aclocal.m4
 /gettext-tools/configure
 /gettext-tools/config.h.in
 /gettext-tools/Makefile.in
+/gettext-tools/autotools/Makefile.in
 /gettext-tools/doc/Makefile.in
 /gettext-tools/emacs/Makefile.in
 /gettext-tools/examples/aclocal.m4
@@ -458,6 +460,8 @@
 /gettext-tools/styles/Makefile.in
 /gettext-tools/system-tests/Makefile.in
 /gettext-tools/tests/Makefile.in
+/gettext-tools/wizard/Makefile.in
+/gettext-tools/install-tests/Makefile.in
 /gnulib-local/Makefile.in
 
 # Files generated by "make" and even kept by "make maintainer-clean":
@@ -484,6 +488,10 @@
 /gettext-runtime/man/gettext.1.html.in
 /gettext-runtime/man/ngettext.1.in
 /gettext-runtime/man/ngettext.1.html.in
+/gettext-runtime/man/printf_gettext.1.in
+/gettext-runtime/man/printf_gettext.1.html.in
+/gettext-runtime/man/printf_ngettext.1.in
+/gettext-runtime/man/printf_ngettext.1.html.in
 /gettext-runtime/man/bind_textdomain_codeset.3
 /gettext-runtime/man/bind_textdomain_codeset.3.html
 /gettext-runtime/man/bindtextdomain.3
@@ -496,6 +504,7 @@
 /gettext-runtime/man/textdomain.3.html
 /gettext-runtime/po/gettext-runtime.pot
 /gettext-runtime/po/stamp-po
+/gettext-tools/autotools/archive.*.tar.*
 /gettext-tools/doc/version.texi
 /gettext-tools/doc/stamp-vti
 /gettext-tools/doc/gettext.info
@@ -543,7 +552,6 @@
 /gettext-tools/man/recode-sr-latin.1.html
 /gettext-tools/man/xgettext.1
 /gettext-tools/man/xgettext.1.html
-/gettext-tools/misc/archive.*.tar.*
 /gettext-tools/po/gettext-tools.pot
 /gettext-tools/po/stamp-po
 # Files generated by "make", using gperf:
@@ -609,6 +617,7 @@ autom4te.cache/
 /gettext-runtime/Makefile
 /gettext-runtime/config.h
 /gettext-runtime/csharpcomp.sh
+/gettext-runtime/dcomp.sh
 /gettext-runtime/javacomp.sh
 /gettext-runtime/libtool
 /gettext-runtime/stamp-h1
@@ -620,6 +629,9 @@ autom4te.cache/
 /gettext-runtime/intl/stamp-h1
 /gettext-runtime/intl-csharp/Makefile
 /gettext-runtime/intl-java/Makefile
+/gettext-runtime/intl-d/Makefile
+/gettext-runtime/intl-modula2/Makefile
+/gettext-runtime/intl-modula2/Libintl.def
 /gettext-runtime/libasprintf/Makefile
 /gettext-runtime/libasprintf/config.h
 /gettext-runtime/libasprintf/libtool
@@ -629,19 +641,25 @@ autom4te.cache/
 /gettext-runtime/man/x-to-1
 /gettext-runtime/po/Makefile.in
 /gettext-runtime/po/Makefile
-/gettext-runtime/po/POTFILES
 /gettext-runtime/src/Makefile
 # (see DISTCLEANFILES in Makefile.am):
 /gettext-runtime/src/gettext.sh
 /gettext-runtime/tests/Makefile
+/gettext-runtime/install-tests/Makefile
 /gettext-tools/Makefile
 /gettext-tools/config.h
 /gettext-tools/csharpcomp.sh
 /gettext-tools/csharpexec.sh
+/gettext-tools/dcomp.sh
+/gettext-tools/gocomp.sh
 /gettext-tools/javacomp.sh
 /gettext-tools/javaexec.sh
 /gettext-tools/libtool
 /gettext-tools/stamp-h1
+/gettext-tools/autotools/Makefile
+# (see DISTCLEANFILES in Makefile.am):
+/gettext-tools/autotools/autopoint
+/gettext-tools/autotools/convert-archive
 /gettext-tools/build-aux/xml-validate-10
 /gettext-tools/build-aux/xml-validate-11
 /gettext-tools/doc/Makefile
@@ -657,13 +675,9 @@ autom4te.cache/
 /gettext-tools/man/Makefile
 /gettext-tools/man/x-to-1
 /gettext-tools/misc/Makefile
-# (see DISTCLEANFILES in Makefile.am):
-/gettext-tools/misc/autopoint
-/gettext-tools/misc/convert-archive
-/gettext-tools/misc/gettextize
+/gettext-tools/misc/po-fetch
 /gettext-tools/po/Makefile.in
 /gettext-tools/po/Makefile
-/gettext-tools/po/POTFILES
 /gettext-tools/projects/Makefile
 /gettext-tools/src/Makefile
 /gettext-tools/src/user-email
@@ -671,6 +685,9 @@ autom4te.cache/
 /gettext-tools/system-tests/Makefile
 /gettext-tools/tests/Makefile
 /gettext-tools/tests/init-env
+/gettext-tools/wizard/Makefile
+/gettext-tools/wizard/gettextize
+/gettext-tools/install-tests/Makefile
 /gnulib-local/Makefile
 
 # Directories generated by "make" and not distributed
@@ -685,6 +702,7 @@ autom4te.cache/
 
 # Directories generated by "make" and erased by "make clean":
 /gettext-runtime/intl/**/.libs/
+/gettext-runtime/intl-modula2/**/.libs/
 /gettext-runtime/libasprintf/**/.libs/
 /gettext-tools/libgettextpo/**/.libs/
 /gettext-tools/src/**/.libs/
@@ -698,21 +716,37 @@ autom4te.cache/
 /gettext-runtime/intl-csharp/GNU.Gettext.pdb
 /gettext-runtime/intl-java/**/*.class
 /gettext-runtime/intl-java/libintl.jar
+/gettext-runtime/intl-d/libintl_d.a
+/gettext-runtime/intl-modula2/libintl_m2.la
 /gettext-runtime/libasprintf/libasprintf.la
 /gettext-runtime/man/gettext.1
 /gettext-runtime/man/gettext.1.html
 /gettext-runtime/man/ngettext.1
 /gettext-runtime/man/ngettext.1.html
+/gettext-runtime/man/printf_gettext.1
+/gettext-runtime/man/printf_gettext.1.html
+/gettext-runtime/man/printf_ngettext.1
+/gettext-runtime/man/printf_ngettext.1.html
+/gettext-runtime/src/libgrtsrc.a
 /gettext-tools/libgrep/libgrep.a
 /gettext-tools/src/**/*.class
 /gettext-tools/src/gettext.jar
 /gettext-tools/src/libgettextsrc.la
+/gettext-tools/src/libxgettextts1.a
+/gettext-tools/src/libxgettextts2.a
+/gettext-tools/src/libxgettextts3.a
+/gettext-tools/src/libxgettextts4.a
+/gettext-tools/src/libxgettextts5.a
+/gettext-tools/src/libxgettextx.a
 /gettext-tools/src/msgfmt.net.exe
 /gettext-tools/src/msgfmt.net.exe.mdb
 /gettext-tools/src/msgfmt.net.pdb
 /gettext-tools/src/msgunfmt.net.exe
 /gettext-tools/src/msgunfmt.net.exe.mdb
 /gettext-tools/src/msgunfmt.net.pdb
+/gettext-tools/libgettextpo/gettext-po.h
+/gettext-tools/libgettextpo/libgnu.la
+/gettext-tools/libgettextpo/libgettextpo.la
 # Executables generated by "make":
 /gettext-runtime/src/envsubst
 /gettext-runtime/src/envsubst.exe
@@ -720,11 +754,10 @@ autom4te.cache/
 /gettext-runtime/src/gettext.exe
 /gettext-runtime/src/ngettext
 /gettext-runtime/src/ngettext.exe
-/gettext-runtime/tests/test-lock
-/gettext-runtime/tests/test-lock.exe
-/gettext-tools/libgettextpo/gettext-po.h
-/gettext-tools/libgettextpo/libgnu.la
-/gettext-tools/libgettextpo/libgettextpo.la
+/gettext-runtime/src/printf_gettext
+/gettext-runtime/src/printf_gettext.exe
+/gettext-runtime/src/printf_ngettext
+/gettext-runtime/src/printf_ngettext.exe
 /gettext-tools/src/cldr-plurals
 /gettext-tools/src/cldr-plurals.exe
 /gettext-tools/src/hostname
@@ -857,7 +890,6 @@ core
 /gettext-tools/tests/*.trs
 # Other.
 /gettext-runtime/intl/libgnuintl.h
-/gettext-runtime/intl/localename-table.h
 /gettext-runtime/libasprintf/autosprintf.h
 /gettext-runtime/po/??@*.insert-header
 /gettext-runtime/src/gettext.res
@@ -881,6 +913,7 @@ core
 /gettext-tools/doc/gettext.pgs
 /gettext-tools/doc/gettext.vr
 /gettext-tools/doc/gettext.vrs
+/gettext-tools/examples/po/*.gpo
 /gettext-tools/libgettextpo/config.h
 /gettext-tools/libgettextpo/alloca.h
 /gettext-tools/libgettextpo/assert.h
@@ -898,7 +931,6 @@ core
 /gettext-tools/libgettextpo/sched.h
 /gettext-tools/libgettextpo/signal.h
 /gettext-tools/libgettextpo/stdarg.h
-/gettext-tools/libgettextpo/stdbool.h
 /gettext-tools/libgettextpo/stdckdint.h
 /gettext-tools/libgettextpo/stddef.h
 /gettext-tools/libgettextpo/stdint.h
@@ -906,36 +938,21 @@ core
 /gettext-tools/libgettextpo/stdlib.h
 /gettext-tools/libgettextpo/string.h
 /gettext-tools/libgettextpo/sys/stat.h
-/gettext-tools/libgettextpo/sys/time.h
 /gettext-tools/libgettextpo/sys/types.h
 /gettext-tools/libgettextpo/textstyle.h
 /gettext-tools/libgettextpo/time.h
 /gettext-tools/libgettextpo/uchar.h
+/gettext-tools/libgettextpo/unicase.h
 /gettext-tools/libgettextpo/uniconv.h
 /gettext-tools/libgettextpo/unictype.h
 /gettext-tools/libgettextpo/unilbrk.h
+/gettext-tools/libgettextpo/uninorm.h
 /gettext-tools/libgettextpo/unistd.h
 /gettext-tools/libgettextpo/unistr.h
 /gettext-tools/libgettextpo/unitypes.h
 /gettext-tools/libgettextpo/uniwidth.h
 /gettext-tools/libgettextpo/wchar.h
 /gettext-tools/libgettextpo/wctype.h
-/gettext-tools/libgrep/inttypes.h
-/gettext-tools/libgrep/langinfo.h
-/gettext-tools/libgrep/limits.h
-/gettext-tools/libgrep/locale.h
-/gettext-tools/libgrep/pthread.h
-/gettext-tools/libgrep/sched.h
-/gettext-tools/libgrep/stdbool.h
-/gettext-tools/libgrep/stdckdint.h
-/gettext-tools/libgrep/stddef.h
-/gettext-tools/libgrep/stdint.h
-/gettext-tools/libgrep/stdlib.h
-/gettext-tools/libgrep/time.h
-/gettext-tools/libgrep/unistd.h
-/gettext-tools/libgrep/wchar.h
-/gettext-tools/libgrep/wctype.h
-/gettext-tools/libgrep/sys/types.h
 /gettext-tools/po/??@*.insert-header
 /gettext-tools/src/gettext.res
 /gettext-tools/src/textstyle.h

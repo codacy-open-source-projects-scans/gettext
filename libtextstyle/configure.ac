@@ -1,5 +1,5 @@
 dnl Configuration for the toplevel directory of GNU libtextstyle
-dnl Copyright (C) 2009-2023 Free Software Foundation, Inc.
+dnl Copyright (C) 2009-2025 Free Software Foundation, Inc.
 dnl
 dnl This program is free software: you can redistribute it and/or modify
 dnl it under the terms of the GNU General Public License as published by
@@ -17,11 +17,11 @@ dnl along with this program.  If not, see <https://www.gnu.org/licenses/>.
 dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.64])
-AC_INIT
+AC_INIT([libtextstyle], [package])
 AC_CONFIG_SRCDIR([version.sh])
 AC_CONFIG_AUX_DIR([build-aux])
 . $srcdir/version.sh
-gl_INIT_PACKAGE([libtextstyle], [$VERSION_NUMBER])
+gl_INIT_PACKAGE_VERSION([$VERSION_NUMBER])
 AM_INIT_AUTOMAKE([1.13 silent-rules])
 AC_CONFIG_HEADERS([config.h])
 
@@ -170,6 +170,19 @@ AC_PATH_PROG([TEXI2DVI], [texi2dvi], [$ac_aux_dir_abs/missing texi2dvi])
 AC_PATH_PROG([DVIPS], [dvips], [$ac_aux_dir_abs/missing dvips])
 AC_PATH_PROG([PERL], [perl], [$ac_aux_dir_abs/missing perl])
 
+dnl Test for features used in install-tests.
+dnl shlibpath_var and PATH_SEPARATOR are set by LT_INIT.
+if test -n "${shlibpath_var}"; then
+  if test "${shlibpath_var}" = PATH; then
+    AUGMENT_SHLIBPATH="PATH='\$(bindir)'${PATH_SEPARATOR}\"\$\$PATH\";"
+  else
+    AUGMENT_SHLIBPATH="${shlibpath_var}='\$(libdir)':\"\$\$${shlibpath_var}\"; export ${shlibpath_var};"
+  fi
+else
+  AUGMENT_SHLIBPATH=
+fi
+AC_SUBST([AUGMENT_SHLIBPATH])
+
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([doc/Makefile])
 AC_CONFIG_FILES([lib/Makefile])
@@ -178,4 +191,5 @@ AC_CONFIG_FILES([lib/textstyle/version.h:lib/textstyle/version.in.h])
 AC_CONFIG_FILES([lib/textstyle/woe32dll.h:lib/textstyle/woe32dll.in.h])
 AC_CONFIG_FILES([tests/Makefile])
 AC_CONFIG_FILES([adhoc-tests/Makefile])
+AC_CONFIG_FILES([install-tests/Makefile])
 AC_OUTPUT

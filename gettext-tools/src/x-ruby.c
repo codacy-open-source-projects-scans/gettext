@@ -1,5 +1,5 @@
 /* xgettext Ruby backend.
-   Copyright (C) 2020-2024 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <bruno@clisp.org>, 2020.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "x-ruby.h"
@@ -134,7 +132,7 @@ extract_ruby (const char *found_in_dir, const char *real_filename,
           free (command);
         }
 
-      child = create_pipe_in (progname, progname, argv, found_in_dir,
+      child = create_pipe_in (progname, progname, argv, NULL, found_in_dir,
                               DEV_NULL, false, true, true, fd);
 
       fp = fdopen (fd[0], "r");

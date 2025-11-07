@@ -1,5 +1,5 @@
 /* Extracts strings from C source file to Uniforum style .po file.
-   Copyright (C) 1995-2024 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    Written by Ulrich Drepper <drepper@gnu.ai.mit.edu>, April 1995.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 #include <alloca.h>
 
 /* Specification.  */
@@ -25,7 +23,6 @@
 
 #include <ctype.h>
 #include <errno.h>
-#include <getopt.h>
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -34,6 +31,7 @@
 #include <sys/stat.h>
 #include <locale.h>
 #include <limits.h>
+#include <sys/resource.h>
 
 #if HAVE_ICONV
 #include <iconv.h>
@@ -42,6 +40,7 @@
 #include <textstyle.h>
 
 #include <error.h>
+#include "options.h"
 #include "noreturn.h"
 #include "rc-str-list.h"
 #include "xg-encoding.h"
@@ -52,6 +51,10 @@
 #include "dir-list.h"
 #include "file-list.h"
 #include "str-list.h"
+#include "gl_set.h"
+#include "gl_xset.h"
+#include "gl_hash_set.h"
+#include "hashkey-string.h"
 #include "error-progname.h"
 #include "progname.h"
 #include "relocatable.h"
@@ -80,7 +83,10 @@
 #include "msgl-ascii.h"
 #include "msgl-ofn.h"
 #include "xg-check.h"
+#include "stat-time.h"
+#include "vc-mtime.h"
 #include "po-time.h"
+#include "msgl-header.h"
 #include "write-catalog.h"
 #include "write-po.h"
 #include "write-properties.h"
@@ -105,14 +111,21 @@
 #include "x-java.h"
 #include "x-csharp.h"
 #include "x-javascript.h"
+#include "x-typescript.h"
+#include "x-typescriptx.h"
 #include "x-scheme.h"
 #include "x-lisp.h"
 #include "x-elisp.h"
 #include "x-librep.h"
+#include "x-rust.h"
+#include "x-go.h"
 #include "x-ruby.h"
 #include "x-sh.h"
 #include "x-awk.h"
 #include "x-lua.h"
+#include "x-modula2.h"
+#include "x-d.h"
+#include "x-ocaml.h"
 #include "x-smalltalk.h"
 #include "x-vala.h"
 #include "x-tcl.h"
@@ -176,6 +189,9 @@ static catalog_output_format_ty output_syntax = &output_format_po;
 /* If nonzero omit header with information about this run.  */
 int xgettext_omit_header;
 
+/* If nonzero, don't use 'git' to compute a reproducible POT-Creation-Date.  */
+static int xgettext_no_git;
+
 /* Be more verbose.  */
 int verbose = 0;
 
@@ -190,14 +206,24 @@ static flag_context_list_table_ty flag_table_python;
 static flag_context_list_table_ty flag_table_java;
 static flag_context_list_table_ty flag_table_csharp;
 static flag_context_list_table_ty flag_table_javascript;
+static flag_context_list_table_ty flag_table_typescript;
+static flag_context_list_table_ty flag_table_typescriptx;
 static flag_context_list_table_ty flag_table_scheme;
 static flag_context_list_table_ty flag_table_lisp;
 static flag_context_list_table_ty flag_table_elisp;
 static flag_context_list_table_ty flag_table_librep;
+#if 0 /* declared in x-rust.h */
+extern flag_context_list_table_ty flag_table_rust_functions;
+extern flag_context_list_table_ty flag_table_rust_macros;
+#endif
+static flag_context_list_table_ty flag_table_go;
 static flag_context_list_table_ty flag_table_ruby;
 static flag_context_list_table_ty flag_table_sh;
 static flag_context_list_table_ty flag_table_awk;
 static flag_context_list_table_ty flag_table_lua;
+static flag_context_list_table_ty flag_table_modula2;
+static flag_context_list_table_ty flag_table_d;
+static flag_context_list_table_ty flag_table_ocaml;
 static flag_context_list_table_ty flag_table_vala;
 static flag_context_list_table_ty flag_table_tcl;
 static flag_context_list_table_ty flag_table_perl;
@@ -227,62 +253,12 @@ static locating_rule_list_ty *its_locating_rules;
 /* If nonzero add comments used by itstool.  */
 static bool add_itstool_comments = false;
 
-/* Long options.  */
-static const struct option long_options[] =
-{
-  { "add-comments", optional_argument, NULL, 'c' },
-  { "add-location", optional_argument, NULL, 'n' },
-  { "boost", no_argument, NULL, CHAR_MAX + 11 },
-  { "c++", no_argument, NULL, 'C' },
-  { "check", required_argument, NULL, CHAR_MAX + 17 },
-  { "color", optional_argument, NULL, CHAR_MAX + 14 },
-  { "copyright-holder", required_argument, NULL, CHAR_MAX + 1 },
-  { "debug", no_argument, &do_debug, 1 },
-  { "default-domain", required_argument, NULL, 'd' },
-  { "directory", required_argument, NULL, 'D' },
-  { "escape", no_argument, NULL, 'E' },
-  { "exclude-file", required_argument, NULL, 'x' },
-  { "extract-all", no_argument, NULL, 'a' },
-  { "files-from", required_argument, NULL, 'f' },
-  { "flag", required_argument, NULL, CHAR_MAX + 8 },
-  { "force-po", no_argument, &force_po, 1 },
-  { "foreign-user", no_argument, NULL, CHAR_MAX + 2 },
-  { "from-code", required_argument, NULL, CHAR_MAX + 3 },
-  { "help", no_argument, NULL, 'h' },
-  { "indent", no_argument, NULL, 'i' },
-  { "its", required_argument, NULL, CHAR_MAX + 20 },
-  { "itstool", no_argument, NULL, CHAR_MAX + 19 },
-  { "join-existing", no_argument, NULL, 'j' },
-  { "kde", no_argument, NULL, CHAR_MAX + 10 },
-  { "keyword", optional_argument, NULL, 'k' },
-  { "language", required_argument, NULL, 'L' },
-  { "msgid-bugs-address", required_argument, NULL, CHAR_MAX + 5 },
-  { "msgstr-prefix", optional_argument, NULL, 'm' },
-  { "msgstr-suffix", optional_argument, NULL, 'M' },
-  { "no-escape", no_argument, NULL, 'e' },
-  { "no-location", no_argument, NULL, CHAR_MAX + 16 },
-  { "no-wrap", no_argument, NULL, CHAR_MAX + 4 },
-  { "omit-header", no_argument, &xgettext_omit_header, 1 },
-  { "output", required_argument, NULL, 'o' },
-  { "output-dir", required_argument, NULL, 'p' },
-  { "package-name", required_argument, NULL, CHAR_MAX + 12 },
-  { "package-version", required_argument, NULL, CHAR_MAX + 13 },
-  { "properties-output", no_argument, NULL, CHAR_MAX + 6 },
-  { "qt", no_argument, NULL, CHAR_MAX + 9 },
-  { "sentence-end", required_argument, NULL, CHAR_MAX + 18 },
-  { "sort-by-file", no_argument, NULL, 'F' },
-  { "sort-output", no_argument, NULL, 's' },
-  { "strict", no_argument, NULL, 'S' },
-  { "string-limit", required_argument, NULL, 'l' },
-  { "stringtable-output", no_argument, NULL, CHAR_MAX + 7 },
-  { "style", required_argument, NULL, CHAR_MAX + 15 },
-  { "tag", required_argument, NULL, CHAR_MAX + 21 },
-  { "trigraphs", no_argument, NULL, 'T' },
-  { "verbose", no_argument, NULL, 'v' },
-  { "version", no_argument, NULL, 'V' },
-  { "width", required_argument, NULL, 'w' },
-  { NULL, 0, NULL, 0 }
-};
+/* The file names whose version-controlled modification times shall be
+   considered.  */
+static string_list_ty files_for_vc_mtime;
+/* The file names whose (possibly version-controlled) modification times
+   shall be ignored.  */
+static gl_set_t generated_files;
 
 
 /* The extractors must all be functions returning void and taking as arguments
@@ -328,7 +304,6 @@ static const char *extension_to_language (const char *extension);
 int
 main (int argc, char *argv[])
 {
-  int optchar;
   bool do_help = false;
   bool do_version = false;
   msgdomain_list_ty *mdlp;
@@ -359,6 +334,7 @@ main (int argc, char *argv[])
 
   /* Set the text message domain.  */
   bindtextdomain (PACKAGE, relocate (LOCALEDIR));
+  bindtextdomain ("gnulib", relocate (GNULIB_LOCALEDIR));
   bindtextdomain ("bison-runtime", relocate (BISON_LOCALEDIR));
   textdomain (PACKAGE);
 
@@ -367,6 +343,10 @@ main (int argc, char *argv[])
 
   /* Set initial value of variables.  */
   default_domain = MESSAGE_DOMAIN_DEFAULT;
+  string_list_init (&files_for_vc_mtime);
+  generated_files =
+    gl_set_create_empty (GL_HASH_SET,
+                         hashkey_string_equals, hashkey_string_hash, NULL);
   xgettext_global_source_encoding = NULL;
   init_flag_table_c ();
   init_flag_table_objc ();
@@ -375,14 +355,21 @@ main (int argc, char *argv[])
   init_flag_table_java ();
   init_flag_table_csharp ();
   init_flag_table_javascript ();
+  init_flag_table_typescript ();
+  init_flag_table_typescriptx ();
   init_flag_table_scheme ();
   init_flag_table_lisp ();
   init_flag_table_elisp ();
   init_flag_table_librep ();
+  init_flag_table_rust ();
+  init_flag_table_go ();
   init_flag_table_ruby ();
   init_flag_table_sh ();
   init_flag_table_awk ();
   init_flag_table_lua ();
+  init_flag_table_modula2 ();
+  init_flag_table_d ();
+  init_flag_table_ocaml ();
   init_flag_table_vala ();
   init_flag_table_tcl ();
   init_flag_table_perl ();
@@ -390,32 +377,101 @@ main (int argc, char *argv[])
   init_flag_table_gcc_internal ();
   init_flag_table_ycp ();
 
-  while ((optchar = getopt_long (argc, argv,
-                                 "ac::Cd:D:eEf:Fhijk::l:L:m::M::no:p:sTvVw:W:x:",
-                                 long_options, NULL)) != EOF)
+  /* Parse command line options.  */
+  BEGIN_ALLOW_OMITTING_FIELD_INITIALIZERS
+  static const struct program_option options[] =
+  {
+    { "add-comments",       'c',            optional_argument },
+    { "add-location",       CHAR_MAX + 'n', optional_argument },
+    { NULL,                 'n',            no_argument       },
+    { "boost",              CHAR_MAX + 11,  no_argument       },
+    { "c++",                'C',            no_argument       },
+    { "check",              CHAR_MAX + 17,  required_argument },
+    { "color",              CHAR_MAX + 14,  optional_argument },
+    { "copyright-holder",   CHAR_MAX + 1,   required_argument },
+    { "debug",              0,              no_argument,      &do_debug, 1 },
+    { "default-domain",     'd',            required_argument },
+    { "directory",          'D',            required_argument },
+    { "escape",             'E',            no_argument       },
+    { "exclude-file",       'x',            required_argument },
+    { "extract-all",        'a',            no_argument       },
+    { "files-from",         'f',            required_argument },
+    { "flag",               CHAR_MAX + 8,   required_argument },
+    { "force-po",           0,              no_argument,      &force_po, 1 },
+    { "foreign-user",       CHAR_MAX + 2,   no_argument       },
+    { "from-code",          CHAR_MAX + 3,   required_argument },
+    { "generated",          CHAR_MAX + 24,  required_argument },
+    { "help",               'h',            no_argument       },
+    { "indent",             'i',            no_argument       },
+    { "its",                CHAR_MAX + 20,  required_argument },
+    { "itstool",            CHAR_MAX + 19,  no_argument       },
+    { "join-existing",      'j',            no_argument       },
+    { "kde",                CHAR_MAX + 10,  no_argument       },
+    { "keyword",            'k',            optional_argument },
+    { "language",           'L',            required_argument },
+    { "msgid-bugs-address", CHAR_MAX + 5,   required_argument },
+    { "msgstr-prefix",      'm',            optional_argument },
+    { "msgstr-suffix",      'M',            optional_argument },
+    { "no-escape",          'e',            no_argument       },
+    { "no-git",             CHAR_MAX + 23,  no_argument       },
+    { "no-location",        CHAR_MAX + 16,  no_argument       },
+    { "no-wrap",            CHAR_MAX + 4,   no_argument       },
+    { "omit-header",        0,              no_argument,      &xgettext_omit_header, 1 },
+    { "output",             'o',            required_argument },
+    { "output-dir",         'p',            required_argument },
+    { "package-name",       CHAR_MAX + 12,  required_argument },
+    { "package-version",    CHAR_MAX + 13,  required_argument },
+    { "properties-output",  CHAR_MAX + 6,   no_argument       },
+    { "qt",                 CHAR_MAX + 9,   no_argument       },
+    { "reference",          CHAR_MAX + 22,  required_argument },
+    { "sentence-end",       CHAR_MAX + 18,  required_argument },
+    { "sort-by-file",       'F',            no_argument       },
+    { "sort-output",        's',            no_argument       },
+    { "strict",             CHAR_MAX + 25,  no_argument       },
+    { "string-limit",       'l',            required_argument },
+    { "stringtable-output", CHAR_MAX + 7,   no_argument       },
+    { "style",              CHAR_MAX + 15,  required_argument },
+    { "tag",                CHAR_MAX + 21,  required_argument },
+    { "trigraphs",          'T',            no_argument       },
+    { "verbose",            'v',            no_argument       },
+    { "version",            'V',            no_argument       },
+    { "width",              'w',            required_argument },
+    { NULL,                 'W',            required_argument },
+  };
+  END_ALLOW_OMITTING_FIELD_INITIALIZERS
+  start_options (argc, argv, options, MOVE_OPTIONS_FIRST, 0);
+  int optchar;
+  while ((optchar = get_next_option ()) != -1)
     switch (optchar)
       {
-      case '\0':                /* Long option.  */
+      case '\0':                /* Long option with key == 0.  */
         break;
 
       case 'a':
         x_c_extract_all ();
-        x_sh_extract_all ();
         x_python_extract_all ();
+        x_java_extract_all ();
+        x_csharp_extract_all ();
+        x_javascript_extract_all ();
+        x_typescript_extract_all ();
+        x_typescriptx_extract_all ();
+        x_scheme_extract_all ();
         x_lisp_extract_all ();
         x_elisp_extract_all ();
         x_librep_extract_all ();
-        x_scheme_extract_all ();
-        x_java_extract_all ();
-        x_csharp_extract_all ();
+        x_rust_extract_all ();
+        x_go_extract_all ();
+        x_ruby_extract_all ();
+        x_sh_extract_all ();
         x_awk_extract_all ();
+        x_lua_extract_all ();
+        x_modula2_extract_all ();
+        x_d_extract_all ();
+        x_ocaml_extract_all ();
+        x_vala_extract_all ();
         x_tcl_extract_all ();
         x_perl_extract_all ();
         x_php_extract_all ();
-        x_ruby_extract_all ();
-        x_lua_extract_all ();
-        x_javascript_extract_all ();
-        x_vala_extract_all ();
         break;
 
       case 'c':
@@ -480,22 +536,29 @@ main (int argc, char *argv[])
           optarg = NULL;
         x_c_keyword (optarg);
         x_objc_keyword (optarg);
-        x_sh_keyword (optarg);
         x_python_keyword (optarg);
+        x_java_keyword (optarg);
+        x_csharp_keyword (optarg);
+        x_javascript_keyword (optarg);
+        x_typescript_keyword (optarg);
+        x_typescriptx_keyword (optarg);
+        x_scheme_keyword (optarg);
         x_lisp_keyword (optarg);
         x_elisp_keyword (optarg);
         x_librep_keyword (optarg);
-        x_scheme_keyword (optarg);
-        x_java_keyword (optarg);
-        x_csharp_keyword (optarg);
+        x_rust_keyword (optarg);
+        x_go_keyword (optarg);
+        x_ruby_keyword (optarg);
+        x_sh_keyword (optarg);
         x_awk_keyword (optarg);
+        x_lua_keyword (optarg);
+        x_modula2_keyword (optarg);
+        x_d_keyword (optarg);
+        x_ocaml_keyword (optarg);
+        x_vala_keyword (optarg);
         x_tcl_keyword (optarg);
         x_perl_keyword (optarg);
         x_php_keyword (optarg);
-        x_ruby_keyword (optarg);
-        x_lua_keyword (optarg);
-        x_javascript_keyword (optarg);
-        x_vala_keyword (optarg);
         x_desktop_keyword (optarg);
         if (optarg == NULL)
           no_default_keywords = true;
@@ -521,7 +584,8 @@ main (int argc, char *argv[])
         msgstr_suffix = optarg == NULL ? "" : optarg;
         break;
 
-      case 'n':
+      case 'n':            /* -n */
+      case CHAR_MAX + 'n': /* --add-location[={full|yes|file|never|no}] */
         if (handle_filepos_comment_option (optarg))
           usage (EXIT_FAILURE);
         break;
@@ -548,7 +612,7 @@ main (int argc, char *argv[])
         sort_by_msgid = true;
         break;
 
-      case 'S':
+      case CHAR_MAX + 25: /* --strict */
         message_print_style_uniforum ();
         break;
 
@@ -685,6 +749,18 @@ main (int argc, char *argv[])
         x_javascript_tag (optarg);
         break;
 
+      case CHAR_MAX + 22: /* --reference */
+        string_list_append (&files_for_vc_mtime, optarg);
+        break;
+
+      case CHAR_MAX + 23: /* --no-git */
+        xgettext_no_git = true;
+        break;
+
+      case CHAR_MAX + 24: /* --generated */
+        gl_set_add (generated_files, optarg);
+        break;
+
       default:
         usage (EXIT_FAILURE);
         /* NOTREACHED */
@@ -701,7 +777,7 @@ License GPLv3+: GNU GPL version 3 or later <%s>\n\
 This is free software: you are free to change and redistribute it.\n\
 There is NO WARRANTY, to the extent permitted by law.\n\
 "),
-              "1995-2023", "https://gnu.org/licenses/gpl.html");
+              "1995-2025", "https://gnu.org/licenses/gpl.html");
       printf (_("Written by %s.\n"), proper_name ("Ulrich Drepper"));
       exit (EXIT_SUCCESS);
     }
@@ -799,7 +875,11 @@ xgettext cannot work without keywords to look for"));
 
   /* Determine list of files we have to process.  */
   if (files_from != NULL)
-    file_list = read_names_from_file (files_from);
+    {
+      if (strcmp (files_from, "-") != 0)
+        string_list_append (&files_for_vc_mtime, files_from);
+      file_list = read_names_from_file (files_from);
+    }
   else
     file_list = string_list_alloc ();
   /* Append names from command line.  */
@@ -1014,20 +1094,14 @@ xgettext cannot work without keywords to look for"));
     iconv_close (xgettext_global_source_iconv);
 #endif
 
-  /* Sorting the list of messages.  */
-  if (sort_by_filepos)
-    msgdomain_list_sort_by_filepos (mdlp);
-  else if (sort_by_msgid)
-    msgdomain_list_sort_by_msgid (mdlp);
-
-  /* Check syntax of messages.  */
+  /* Check msgid and msgid_plural of messages.  */
   {
     int nerrors = 0;
 
     for (i = 0; i < mdlp->nitems; i++)
       {
         message_list_ty *mlp = mdlp->item[i]->messages;
-        nerrors = syntax_check_message_list (mlp);
+        nerrors += xgettext_check_message_list (mlp);
       }
 
     /* Exit with status 1 on any error.  */
@@ -1037,6 +1111,12 @@ xgettext cannot work without keywords to look for"));
                        nerrors),
              nerrors);
   }
+
+  /* Sorting the list of messages.  */
+  if (sort_by_filepos)
+    msgdomain_list_sort_by_filepos (mdlp);
+  else if (sort_by_msgid)
+    msgdomain_list_sort_by_msgid (mdlp);
 
   /* Write the PO file.  */
   msgdomain_list_print (mdlp, file_name, output_syntax, textmode_xerror_handler,
@@ -1105,11 +1185,13 @@ If output file is -, output is written to standard output.\n"));
 Choice of input file language:\n"));
       printf (_("\
   -L, --language=NAME         recognise the specified language\n\
-                                (C, C++, ObjectiveC, PO, Shell, Python, Lisp,\n\
-                                EmacsLisp, librep, Scheme, Guile, Smalltalk,\n\
-                                Java, JavaProperties, C#, awk, YCP, Tcl, Perl,\n\
-                                PHP, Ruby, GCC-source, NXStringTable, RST, RSJ,\n\
-                                Glade, Lua, JavaScript, Vala, Desktop)\n"));
+                                (C, C++, ObjectiveC, PO, Python, Java,\n\
+                                JavaProperties, C#, JavaScript, TypeScript, TSX,\n\
+                                Scheme, Guile, Lisp, EmacsLisp, librep, Rust,\n\
+                                Go, Ruby, Shell, awk, Lua, Modula-2, D, OCaml,\n\
+                                Smalltalk, Vala, Tcl, Perl, PHP, GCC-source,\n\
+                                YCP, NXStringTable, RST, RSJ, Glade, GSettings,\n\
+                                Desktop)\n"));
       printf (_("\
   -C, --c++                   shorthand for --language=C++\n"));
       printf (_("\
@@ -1148,26 +1230,29 @@ Language specific options:\n"));
       printf (_("\
   -a, --extract-all           extract all strings\n"));
       printf (_("\
-                                (only languages C, C++, ObjectiveC, Shell,\n\
-                                Python, Lisp, EmacsLisp, librep, Scheme, Java,\n\
-                                C#, awk, Tcl, Perl, PHP, GCC-source, Glade,\n\
-                                Lua, JavaScript, Vala)\n"));
+                                (only languages C, C++, ObjectiveC, Python,\n\
+                                Java, C#, JavaScript, TypeScript, TSX, Scheme,\n\
+                                Guile, Lisp, EmacsLisp, librep, Rust, Go, Shell,\n\
+                                awk, Lua, Modula-2, D, OCaml, Vala, Tcl, Perl,\n\
+                                PHP, GCC-source, Glade, GSettings)\n"));
       printf (_("\
   -kWORD, --keyword=WORD      look for WORD as an additional keyword\n\
   -k, --keyword               do not to use default keywords\n"));
       printf (_("\
-                                (only languages C, C++, ObjectiveC, Shell,\n\
-                                Python, Lisp, EmacsLisp, librep, Scheme, Java,\n\
-                                C#, awk, Tcl, Perl, PHP, GCC-source, Glade,\n\
-                                Lua, JavaScript, Vala, Desktop)\n"));
+                                (only languages C, C++, ObjectiveC, Python,\n\
+                                Java, C#, JavaScript, TypeScript, TSX, Scheme,\n\
+                                Guile, Lisp, EmacsLisp, librep, Rust, Go, Shell,\n\
+                                awk, Lua, Modula-2, D, OCaml, Vala, Tcl, Perl,\n\
+                                PHP, GCC-source, Glade, GSettings, Desktop)\n"));
       printf (_("\
       --flag=WORD:ARG:FLAG    additional flag for strings inside the argument\n\
                               number ARG of keyword WORD\n"));
       printf (_("\
-                                (only languages C, C++, ObjectiveC, Shell,\n\
-                                Python, Lisp, EmacsLisp, librep, Scheme, Java,\n\
-                                C#, awk, YCP, Tcl, Perl, PHP, GCC-source,\n\
-                                Lua, JavaScript, Vala)\n"));
+                                (only languages C, C++, ObjectiveC, Python,\n\
+                                Java, C#, JavaScript, TypeScript, TSX, Scheme,\n\
+                                Guile, Lisp, EmacsLisp, librep, Rust, Go, Shell,\n\
+                                awk, Lua, Modula-2, D, OCaml, Vala, Tcl, Perl,\n\
+                                PHP, GCC-source, YCP)\n"));
       printf (_("\
       --tag=WORD:FORMAT       defines the behaviour of tagged template literals\n\
                               with tag WORD\n"));
@@ -1236,6 +1321,10 @@ Output details:\n"));
       printf (_("\
       --omit-header           don't write header with 'msgid \"\"' entry\n"));
       printf (_("\
+      --no-git                don't use the git program to produce a\n\
+                              reproducible 'POT-Creation-Date' field in the\n\
+                              output.\n"));
+      printf (_("\
       --copyright-holder=STRING  set copyright holder in output\n"));
       printf (_("\
       --foreign-user          omit FSF copyright in output for foreign user\n"));
@@ -1245,6 +1334,14 @@ Output details:\n"));
       --package-version=VERSION  set package version in output\n"));
       printf (_("\
       --msgid-bugs-address=EMAIL@ADDRESS  set report address for msgid bugs\n"));
+      printf (_("\
+      --generated=FILE        Declares that the given FILE is generated and\n\
+                              therefore should not have an influence on the\n\
+                              'POT-Creation-Date' field in the output.\n"));
+      printf (_("\
+      --reference=FILE        Declares that the output depends on the contents\n\
+                              of the given FILE.  This has an influence on the\n\
+                              'POT-Creation-Date' field in the output.\n"));
       printf (_("\
   -m[STRING], --msgstr-prefix[=STRING]  use STRING or \"\" as prefix for msgstr\n\
                                 values\n"));
@@ -1348,9 +1445,11 @@ read_exclusion_file (char *filename)
 {
   char *real_filename;
   FILE *fp = open_catalog_file (filename, &real_filename, true);
-  abstract_catalog_reader_ty *catr;
 
-  catr = catalog_reader_alloc (&exclude_methods, textmode_xerror_handler);
+  string_list_append (&files_for_vc_mtime, real_filename);
+
+  abstract_catalog_reader_ty *catr =
+    catalog_reader_alloc (&exclude_methods, textmode_xerror_handler);
   catalog_reader_parse (catr, fp, real_filename, filename, true, &input_format_po);
   catalog_reader_free (catr);
 
@@ -1546,6 +1645,12 @@ xgettext_record_flag (const char *optionstring)
                                                         name_start, name_end,
                                                         argnum, value, pass);
                       }
+                    if (backend == NULL || strcmp (backend, "D") == 0)
+                      {
+                        flag_context_list_table_insert (&flag_table_d, XFORMAT_PRIMARY,
+                                                        name_start, name_end,
+                                                        argnum, value, pass);
+                      }
                     if (backend == NULL || strcmp (backend, "Vala") == 0)
                       {
                         flag_context_list_table_insert (&flag_table_vala, XFORMAT_PRIMARY,
@@ -1601,6 +1706,12 @@ xgettext_record_flag (const char *optionstring)
                     flag_context_list_table_insert (&flag_table_javascript, XFORMAT_PRIMARY,
                                                     name_start, name_end,
                                                     argnum, value, pass);
+                    flag_context_list_table_insert (&flag_table_typescript, XFORMAT_PRIMARY,
+                                                    name_start, name_end,
+                                                    argnum, value, pass);
+                    flag_context_list_table_insert (&flag_table_typescriptx, XFORMAT_PRIMARY,
+                                                    name_start, name_end,
+                                                    argnum, value, pass);
                     break;
                   case format_scheme:
                     flag_context_list_table_insert (&flag_table_scheme, XFORMAT_PRIMARY,
@@ -1622,6 +1733,21 @@ xgettext_record_flag (const char *optionstring)
                                                     name_start, name_end,
                                                     argnum, value, pass);
                     break;
+                  case format_rust:
+                    if (name_end - name_start > 1 && name_end[-1] == '!')
+                      flag_context_list_table_insert (&flag_table_rust_macros, XFORMAT_PRIMARY,
+                                                      name_start, name_end - 1,
+                                                      argnum, value, pass);
+                    else
+                      flag_context_list_table_insert (&flag_table_rust_functions, XFORMAT_PRIMARY,
+                                                      name_start, name_end,
+                                                      argnum, value, pass);
+                    break;
+                  case format_go:
+                    flag_context_list_table_insert (&flag_table_go, XFORMAT_PRIMARY,
+                                                    name_start, name_end,
+                                                    argnum, value, pass);
+                    break;
                   case format_ruby:
                     flag_context_list_table_insert (&flag_table_ruby, XFORMAT_PRIMARY,
                                                     name_start, name_end,
@@ -1629,6 +1755,11 @@ xgettext_record_flag (const char *optionstring)
                     break;
                   case format_sh:
                     flag_context_list_table_insert (&flag_table_sh, XFORMAT_PRIMARY,
+                                                    name_start, name_end,
+                                                    argnum, value, pass);
+                    break;
+                  case format_sh_printf:
+                    flag_context_list_table_insert (&flag_table_sh, XFORMAT_SECONDARY,
                                                     name_start, name_end,
                                                     argnum, value, pass);
                     break;
@@ -1643,6 +1774,21 @@ xgettext_record_flag (const char *optionstring)
                                                     argnum, value, pass);
                     break;
                   case format_pascal:
+                    break;
+                  case format_modula2:
+                    flag_context_list_table_insert (&flag_table_modula2, XFORMAT_PRIMARY,
+                                                    name_start, name_end,
+                                                    argnum, value, pass);
+                    break;
+                  case format_d:
+                    flag_context_list_table_insert (&flag_table_d, XFORMAT_SECONDARY,
+                                                    name_start, name_end,
+                                                    argnum, value, pass);
+                    break;
+                  case format_ocaml:
+                    flag_context_list_table_insert (&flag_table_ocaml, XFORMAT_PRIMARY,
+                                                    name_start, name_end,
+                                                    argnum, value, pass);
                     break;
                   case format_smalltalk:
                     break;
@@ -1950,6 +2096,8 @@ extract_from_file (const char *file_name, extractor_ty extractor,
   if (extractor.extract_from_stream)
     {
       FILE *fp = xgettext_open (file_name, &logical_file_name, &real_file_name);
+      if (fp != stdin)
+        string_list_append (&files_for_vc_mtime, real_file_name);
 
       /* Set the default for the source file encoding.  May be overridden by
          the extractor function.  */
@@ -1971,6 +2119,7 @@ extract_from_file (const char *file_name, extractor_ty extractor,
       const char *found_in_dir;
       xgettext_find_file (file_name, &logical_file_name,
                           &found_in_dir, &real_file_name);
+      string_list_append (&files_for_vc_mtime, real_file_name);
 
       extractor.extract_from_file (found_in_dir, real_file_name,
                                    logical_file_name,
@@ -2022,6 +2171,8 @@ extract_from_xml_file (const char *file_name,
   char *logical_file_name;
   char *real_file_name;
   FILE *fp = xgettext_open (file_name, &logical_file_name, &real_file_name);
+  if (fp != stdin)
+    string_list_append (&files_for_vc_mtime, real_file_name);
 
   /* The default encoding for XML is UTF-8.  It can be overridden by
      an XML declaration in the XML file itself, not through the
@@ -2038,6 +2189,7 @@ extract_from_xml_file (const char *file_name,
 
   if (fp != stdin)
     fclose (fp);
+  string_list_append (&files_for_vc_mtime, real_file_name);
   free (logical_file_name);
   free (real_file_name);
 }
@@ -2055,8 +2207,6 @@ static message_ty *
 construct_header ()
 {
   char *project_id_version;
-  time_t now;
-  char *timestring;
   message_ty *mp;
   char *msgstr;
   char *comment;
@@ -2081,13 +2231,10 @@ the MSGID_BUGS_ADDRESS variable there; otherwise please\n\
 specify an --msgid-bugs-address command line option.\n\
 ")));
 
-  time (&now);
-  timestring = po_strftime (&now);
-
   msgstr = xasprintf ("\
 Project-Id-Version: %s\n\
 Report-Msgid-Bugs-To: %s\n\
-POT-Creation-Date: %s\n\
+POT-Creation-Date: \n\
 PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n\
 Last-Translator: FULL NAME <EMAIL@ADDRESS>\n\
 Language-Team: LANGUAGE <LL@li.org>\n\
@@ -2096,10 +2243,8 @@ MIME-Version: 1.0\n\
 Content-Type: text/plain; charset=CHARSET\n\
 Content-Transfer-Encoding: 8bit\n",
                       project_id_version,
-                      msgid_bugs_address != NULL ? msgid_bugs_address : "",
-                      timestring);
+                      msgid_bugs_address != NULL ? msgid_bugs_address : "");
   assume (msgstr != NULL);
-  free (timestring);
   free (project_id_version);
 
   mp = message_alloc (NULL, "", NULL, msgstr, strlen (msgstr) + 1, &pos);
@@ -2125,9 +2270,143 @@ FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.\n");
   return mp;
 }
 
+/* Accumulating mtimes.  */
+struct accumulator
+{
+  bool has_some_mtimes;
+  struct timespec max_of_mtimes;
+};
+
+static void
+accumulate (struct accumulator *accu, struct timespec mtime)
+{
+  if (accu->has_some_mtimes)
+    {
+      /* Compute the maximum of accu->max_of_mtimes and mtime.  */
+      if (accu->max_of_mtimes.tv_sec < mtime.tv_sec
+          || (accu->max_of_mtimes.tv_sec == mtime.tv_sec
+              && accu->max_of_mtimes.tv_nsec < mtime.tv_nsec))
+       accu->max_of_mtimes = mtime;
+    }
+  else
+    {
+      accu->max_of_mtimes = mtime;
+      accu->has_some_mtimes = true;
+    }
+}
+
+static int
+max_mtime_without_git (struct timespec *max_of_mtimes,
+                       size_t nfiles, const char * const *filenames)
+{
+  if (nfiles == 0)
+    /* Invalid argument.  */
+    abort ();
+
+  struct accumulator accu = { false };
+
+  /* Always use the file's time stamp.  */
+  for (size_t n = 0; n < nfiles; n++)
+    {
+      struct stat statbuf;
+      if (stat (filenames[n], &statbuf) < 0)
+        return -1;
+
+      struct timespec mtime = get_stat_mtime (&statbuf);
+      accumulate (&accu, mtime);
+    }
+
+  /* Since nfiles > 0, we must have accumulated at least one mtime.  */
+  if (!accu.has_some_mtimes)
+    abort ();
+  *max_of_mtimes = accu.max_of_mtimes;
+  return 0;
+}
+
+static int
+max_mtime (struct timespec *max_of_mtimes,
+           size_t nfiles, const char * const *filenames)
+{
+  if (xgettext_no_git)
+    return max_mtime_without_git (max_of_mtimes, nfiles, filenames);
+  else
+    {
+      /* Measure the time spent by the children processes (invocations of the
+         'git' program), and tell the user about the '--no-git' option if they
+         took more than 10 seconds.  */
+      struct rusage usage_before;
+      struct rusage usage_after;
+      bool usage_failed;
+      memset (&usage_before, '\0', sizeof (struct rusage));
+      usage_failed = getrusage (RUSAGE_CHILDREN, &usage_before) < 0;
+
+      int ret = max_vc_mtime (max_of_mtimes, nfiles, filenames);
+
+      memset (&usage_after, '\0', sizeof (struct rusage));
+      usage_failed |= getrusage (RUSAGE_CHILDREN, &usage_after) < 0;
+      if (!usage_failed)
+        {
+          long user_usec =
+            (usage_after.ru_utime.tv_sec - usage_before.ru_utime.tv_sec) * 1000000
+            + usage_after.ru_utime.tv_usec - usage_before.ru_utime.tv_usec;
+          long sys_usec =
+            (usage_after.ru_stime.tv_sec - usage_before.ru_stime.tv_sec) * 1000000
+            + usage_after.ru_stime.tv_usec - usage_before.ru_stime.tv_usec;
+          if (user_usec + sys_usec >= 10 * 1000000)
+            multiline_warning (xasprintf (_("warning: ")),
+                               xasprintf (_("\
+Determining the POT-Creation-Date through the\n\
+version-control (git) history took %.2f seconds.\n\
+If you want to speed this up and produce a less\n\
+reproducible POT-Creation-Date instead, without 'git',\n\
+pass the option '%s'.\n\
+"),
+                                          (user_usec + sys_usec) / 1000000.0,
+                                          "--no-git"));
+        }
+
+      return ret;
+    }
+}
+
 static void
 finalize_header (msgdomain_list_ty *mdlp)
 {
+  /* Set the POT-Creation-Date field.  */
+  {
+    /* First, filter out the generated files.  */
+    const char **filenames;
+    size_t nfiles;
+    {
+      const char **all_files = files_for_vc_mtime.item;
+      size_t num_all_files = files_for_vc_mtime.nitems;
+      filenames = XNMALLOC (num_all_files, const char *);
+      nfiles = 0;
+      for (size_t i = 0; i < num_all_files; i++)
+        {
+          const char *file = all_files[i];
+          if (!gl_set_search (generated_files, file))
+            filenames[nfiles++] = file;
+        }
+    }
+
+    /* Then, take the maximum of the (possibly version-controlled) modification
+       times of these files.  */
+    time_t stamp;
+    struct timespec max_of_mtimes;
+    if (nfiles > 0 && max_mtime (&max_of_mtimes, nfiles, filenames) == 0)
+      /* Use the maximum of the encountered mtimes.  */
+      stamp = max_of_mtimes.tv_sec;
+    else
+      /* Use the current time.  */
+      time (&stamp);
+    free (filenames);
+
+    char *timestring = po_strftime (&stamp);
+    msgdomain_list_set_header_field (mdlp, "POT-Creation-Date:", timestring);
+    free (timestring);
+  }
+
   /* If the generated PO file has plural forms, add a Plural-Forms template
      to the constructed header.  */
   {
@@ -2228,14 +2507,21 @@ language_to_extractor (const char *name)
     SCANNERS_JAVA
     SCANNERS_CSHARP
     SCANNERS_JAVASCRIPT
+    SCANNERS_TYPESCRIPT
+    SCANNERS_TYPESCRIPTX
     SCANNERS_SCHEME
     SCANNERS_LISP
     SCANNERS_ELISP
     SCANNERS_LIBREP
+    SCANNERS_RUST
+    SCANNERS_GO
     SCANNERS_RUBY
     SCANNERS_SH
     SCANNERS_AWK
     SCANNERS_LUA
+    SCANNERS_MODULA2
+    SCANNERS_D
+    SCANNERS_OCAML
     SCANNERS_SMALLTALK
     SCANNERS_VALA
     SCANNERS_TCL
@@ -2321,14 +2607,21 @@ extension_to_language (const char *extension)
     EXTENSIONS_JAVA
     EXTENSIONS_CSHARP
     EXTENSIONS_JAVASCRIPT
+    EXTENSIONS_TYPESCRIPT
+    EXTENSIONS_TYPESCRIPTX
     EXTENSIONS_SCHEME
     EXTENSIONS_LISP
     EXTENSIONS_ELISP
     EXTENSIONS_LIBREP
+    EXTENSIONS_RUST
+    EXTENSIONS_GO
     EXTENSIONS_RUBY
     EXTENSIONS_SH
     EXTENSIONS_AWK
     EXTENSIONS_LUA
+    EXTENSIONS_MODULA2
+    EXTENSIONS_D
+    EXTENSIONS_OCAML
     EXTENSIONS_SMALLTALK
     EXTENSIONS_VALA
     EXTENSIONS_TCL

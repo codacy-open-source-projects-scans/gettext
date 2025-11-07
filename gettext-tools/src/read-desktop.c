@@ -1,5 +1,5 @@
 /* Reading Desktop Entry files.
-   Copyright (C) 1995-2024 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file was written by Daiki Ueno <ueno@gnu.org>.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "read-desktop.h"
@@ -29,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SB_NO_APPENDF
 #include <error.h>
 #include "xalloc.h"
 #include "xvasprintf.h"
@@ -333,7 +332,7 @@ desktop_lex (token_ty *tp)
                     /* Finish the key part and start the locale part.  */
                     APPEND (0);
                     found_locale = true;
-                    locale_start = string_desc_length (sb_contents (&buffer));
+                    locale_start = sd_length (sb_contents (&buffer));
 
                     for (;;)
                       {
@@ -406,7 +405,7 @@ desktop_lex (token_ty *tp)
               }
 
             size_t before_value_lineno = pos.line_number;
-            value_start = string_desc_length (sb_contents (&buffer));
+            value_start = sd_length (sb_contents (&buffer));
             for (;;)
               {
                 c = phase2_getc ();

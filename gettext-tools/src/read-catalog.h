@@ -1,5 +1,5 @@
 /* Reading textual message catalogs (such as PO files).
-   Copyright (C) 1995-2024 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file was written by Bruno Haible <haible@clisp.cons.org>.
 
    This program is free software: you can redistribute it and/or modify
@@ -80,7 +80,7 @@ struct default_catalog_reader_class_ty
   /* If true, pay attention to comments and filepos comments.  */       \
   bool handle_comments;                                                 \
                                                                         \
-  /* If false, domain directives lead to an error messsage.  */         \
+  /* If false, domain directives lead to an error message.  */          \
   bool allow_domain_directives;                                         \
                                                                         \
   /* If false, duplicate msgids in the same domain and file generate an \
@@ -116,7 +116,6 @@ struct default_catalog_reader_class_ty
   enum is_format is_format[NFORMATS];                                   \
   struct argument_range range;                                          \
   enum is_wrap do_wrap;                                                 \
-  enum is_syntax_check do_syntax_check[NSYNTAXCHECKS];                  \
 
 typedef struct default_catalog_reader_ty default_catalog_reader_ty;
 struct default_catalog_reader_ty
@@ -172,7 +171,7 @@ extern default_catalog_reader_ty *
 /* If false, duplicate msgids in the same domain and file generate an error.
    If true, such msgids are allowed; the caller should treat them
    appropriately.  Defaults to false.  */
-extern DLL_VARIABLE bool allow_duplicates;
+extern LIBGETTEXTSRC_DLL_VARIABLE bool allow_duplicates;
 
 /* Read the input file from a stream.  Returns a list of messages.  */
 extern msgdomain_list_ty *

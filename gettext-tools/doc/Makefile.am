@@ -1,5 +1,5 @@
 ## Makefile for the gettext-tools/doc subdirectory of GNU gettext
-## Copyright (C) 1995-2023 Free Software Foundation, Inc.
+## Copyright (C) 1995-2025 Free Software Foundation, Inc.
 ##
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -59,25 +59,34 @@ gettext_TEXINFOS = \
   msgunfmt.texi \
   gettextize.texi \
   autopoint.texi \
+  po-fetch.texi \
   lang-c.texi \
   lang-python.texi \
   lang-java.texi \
   lang-csharp.texi \
   lang-javascript.texi \
+  lang-typescript.texi \
   lang-scheme.texi \
   lang-lisp.texi \
   lang-clisp-c.texi \
   lang-elisp.texi \
   lang-librep.texi \
+  lang-rust.texi \
+  lang-go.texi \
   lang-ruby.texi \
   lang-sh.texi \
     $(top_srcdir)/../gettext-runtime/doc/rt-gettext.texi \
     $(top_srcdir)/../gettext-runtime/doc/rt-ngettext.texi \
+    $(top_srcdir)/../gettext-runtime/doc/rt-printf_gettext.texi \
+    $(top_srcdir)/../gettext-runtime/doc/rt-printf_ngettext.texi \
     $(top_srcdir)/../gettext-runtime/doc/rt-envsubst.texi \
   lang-bash.texi \
   lang-gawk.texi \
   lang-lua.texi \
   lang-pascal.texi \
+  lang-modula2.texi \
+  lang-d.texi \
+  lang-ocaml.texi \
   lang-smalltalk.texi \
   lang-vala.texi \
   lang-wxwidgets.texi \

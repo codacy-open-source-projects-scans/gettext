@@ -1,5 +1,5 @@
 ## Makefile for the gettext-tools/libgettextpo subdirectory of GNU gettext
-## Copyright (C) 1995-2024 Free Software Foundation, Inc.
+## Copyright (C) 1995-2025 Free Software Foundation, Inc.
 ##
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -79,11 +79,17 @@ libgettextpo_la_AUXSOURCES = \
   ../src/format-lisp.c \
   ../src/format-elisp.c \
   ../src/format-librep.c \
+  ../src/format-rust.c \
+  ../src/format-go.c \
   ../src/format-ruby.c \
   ../src/format-sh.c \
+  ../src/format-sh-printf.c \
   ../src/format-awk.c \
   ../src/format-lua.c \
   ../src/format-pascal.c \
+  ../src/format-modula2.c \
+  ../src/format-d.c \
+  ../src/format-ocaml.c \
   ../src/format-smalltalk.c \
   ../src/format-qt.c \
   ../src/format-qt-plural.c \
@@ -105,7 +111,7 @@ libgettextpo_la_AUXSOURCES = \
 # Libtool's library version information for libgettextpo.
 # See the libtool documentation, section "Library interface versions".
 LTV_CURRENT=5
-LTV_REVISION=10
+LTV_REVISION=15
 LTV_AGE=5
 
 # How to build libgettextpo.la.
@@ -156,7 +162,7 @@ endif
 all check install: config.h
 config.h: $(BUILT_SOURCES)
 	{ echo '/* DO NOT EDIT! GENERATED AUTOMATICALLY! */'; \
-	  : "Avoid double inclusion, to avoid a warning about redefinition of DLL_VARIABLE."; \
+	  : "Avoid double inclusion, to avoid a warning about redefinition of DLL_VARIABLE and LIBGETTEXTSRC_DLL_VARIABLE."; \
 	  echo '#ifndef GTPO_CONFIG_H'; \
 	  echo '#define GTPO_CONFIG_H'; \
 	  echo; \
@@ -169,6 +175,8 @@ config.h: $(BUILT_SOURCES)
 	  : "No references to variables in other libraries exist."; \
 	  echo '#undef DLL_VARIABLE'; \
 	  echo '#define DLL_VARIABLE'; \
+	  echo '#undef LIBGETTEXTSRC_DLL_VARIABLE'; \
+	  echo '#define LIBGETTEXTSRC_DLL_VARIABLE'; \
 	  echo; \
 	  echo '#endif /* GTPO_CONFIG_H */'; \
 	} > config.h && \
@@ -177,9 +185,9 @@ config.h: $(BUILT_SOURCES)
 	    for f in $(libgettextpo_la_AUXSOURCES) $(libgnu_la_SOURCES) $(libgnu_la_LIBADD); do \
 	      case $$f in \
 	        *.c | *.$(OBJEXT) | *.lo ) \
-	          sf=`echo "$$f" | sed -e 's,\\.[^.]*$$,,'`.c; \
+	          sf=`echo "$$f" | sed -e 's,^libgnu_la-,,' -e 's,\\.[^.]*$$,,'`.c; \
 	          test -f $$sf || sf=$(srcdir)/$$sf; \
-	          of=`echo "$$f" | sed -e 's,^.*/,,' -e 's,\\.[^.]*$$,,'`.$(OBJEXT); \
+	          of=`echo "$$f" | sed -e 's,^.*/,,' -e 's,^libgnu_la-,,' -e 's,\\.[^.]*$$,,'`.$(OBJEXT); \
 	          $(COMPILE) $(DEFS) $(GL_CFLAG_INHIBIT_WARNINGS) -c $$sf || { rm -f config.h; exit 1; }; \
 	          sh ./exported.sh $$of 1>&5; \
 	          rm -f $$of `echo "$$of" | sed -e 's,\\.$(OBJEXT)$$,.lo,'`; \

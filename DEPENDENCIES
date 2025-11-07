@@ -54,7 +54,7 @@ The following packages should be installed before GNU gettext is installed
     --with-libxml2-prefix=DIR to 'configure'.
 
 * libacl
-  + Recommended.
+  + Recommended on Linux systems.
     Needed so that the creation of backup files respects the access control
     lists (ACLs) set on the original files.
   + Homepage:
@@ -65,6 +65,19 @@ The following packages should be installed before GNU gettext is installed
     - On Debian and Debian-based systems: acl, libacl1-dev,
     - On Red Hat distributions: acl, libacl-devel.
     - Other: https://repology.org/project/acl/versions
+
+  * libattr
+    + Recommended on Linux systems.
+      Needed so that the creation of backup files respects the access control
+      lists (ACLs) set on the original files, with fewer system calls.
+    + Homepage:
+      https://savannah.nongnu.org/projects/attr/
+    + Download:
+      https://download.savannah.nongnu.org/releases/attr/
+    + Pre-built package name:
+      - On Debian and Debian-based systems: libattr1-dev,
+      - On Red Hat distributions: libattr-devel.
+      - Other: https://repology.org/project/attr/versions
 
 * A Java runtime and compiler (e.g. OpenJDK, AdoptOpenJDK, or kaffe).
   + Recommended.
@@ -102,11 +115,54 @@ The following packages should be installed before GNU gettext is installed
     + Download:
       https://dotnet.microsoft.com/en-us/download
     + Pre-built package name:
-      - On Debian and Debian-based systems: dotnet7, dotnet8,
-      - On Red Hat distributions: dotnet7.0, dotnet8.0.
+      - On Debian and Debian-based systems: dotnet7 or dotnet8,
+      - On Red Hat distributions: dotnet7.0 or dotnet8.0.
       - Other: https://repology.org/project/dotnet/versions
   + If more than one C# is installed, pass the option --enable-csharp=IMPL
     to 'configure', to disambiguate.
+
+* A D compiler and runtime (e.g. gdc, ldc2, or dmd).
+  + Recommended.
+    Needed for building libintl_d.a.
+  o gdc:
+    + Homepage:
+      https://wiki.dlang.org/GDC
+      https://gcc.gnu.org/
+    + Pre-built package name:
+      - On Debian and Debian-based systems: gdc,
+      - On Red Hat distributions: gcc-gdc.
+      - Other: --
+  o ldc2:
+    + Homepage:
+      https://wiki.dlang.org/LDC
+    + Download:
+      https://github.com/ldc-developers/ldc/tags
+    + Pre-built package name:
+      - On Debian and Debian-based systems: ldc,
+      - On Red Hat distributions: ldc.
+      - Other: https://repology.org/project/ldc/versions
+  o dmd:
+    + Homepage:
+      https://wiki.dlang.org/DMD
+    + Download:
+      https://dlang.org/download.html
+    + Pre-built package name:
+      - On Debian and Debian-based systems: --,
+      - On Red Hat distributions: --.
+      - Other: https://repology.org/project/dmd/versions
+  + If more than one D compiler is installed, set the environment variable
+    DC, to disambiguate.
+
+* The GNU Modula-2 compiler and runtime.
+  + Recommended.
+    Needed for building libintl_m2.so.
+  + Homepage:
+    https://www.nongnu.org/gm2/about.html
+    https://gcc.gnu.org/
+  + Pre-built package name:
+    - On Debian and Debian-based systems: gm2,
+    - On Red Hat distributions: gcc-gm2, libgm2.
+    - Other: https://repology.org/project/gcc-gm2/versions
 
 * git 1.6 or newer
   + Recommended.
@@ -202,7 +258,13 @@ The following packages should be installed before GNU gettext is installed
 The following packages should be installed when GNU gettext is installed
 (runtime dependencies, but not build dependencies):
 
-None.
+* The Gnulib localizations.
+  + Recommended.
+    Needed for localization of some of the programs to the user's language.
+  + Documentation:
+    https://www.gnu.org/software/gnulib/manual/html_node/Localization.html
+  + Download:
+    https://ftp.gnu.org/gnu/gnulib/gnulib-l10n-*
 
 
 The following should be installed when GNU gettext is built, but are not
@@ -211,7 +273,7 @@ dependencies):
 
 * A C runtime, compiler, linker, etc.
   + Mandatory.
-    Either the platform's native 'cc', or GCC 3.1 or newer.
+    Either the platform's native 'cc', or GCC 4.4 or newer.
   + GCC Homepage:
     https://gcc.gnu.org/
   + Download:

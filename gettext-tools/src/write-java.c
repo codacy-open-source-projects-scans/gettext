@@ -1,5 +1,5 @@
 /* Writing Java ResourceBundles.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <haible@clisp.cons.org>, 2001.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 #include <alloca.h>
 
 /* Specification.  */
@@ -29,29 +27,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
 #include <sys/stat.h>
-#if !defined S_ISDIR && defined S_IFDIR
-# define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
-#endif
-#if !S_IRUSR && S_IREAD
-# define S_IRUSR S_IREAD
-#endif
-#if !S_IRUSR
-# define S_IRUSR 00400
-#endif
-#if !S_IWUSR && S_IWRITE
-# define S_IWUSR S_IWRITE
-#endif
-#if !S_IWUSR
-# define S_IWUSR 00200
-#endif
-#if !S_IXUSR && S_IEXEC
-# define S_IXUSR S_IEXEC
-#endif
-#if !S_IXUSR
-# define S_IXUSR 00100
-#endif
 
 #include <error.h>
 #include "attribute.h"
@@ -255,7 +231,7 @@ compute_hashsize (message_list_ty *mlp, bool *collisionp)
           unsigned int incr;
 
           /* Since the set { idx0, idx0 + incr, ... } depends only on idx0
-             and gcd(hashsize,incr), we only need to conside incr that
+             and gcd(hashsize,incr), we only need to consider incr that
              divides hashsize.  */
           for (incr = 1; incr <= hashsize / 2; incr++)
             if ((hashsize % incr) == 0)

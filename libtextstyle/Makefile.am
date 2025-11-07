@@ -1,5 +1,5 @@
 ## Makefile for the toplevel directory of GNU libtextstyle
-## Copyright (C) 1995-2024 Free Software Foundation, Inc.
+## Copyright (C) 1995-2025 Free Software Foundation, Inc.
 ##
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -20,11 +20,12 @@ AUTOMAKE_OPTIONS = 1.13 gnu
 ACLOCAL_AMFLAGS = -I m4 -I gnulib-m4
 
 # The list of subdirectories containing Makefiles.
-SUBDIRS = lib tests adhoc-tests doc
+SUBDIRS = lib tests adhoc-tests install-tests doc
 
 EXTRA_DIST = \
   version.sh \
   DEPENDENCIES \
+  INSTALL.generic \
   HACKING \
   autogen.sh \
   gnulib-local/build-aux/moopp \
@@ -174,6 +175,7 @@ EXTRA_DIST = \
   gnulib-local/tests/test-term-ostream-xterm-linux-debian.out \
   gnulib-local/tests/test-term-ostream-xterm-linux-mandriva.out \
   gnulib-local/tests/test-term-ostream-xterm-mingw.out \
+  gnulib-local/tests/test-term-ostream-xterm-msys2.out \
   gnulib-local/tests/test-term-ostream-xterm-netbsd3.out \
   gnulib-local/tests/test-term-ostream-xterm-osf51.out \
   gnulib-local/tests/test-term-ostream-xterm-r6.out \

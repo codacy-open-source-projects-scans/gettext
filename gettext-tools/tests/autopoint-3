@@ -42,13 +42,12 @@ ${AUTOMAKE} --add-missing >/dev/null 2>/dev/null \
 
 rm -f configure.ac Makefile.am
 
-gettext_datadir=$top_builddir/misc
+gettext_datadir=$top_builddir/autotools
 export gettext_datadir
 
 cat <<EOF >configure.ac
 AC_INIT([hello], [0.0.0], [bug-gnu-gettext@gnu.org])
 AM_INIT_AUTOMAKE([foreign])
-LT_INIT
 
 AC_CONFIG_MACRO_DIR([m4])
 
@@ -84,7 +83,7 @@ DEFS = -DLOCALEDIR=\"$(localedir)\" @DEFS@
 AM_CPPFLAGS = -I. -I$(srcdir)
 
 # Link time dependencies.
-LDADD = @LTLIBINTL@
+LDADD = @LIBINTL@
 EOF
 
 cp -p "$abs_top_srcdir"/gnulib-lib/gettext.h .
@@ -115,10 +114,6 @@ fi
 ${AUTOCONF} >/dev/null 2>autopoint.err
 test $? = 0 || { cat autopoint.err; Exit 1; }
 
-# If ltmain.sh is not present, some installations of Automake fail with an
-# error "configure.ac:3: error: required file './ltmain.sh' not found".
-touch ltmain.sh
-
 # Avoid an Automake 1.16.5 failure, in the presence of Autoconf 2.71, on an ext4
 # file system:
 #   PREFIX/share/automake-1.16/am/depend2.am: error: am__fastdepCC does not appear in AM_CONDITIONAL
@@ -141,7 +136,19 @@ test $? = 0 || { cat autopoint.err; Exit 1; }
 ${CONFIG_SHELL} ./configure >/dev/null 2>autopoint.err
 test $? = 0 || { cat autopoint.err; Exit 1; }
 
-: ${MAKE=make}
+# The po/Makefile requires GNU make on specific platforms.
+if test -z "${MAKE}"; then
+  case "$host_os" in
+    darwin* | solaris* | aix*)
+      if (gmake --version >/dev/null) 2>/dev/null; then
+        MAKE=gmake
+      else
+        MAKE=make
+      fi
+      ;;
+    *) MAKE=make ;;
+  esac
+fi
 ${MAKE} >/dev/null 2>autopoint.err
 test $? = 0 || { cat autopoint.err; Exit 1; }
 

@@ -1,5 +1,5 @@
 /* Writing Qt .qm files.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <bruno@clisp.org>, 2003.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "write-qt.h"
@@ -33,6 +31,7 @@
 #include "attribute.h"
 #include "xerror.h"
 #include "message.h"
+#include "next-prime.h"
 #include "po-charset.h"
 #include "msgl-iconv.h"
 #include "xerror-handler.h"

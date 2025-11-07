@@ -1,5 +1,5 @@
 /* Output stream for attributed text, producing ANSI escape sequences.
-   Copyright (C) 2006-2008, 2017, 2019-2020, 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <bruno@clisp.org>, 2006.
 
    This program is free software: you can redistribute it and/or modify
@@ -2351,7 +2351,7 @@ should_enable_hyperlinks (const char *term)
            --------------------+-------------+---------------------
            emacs-terminal 26.1 | eterm-color | produces garbage
        */
-      if (strncmp (term, "eterm", 5) == 0)
+      if (str_startswith (term, "eterm"))
         return false;
 
       /* xterm-compatible terminal emulators:
@@ -2368,13 +2368,13 @@ should_enable_hyperlinks (const char *term)
 
          TODO: Revisit this table periodically.
        */
-      if (strncmp (term, "xterm", 5) == 0)
+      if (str_startswith (term, "xterm"))
         {
           char *progname = get_terminal_emulator_progname ();
           if (progname != NULL)
             {
               bool known_buggy =
-                strncmp (progname, "python", 6) == 0 /* guake */
+                str_startswith (progname, "python") /* guake */
                 || strcmp (progname, "lilyterm") == 0
                 || strcmp (progname, "lterm") == 0
                 || strcmp (progname, "lxterminal") == 0
@@ -2677,18 +2677,20 @@ term_ostream_create (int fd, const char *filename, ttyctl_t tty_control)
             && (/* Recognize xterm-16color, xterm-88color, xterm-256color.  */
                 (strlen (term) >= 5 && memcmp (term, "xterm", 5) == 0)
                 || /* Recognize *-16color.  */
-                   (strlen (term) > 8
-                    && strcmp (term + strlen (term) - 8, "-16color") == 0)
+                   (strlen (term) > 8 && str_endswith (term, "-16color"))
                 || /* Recognize *-256color.  */
-                   (strlen (term) > 9
-                    && strcmp (term + strlen (term) - 9, "-256color") == 0)
+                   (strlen (term) > 9 && str_endswith (term, "-256color"))
                 || /* Recognize *-direct.  */
-                   (strlen (term) > 8
-                    && strcmp (term + strlen (term) - 8, "-direct") == 0))
+                   (strlen (term) > 7 && str_endswith (term, "-direct")))
             ? (/* Note: For recognizing cm_xtermrgb,
                   <https://github.com/termstandard/colors> recommends to test
                   getenv ("COLORTERM"), but it does not seem like a good idea.
                   It's more of a quick hack that causes long-term problems.  */
+               /* Note: The strange test against 0x7fff is because ncurses
+                  versions < 6.1 did not support 32-bit values as result of
+                  tgetnum(), see <https://stackoverflow.com/questions/36158093/>
+                  and <https://invisible-island.net/ncurses/announce-6.1.html>.
+                */
                stream->max_colors >= 0x7fff ? cm_xtermrgb :
                stream->max_colors == 256 ? cm_xterm256 :
                stream->max_colors == 88 ? cm_xterm88 :
@@ -2707,7 +2709,10 @@ term_ostream_create (int fd, const char *filename, ttyctl_t tty_control)
         (stream->enter_underline_mode != NULL
          && (stream->exit_underline_mode != NULL
              || stream->exit_attribute_mode != NULL));
-      /* TODO: Use a terminfo capability, once ncurses implements it.  */
+      /* TODO: Use a terminfo capability, once ncurses implements it.
+         Reported at
+         <https://lists.gnu.org/archive/html/bug-ncurses/2025-01/msg00002.html>
+       */
       stream->supports_hyperlink = should_enable_hyperlinks (term);
 
       /* Infer the restore strings.  */

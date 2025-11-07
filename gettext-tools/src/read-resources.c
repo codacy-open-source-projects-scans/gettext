@@ -1,5 +1,5 @@
 /* Reading C# .resources files.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <bruno@clisp.org>, 2003.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 /* Specification.  */
 #include "read-resources.h"
@@ -68,7 +66,7 @@ execute_and_read_po_output (const char *progname,
   int exitstatus;
 
   /* Open a pipe to the C# execution engine.  */
-  child = create_pipe_in (progname, prog_path, prog_argv, NULL,
+  child = create_pipe_in (progname, prog_path, prog_argv, NULL, NULL,
                           NULL, false, true, true, fd);
 
   fp = fdopen (fd[0], "r");

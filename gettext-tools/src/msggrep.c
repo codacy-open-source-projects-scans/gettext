@@ -1,5 +1,5 @@
 /* Extract some translations of a translation catalog.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <haible@clisp.cons.org>, 2001.
 
    This program is free software: you can redistribute it and/or modify
@@ -16,14 +16,11 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include <config.h>
 #include <alloca.h>
 
 #include <assert.h>
 #include <errno.h>
-#include <getopt.h>
 #include <limits.h>
 #include <locale.h>
 #include <stdio.h>
@@ -40,6 +37,7 @@
 #include <textstyle.h>
 
 #include <error.h>
+#include "options.h"
 #include "noreturn.h"
 #include "closeout.h"
 #include "dir-list.h"
@@ -91,45 +89,11 @@ struct grep_task {
 };
 static struct grep_task grep_task[5];
 
-/* Long options.  */
-static const struct option long_options[] =
-{
-  { "add-location", optional_argument, NULL, 'n' },
-  { "color", optional_argument, NULL, CHAR_MAX + 9 },
-  { "comment", no_argument, NULL, 'C' },
-  { "directory", required_argument, NULL, 'D' },
-  { "domain", required_argument, NULL, 'M' },
-  { "escape", no_argument, NULL, CHAR_MAX + 1 },
-  { "extended-regexp", no_argument, NULL, 'E' },
-  { "extracted-comment", no_argument, NULL, 'X' },
-  { "file", required_argument, NULL, 'f' },
-  { "fixed-strings", no_argument, NULL, 'F' },
-  { "force-po", no_argument, &force_po, 1 },
-  { "help", no_argument, NULL, 'h' },
-  { "ignore-case", no_argument, NULL, 'i' },
-  { "indent", no_argument, NULL, CHAR_MAX + 2 },
-  { "invert-match", no_argument, NULL, 'v' },
-  { "location", required_argument, NULL, 'N' },
-  { "msgctxt", no_argument, NULL, 'J' },
-  { "msgid", no_argument, NULL, 'K' },
-  { "msgstr", no_argument, NULL, 'T' },
-  { "no-escape", no_argument, NULL, CHAR_MAX + 3 },
-  { "no-location", no_argument, NULL, CHAR_MAX + 11 },
-  { "no-wrap", no_argument, NULL, CHAR_MAX + 6 },
-  { "output-file", required_argument, NULL, 'o' },
-  { "properties-input", no_argument, NULL, 'P' },
-  { "properties-output", no_argument, NULL, 'p' },
-  { "regexp", required_argument, NULL, 'e' },
-  { "sort-by-file", no_argument, NULL, CHAR_MAX + 4 },
-  { "sort-output", no_argument, NULL, CHAR_MAX + 5 },
-  { "strict", no_argument, NULL, 'S' },
-  { "stringtable-input", no_argument, NULL, CHAR_MAX + 7 },
-  { "stringtable-output", no_argument, NULL, CHAR_MAX + 8 },
-  { "style", required_argument, NULL, CHAR_MAX + 10 },
-  { "version", no_argument, NULL, 'V' },
-  { "width", required_argument, NULL, 'w' },
-  { NULL, 0, NULL, 0 }
-};
+/* Selected workflow flags.  */
+static string_list_ty *workflow_flags;
+
+/* Selected sticky flags.  */
+static string_list_ty *sticky_flags;
 
 
 /* Forward declaration of local functions.  */
@@ -141,7 +105,6 @@ static msgdomain_list_ty *process_msgdomain_list (msgdomain_list_ty *mdlp);
 int
 main (int argc, char **argv)
 {
-  int opt;
   bool do_help;
   bool do_version;
   char *output_file;
@@ -164,6 +127,7 @@ main (int argc, char **argv)
 
   /* Set the text message domain.  */
   bindtextdomain (PACKAGE, relocate (LOCALEDIR));
+  bindtextdomain ("gnulib", relocate (GNULIB_LOCALEDIR));
   bindtextdomain ("bison-runtime", relocate (BISON_LOCALEDIR));
   textdomain (PACKAGE);
 
@@ -178,6 +142,8 @@ main (int argc, char **argv)
   grep_pass = -1;
   location_files = string_list_alloc ();
   domain_names = string_list_alloc ();
+  workflow_flags = string_list_alloc ();
+  sticky_flags = string_list_alloc ();
 
   for (i = 0; i < 5; i++)
     {
@@ -190,12 +156,55 @@ main (int argc, char **argv)
       gt->case_insensitive = false;
     }
 
-  while ((opt = getopt_long (argc, argv, "CD:e:Ef:FhiJKM:n:N:o:pPTvVw:X",
-                             long_options, NULL))
-         != EOF)
+  /* Parse command line options.  */
+  BEGIN_ALLOW_OMITTING_FIELD_INITIALIZERS
+  static const struct program_option options[] =
+  {
+    { "add-location",       CHAR_MAX + 'n', optional_argument },
+    { NULL,                 'n',            no_argument       },
+    { "color",              CHAR_MAX + 9,   optional_argument },
+    { "comment",            'C',            no_argument       },
+    { "directory",          'D',            required_argument },
+    { "domain",             'M',            required_argument },
+    { "escape",             CHAR_MAX + 1,   no_argument       },
+    { "extended-regexp",    'E',            no_argument       },
+    { "extracted-comment",  'X',            no_argument       },
+    { "file",               'f',            required_argument },
+    { "fixed-strings",      'F',            no_argument       },
+    { "force-po",           0,              no_argument,      &force_po, 1 },
+    { "help",               'h',            no_argument       },
+    { "ignore-case",        'i',            no_argument       },
+    { "indent",             CHAR_MAX + 2,   no_argument       },
+    { "invert-match",       'v',            no_argument       },
+    { "location",           'N',            required_argument },
+    { "msgctxt",            'J',            no_argument       },
+    { "msgid",              'K',            no_argument       },
+    { "msgstr",             'T',            no_argument       },
+    { "no-escape",          CHAR_MAX + 3,   no_argument       },
+    { "no-location",        CHAR_MAX + 11,  no_argument       },
+    { "no-wrap",            CHAR_MAX + 6,   no_argument       },
+    { "output-file",        'o',            required_argument },
+    { "properties-input",   'P',            no_argument       },
+    { "properties-output",  'p',            no_argument       },
+    { "regexp",             'e',            required_argument },
+    { "sort-by-file",       CHAR_MAX + 4,   no_argument       },
+    { "sort-output",        CHAR_MAX + 5,   no_argument       },
+    { "sticky-flag",        'S',            required_argument },
+    { "strict",             CHAR_MAX + 12,  no_argument       },
+    { "stringtable-input",  CHAR_MAX + 7,   no_argument       },
+    { "stringtable-output", CHAR_MAX + 8,   no_argument       },
+    { "style",              CHAR_MAX + 10,  required_argument },
+    { "version",            'V',            no_argument       },
+    { "width",              'w',            required_argument },
+    { "workflow-flag",      'W',            required_argument },
+  };
+  END_ALLOW_OMITTING_FIELD_INITIALIZERS
+  start_options (argc, argv, options, MOVE_OPTIONS_FIRST, 0);
+  int opt;
+  while ((opt = get_next_option ()) != -1)
     switch (opt)
       {
-      case '\0':                /* Long option.  */
+      case '\0':                /* Long option with key == 0.  */
         break;
 
       case 'C':
@@ -304,7 +313,8 @@ main (int argc, char **argv)
         string_list_append (domain_names, optarg);
         break;
 
-      case 'n':
+      case 'n':            /* -n */
+      case CHAR_MAX + 'n': /* --add-location[={full|yes|file|never|no}] */
         if (handle_filepos_comment_option (optarg))
           usage (EXIT_FAILURE);
         break;
@@ -325,8 +335,12 @@ main (int argc, char **argv)
         input_syntax = &input_format_properties;
         break;
 
-      case 'S':
+      case CHAR_MAX + 12: /* --strict */
         message_print_style_uniforum ();
+        break;
+
+      case 'S':
+        string_list_append (sticky_flags, optarg);
         break;
 
       case 'T':
@@ -349,6 +363,10 @@ main (int argc, char **argv)
           if (endp != optarg)
             message_page_width_set (value);
         }
+        break;
+
+      case 'W':
+        string_list_append (workflow_flags, optarg);
         break;
 
       case 'X':
@@ -416,7 +434,7 @@ License GPLv3+: GNU GPL version 3 or later <%s>\n\
 This is free software: you are free to change and redistribute it.\n\
 There is NO WARRANTY, to the extent permitted by law.\n\
 "),
-              "2001-2023", "https://gnu.org/licenses/gpl.html");
+              "2001-2025", "https://gnu.org/licenses/gpl.html");
       printf (_("Written by %s.\n"), proper_name ("Bruno Haible"));
       exit (EXIT_SUCCESS);
     }
@@ -545,13 +563,16 @@ Message selection:\n\
   [-N SOURCEFILE]... [-M DOMAINNAME]...\n\
   [-J MSGCTXT-PATTERN] [-K MSGID-PATTERN] [-T MSGSTR-PATTERN]\n\
   [-C COMMENT-PATTERN] [-X EXTRACTED-COMMENT-PATTERN]\n\
+  [-W WORKFLOW-FLAG] [-S STICKY-FLAG]\n\
 A message is selected if it comes from one of the specified source files,\n\
 or if it comes from one of the specified domains,\n\
 or if -J is given and its context (msgctxt) matches MSGCTXT-PATTERN,\n\
 or if -K is given and its key (msgid or msgid_plural) matches MSGID-PATTERN,\n\
 or if -T is given and its translation (msgstr) matches MSGSTR-PATTERN,\n\
 or if -C is given and the translator's comment matches COMMENT-PATTERN,\n\
-or if -X is given and the extracted comment matches EXTRACTED-COMMENT-PATTERN.\n\
+or if -X is given and the extracted comment matches EXTRACTED-COMMENT-PATTERN,\n\
+or if -W is given and its flags contain WORKFLOW-FLAG,\n\
+or if -S is given and its flags contain STICKY-FLAG.\n\
 \n\
 When more than one selection criterion is specified, the set of selected\n\
 messages is the union of the selected messages of each criterion.\n\
@@ -574,6 +595,8 @@ expressions if -E is given, or fixed strings if -F is given.\n\
   -e, --regexp=PATTERN        use PATTERN as a regular expression\n\
   -f, --file=FILE             obtain PATTERN from FILE\n\
   -i, --ignore-case           ignore case distinctions\n\
+  -W, --workflow-flag=FLAG    select messages with FLAG\n\
+  -S, --sticky-flag=FLAG      select messages with FLAG\n\
   -v, --invert-match          output only the messages that do not match any\n\
                               selection criterion\n\
 "));
@@ -694,6 +717,41 @@ is_message_selected_no_invert (const message_ty *mp)
   for (i = 0; i < mp->filepos_count; i++)
     if (filename_list_match (location_files, mp->filepos[i].file_name))
       return true;
+
+  /* Test whether one of the workflow flags is selected.  */
+  if (mp->is_fuzzy && string_list_member (workflow_flags, "fuzzy"))
+    return true;
+
+  /* Test whether one of the sticky flags is selected.  */
+  /* Recognize flag "[no-]wrap".  */
+  if ((mp->do_wrap == yes && string_list_member (sticky_flags, "wrap"))
+      || (mp->do_wrap == no && string_list_member (sticky_flags, "no-wrap")))
+    return true;
+  /* Recognize flag "[no-]<language>-format".  */
+  for (i = 0; i < sticky_flags->nitems; i++)
+    {
+      const char *flag = sticky_flags->item[i];
+      size_t flag_len = strlen (flag);
+      if (flag_len >= 7 && memcmp (flag + flag_len - 7, "-format", 7) == 0)
+        {
+          flag_len -= 7;
+          bool has_no_prefix = (flag_len >= 3 && memcmp (flag, "no-", 3) == 0);
+          if (has_no_prefix)
+            {
+              flag += 3;
+              flag_len -= 3;
+            }
+          size_t j;
+          for (j = 0; j < NFORMATS; j++)
+            if (strlen (format_language[j]) == flag_len
+                && memcmp (format_language[j], flag, flag_len) == 0)
+              {
+                /* The value of the flag is stored in mp->is_format[j].  */
+                if (mp->is_format[j] == (has_no_prefix ? no : yes))
+                  return true;
+              }
+        }
+    }
 
   /* Test msgctxt using the --msgctxt arguments.  */
   if (mp->msgctxt != NULL

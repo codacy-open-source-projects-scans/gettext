@@ -1,5 +1,5 @@
 /* Writing binary .mo files.
-   Copyright (C) 1995-2024 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    Written by Ulrich Drepper <drepper@gnu.ai.mit.edu>, April 1995.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 #include <alloca.h>
 
 /* Specification.  */
@@ -42,6 +40,7 @@
 #include "mem-hash-map.h"
 #include "message.h"
 #include "format.h"
+#include "next-prime.h"
 #include "xsize.h"
 #include "xalloc.h"
 #include "xmalloca.h"
@@ -171,7 +170,7 @@ struct pre_sysdep_message
      * None of these PO files uses the 'I' format string flag.
 
    There are few possible <inttypes.h> flavours.  Each such flavour gives rise
-   to an instantation rule.  We ran this test program on various platforms:
+   to an instantiation rule.  We ran this test program on various platforms:
    =============================================================================
    #include <inttypes.h>
    #include <stdio.h>
@@ -299,7 +298,7 @@ concat_prefix_cs (const char *prefix, char conversion)
   return result;
 }
 
-/* Expand a system dependent string segment for a specific instantation.
+/* Expand a system dependent string segment for a specific instantiation.
    Return NULL if unsupported.  */
 static const char *
 get_sysdep_segment_value (struct pre_sysdep_segment segment,

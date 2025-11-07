@@ -1,5 +1,5 @@
 /* Perl brace format strings.
-   Copyright (C) 2004-2023 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <bruno@clisp.org>, 2003.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -44,8 +42,8 @@ struct named_arg
 
 struct spec
 {
-  unsigned int directives;
-  unsigned int named_arg_count;
+  size_t directives;
+  size_t named_arg_count;
   struct named_arg *named;
 };
 
@@ -63,7 +61,7 @@ format_parse (const char *format, bool translated, char *fdi,
 {
   const char *const format_start = format;
   struct spec spec;
-  unsigned int named_allocated;
+  size_t named_allocated;
   struct spec *result;
 
   spec.directives = 0;
@@ -118,7 +116,7 @@ format_parse (const char *format, bool translated, char *fdi,
   /* Sort the named argument array, and eliminate duplicates.  */
   if (spec.named_arg_count > 1)
     {
-      unsigned int i, j;
+      size_t i, j;
 
       qsort (spec.named, spec.named_arg_count, sizeof (struct named_arg),
              named_arg_compare);
@@ -148,7 +146,7 @@ format_free (void *descr)
 
   if (spec->named != NULL)
     {
-      unsigned int i;
+      size_t i;
       for (i = 0; i < spec->named_arg_count; i++)
         free (spec->named[i].name);
       free (spec->named);
@@ -175,9 +173,9 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
 
   if (spec1->named_arg_count + spec2->named_arg_count > 0)
     {
-      unsigned int i, j;
-      unsigned int n1 = spec1->named_arg_count;
-      unsigned int n2 = spec2->named_arg_count;
+      size_t i, j;
+      size_t n1 = spec1->named_arg_count;
+      size_t n2 = spec2->named_arg_count;
 
       /* Check the argument names in spec1 are contained in those of spec2.
          Additional arguments in spec2 are allowed; they expand to themselves
@@ -235,7 +233,7 @@ static void
 format_print (void *descr)
 {
   struct spec *spec = (struct spec *) descr;
-  unsigned int i;
+  size_t i;
 
   if (spec == NULL)
     {
@@ -288,7 +286,7 @@ main ()
 /*
  * For Emacs M-x compile
  * Local Variables:
- * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DHAVE_CONFIG_H -DTEST format-perl-brace.c ../gnulib-lib/libgettextlib.la"
+ * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DTEST format-perl-brace.c ../gnulib-lib/libgettextlib.la"
  * End:
  */
 

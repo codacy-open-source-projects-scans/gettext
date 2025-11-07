@@ -1,5 +1,5 @@
 /* gettext - retrieve text string from message catalog and print it.
-   Copyright (C) 1995-2024 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    Written by Ulrich Drepper <drepper@gnu.ai.mit.edu>, May 1995.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,11 +15,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
-#include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +24,7 @@
 #include <locale.h>
 
 #include <error.h>
+#include "options.h"
 #include "attribute.h"
 #include "noreturn.h"
 #include "closeout.h"
@@ -48,24 +46,12 @@ static bool inhibit_added_newline;
    message catalog.  */
 static bool do_expand;
 
-/* Long options.  */
-static const struct option long_options[] =
-{
-  { "context", required_argument, NULL, 'c' },
-  { "domain", required_argument, NULL, 'd' },
-  { "help", no_argument, NULL, 'h' },
-  { "shell-script", no_argument, NULL, 's' },
-  { "version", no_argument, NULL, 'V' },
-  { NULL, 0, NULL, 0 }
-};
-
 /* Forward declaration of local functions.  */
 _GL_NORETURN_FUNC static void usage (int status);
 
 int
 main (int argc, char *argv[])
 {
-  int optchar;
   const char *msgid;
 
   /* Default values for command line options.  */
@@ -86,45 +72,60 @@ main (int argc, char *argv[])
 
   /* Set the text message domain.  */
   bindtextdomain (PACKAGE, relocate (LOCALEDIR));
+  bindtextdomain ("gnulib", relocate (GNULIB_LOCALEDIR));
   textdomain (PACKAGE);
 
   /* Ensure that write errors on stdout are detected.  */
   atexit (close_stdout);
 
   /* Parse command line options.  */
-  while ((optchar = getopt_long (argc, argv, "+c:d:eEhnsV", long_options, NULL))
-         != EOF)
+  BEGIN_ALLOW_OMITTING_FIELD_INITIALIZERS
+  static const struct program_option options[] =
+  {
+    { "context",      'c', required_argument },
+    { "domain",       'd', required_argument },
+    { "help",         'h', no_argument       },
+    { "shell-script", 's', no_argument       },
+    { "version",      'V', no_argument       },
+    { NULL,           'e', no_argument       },
+    { NULL,           'E', no_argument       },
+    { NULL,           'n', no_argument       },
+  };
+  END_ALLOW_OMITTING_FIELD_INITIALIZERS
+  start_options (argc, argv, options, NON_OPTION_TERMINATES_OPTIONS, 0);
+  int optchar;
+  while ((optchar = get_next_option ()) != -1)
     switch (optchar)
-    {
-    case '\0':          /* Long option.  */
-      break;
-    case 'c':
-      context = optarg;
-      break;
-    case 'd':
-      domain = optarg;
-      break;
-    case 'e':
-      do_expand = true;
-      break;
-    case 'E':
-      /* Ignore.  Just for compatibility.  */
-      break;
-    case 'h':
-      do_help = true;
-      break;
-    case 'n':
-      inhibit_added_newline = true;
-      break;
-    case 's':
-      do_shell = true;
-      break;
-    case 'V':
-      do_version = true;
-      break;
-    default:
-      usage (EXIT_FAILURE);
-    }
+      {
+      case '\0':          /* Long option with key == 0.  */
+        break;
+      case 'c':
+        context = optarg;
+        break;
+      case 'd':
+        domain = optarg;
+        break;
+      case 'e':
+        do_expand = true;
+        break;
+      case 'E':
+        /* Ignore.  Just for compatibility.  */
+        break;
+      case 'h':
+        do_help = true;
+        break;
+      case 'n':
+        inhibit_added_newline = true;
+        break;
+      case 's':
+        do_shell = true;
+        break;
+      case 'V':
+        do_version = true;
+        break;
+      default:
+        usage (EXIT_FAILURE);
+      }
 
   /* Version information is requested.  */
   if (do_version)
@@ -137,7 +138,7 @@ License GPLv3+: GNU GPL version 3 or later <%s>\n\
 This is free software: you are free to change and redistribute it.\n\
 There is NO WARRANTY, to the extent permitted by law.\n\
 "),
-              "1995-2023", "https://gnu.org/licenses/gpl.html");
+              "1995-2025", "https://gnu.org/licenses/gpl.html");
       printf (_("Written by %s.\n"), proper_name ("Ulrich Drepper"));
       exit (EXIT_SUCCESS);
     }
@@ -257,6 +258,8 @@ or:    %s [OPTION] -s [MSGID]...\n\
       printf (_("\
 Display native language translation of a textual message.\n"));
       printf ("\n");
+      printf (_("\
+Options and arguments:\n"));
       /* xgettext: no-wrap */
       printf (_("\
   -d, --domain=TEXTDOMAIN   retrieve translated messages from TEXTDOMAIN\n"));
@@ -289,18 +292,18 @@ When used with the -s option the program behaves like the 'echo' command.\n\
 But it does not simply copy its arguments to stdout.  Instead those messages\n\
 found in the selected catalog are translated.\n\
 Standard search directory: %s\n"),
-              getenv ("IN_HELP2MAN") == NULL ? LOCALEDIR : "@localedir@");
+              getenv ("IN_HELP2MAN") == NULL ? relocate (LOCALEDIR) : "@localedir@");
       printf ("\n");
       /* TRANSLATORS: The first placeholder is the web address of the Savannah
          project of this package.  The second placeholder is the bug-reporting
          email address for this package.  Please add _another line_ saying
          "Report translation bugs to <...>\n" with the address for translation
          bugs (typically your translation team's web or email address).  */
-      printf(_("\
+      printf (_("\
 Report bugs in the bug tracker at <%s>\n\
 or by email to <%s>.\n"),
-             "https://savannah.gnu.org/projects/gettext",
-             "bug-gettext@gnu.org");
+              "https://savannah.gnu.org/projects/gettext",
+              "bug-gettext@gnu.org");
     }
 
   exit (status);

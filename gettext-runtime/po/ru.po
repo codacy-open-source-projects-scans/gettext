@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gettext-runtime 0.20.2\n"
 "Report-Msgid-Bugs-To: bug-gettext@gnu.org\n"
-"POT-Creation-Date: 2023-09-18 22:55+0200\n"
+"POT-Creation-Date: 2020-04-13 15:53+0200\n"
 "PO-Revision-Date: 2020-04-16 14:06+0300\n"
 "Last-Translator: Yuri Kozlov <yuray@komyakino.ru>\n"
 "Language-Team: Russian <gnu@d07.ru>\n"
@@ -17,15 +17,14 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Bugs: Report translation errors to the Language-Team address.\n"
-"Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
-"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
+"Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
 "X-Generator: Lokalize 2.0\n"
 
 #: gnulib-lib/closeout.c:66
 msgid "write error"
 msgstr "ошибка записи"
 
-#: gnulib-lib/error.c:194
+#: gnulib-lib/error.c:195
 msgid "Unknown system error"
 msgstr "Неизвестная системная ошибка"
 
@@ -64,11 +63,12 @@ msgstr "%s: недопустимый параметр — «%c»\n"
 msgid "%s: option requires an argument -- '%c'\n"
 msgstr "%s: для параметра требуется аргумент — «%c»\n"
 
-#: gnulib-lib/xalloc-die.c:34
+#: gnulib-lib/xmalloc.c:38
+#, c-format
 msgid "memory exhausted"
 msgstr "память исчерпана"
 
-#: src/envsubst.c:110 src/gettext.c:135 src/ngettext.c:125
+#: src/envsubst.c:112 src/gettext.c:137 src/ngettext.c:126
 #, c-format, no-wrap
 msgid ""
 "Copyright (C) %s Free Software Foundation, Inc.\n"
@@ -81,67 +81,67 @@ msgstr ""
 "Это свободное ПО: вы можете продавать и распространять его.\n"
 "Нет НИКАКИХ ГАРАНТИЙ до степени, разрешённой законом.\n"
 
-#: src/envsubst.c:116 src/gettext.c:141 src/ngettext.c:131
+#: src/envsubst.c:118 src/gettext.c:143 src/ngettext.c:132
 #, c-format
 msgid "Written by %s.\n"
 msgstr "Автор программы — %s.\n"
 
 #. This is a proper name. See the gettext manual, section Names.
-#: src/envsubst.c:116
+#: src/envsubst.c:118
 msgid "Bruno Haible"
 msgstr "Бруно Хайбл (Bruno Haible)"
 
-#: src/envsubst.c:125 src/gettext.c:159 src/ngettext.c:143
+#: src/envsubst.c:127 src/gettext.c:161 src/ngettext.c:144
 #, c-format
 msgid "too many arguments"
 msgstr "слишком много аргументов"
 
-#: src/envsubst.c:136 src/gettext.c:169 src/ngettext.c:155
+#: src/envsubst.c:138 src/gettext.c:171 src/ngettext.c:156
 #, c-format
 msgid "missing arguments"
 msgstr "необходимо задать аргументы"
 
-#: src/envsubst.c:174 src/gettext.c:246 src/ngettext.c:212
+#: src/envsubst.c:176 src/gettext.c:248 src/ngettext.c:213
 #, c-format
 msgid "Try '%s --help' for more information.\n"
 msgstr "По команде «%s --help» можно получить дополнительную информацию.\n"
 
-#: src/envsubst.c:179
+#: src/envsubst.c:181
 #, c-format, no-wrap
 msgid "Usage: %s [OPTION] [SHELL-FORMAT]\n"
 msgstr "Использование: %s [ПАРАМЕТР] [ФОРМАТ-ОБОЛОЧКИ]\n"
 
-#: src/envsubst.c:184
+#: src/envsubst.c:186
 #, c-format, no-wrap
 msgid "Substitutes the values of environment variables.\n"
 msgstr "Подставляет значения переменных окружения.\n"
 
-#: src/envsubst.c:188
+#: src/envsubst.c:190
 #, c-format, no-wrap
 msgid "Operation mode:\n"
 msgstr "Режим работы:\n"
 
-#: src/envsubst.c:191
+#: src/envsubst.c:193
 #, c-format, no-wrap
 msgid "  -v, --variables             output the variables occurring in SHELL-FORMAT\n"
 msgstr "  -v, --variables             вывести переменные, найденные в ФОРМАТЕ-ОБОЛОЧКИ\n"
 
-#: src/envsubst.c:195 src/gettext.c:275 src/ngettext.c:242
+#: src/envsubst.c:197 src/gettext.c:277 src/ngettext.c:243
 #, c-format, no-wrap
 msgid "Informative output:\n"
 msgstr "Информационный вывод:\n"
 
-#: src/envsubst.c:198
+#: src/envsubst.c:200
 #, c-format, no-wrap
 msgid "  -h, --help                  display this help and exit\n"
 msgstr "  -h, --help                  напечатать эту справку и выйти\n"
 
-#: src/envsubst.c:201
+#: src/envsubst.c:203
 #, c-format, no-wrap
 msgid "  -V, --version               output version information and exit\n"
 msgstr "  -V, --version               напечатать информацию о версии и выйти\n"
 
-#: src/envsubst.c:205
+#: src/envsubst.c:207
 #, c-format, no-wrap
 msgid ""
 "In normal operation mode, standard input is copied to standard output,\n"
@@ -158,7 +158,7 @@ msgstr ""
 "ФОРМАТЕ-ОБОЛОЧКИ; в противном случае подставляются все ссылки на\n"
 "переменные окружения, встречающиеся на стандартном вводе.\n"
 
-#: src/envsubst.c:214
+#: src/envsubst.c:216
 #, c-format, no-wrap
 msgid ""
 "When --variables is used, standard input is ignored, and the output consists\n"
@@ -173,7 +173,7 @@ msgstr ""
 #. email address for this package.  Please add _another line_ saying
 #. "Report translation bugs to <...>\n" with the address for translation
 #. bugs (typically your translation team's web or email address).
-#: src/envsubst.c:223 src/gettext.c:299 src/ngettext.c:263
+#: src/envsubst.c:225 src/gettext.c:301 src/ngettext.c:264
 #, c-format
 msgid ""
 "Report bugs in the bug tracker at <%s>\n"
@@ -182,21 +182,21 @@ msgstr ""
 "Сообщайте об ошибках в систему отслеживания <%s>\n"
 "или на почту <%s>.\n"
 
-#: src/envsubst.c:451
+#: src/envsubst.c:453
 #, c-format
 msgid "error while reading \"%s\""
 msgstr "ошибка чтения «%s»"
 
-#: src/envsubst.c:451
+#: src/envsubst.c:453
 msgid "standard input"
 msgstr "стандартный ввод"
 
 #. This is a proper name. See the gettext manual, section Names.
-#: src/gettext.c:141 src/ngettext.c:131
+#: src/gettext.c:143 src/ngettext.c:132
 msgid "Ulrich Drepper"
 msgstr "Ульрих Дреппер (Ulrich Drepper)"
 
-#: src/gettext.c:251
+#: src/gettext.c:253
 #, c-format, no-wrap
 msgid ""
 "Usage: %s [OPTION] [[TEXTDOMAIN] MSGID]\n"
@@ -205,40 +205,39 @@ msgstr ""
 "Использование: %s [ПАРАМЕТР] [[ДОМЕН] MSGID]\n"
 "      или:     %s [ПАРАМЕТР] -s [MSGID]…\n"
 
-#: src/gettext.c:257
+#: src/gettext.c:259
 #, c-format, no-wrap
 msgid "Display native language translation of a textual message.\n"
 msgstr "Отображает перевод текстового сообщения.\n"
 
-#: src/gettext.c:261
+#: src/gettext.c:263
 #, c-format, no-wrap
 msgid "  -d, --domain=TEXTDOMAIN   retrieve translated messages from TEXTDOMAIN\n"
 msgstr "  -d, --domain=ДОМЕН          возвращает переведённые сообщения из ДОМЕНА\n"
 
-#: src/gettext.c:263 src/ngettext.c:229
+#: src/gettext.c:265 src/ngettext.c:230
 #, c-format
 msgid "  -c, --context=CONTEXT     specify context for MSGID\n"
 msgstr "  -c, --context=КОНТЕКСТ      задать контекст MSGID\n"
 
-#: src/gettext.c:265 src/ngettext.c:231
+#: src/gettext.c:267 src/ngettext.c:232
 #, c-format
 msgid "  -e                        enable expansion of some escape sequences\n"
 msgstr ""
 "  -e                        включить раскрытие некоторых экранированных\n"
 "                              последовательностей\n"
 
-#: src/gettext.c:267
+#: src/gettext.c:269
 #, c-format
 msgid "  -n                        suppress trailing newline\n"
-msgstr ""
-"  -n                          не выводить конечный символ новой строки\n"
+msgstr "  -n                          не выводить конечный символ новой строки\n"
 
-#: src/gettext.c:269 src/ngettext.c:233
+#: src/gettext.c:271 src/ngettext.c:234
 #, c-format
 msgid "  -E                        (ignored for compatibility)\n"
 msgstr "  -E                          (игнорируется для совместимости)\n"
 
-#: src/gettext.c:271
+#: src/gettext.c:273
 #, c-format
 msgid ""
 "  [TEXTDOMAIN] MSGID        retrieve translated message corresponding\n"
@@ -247,18 +246,17 @@ msgstr ""
 "  [ДОМЕН] MSGID               возвращает переведённое сообщение,\n"
 "                              соответствующее MSGID из ДОМЕНА\n"
 
-#: src/gettext.c:277 src/ngettext.c:244
+#: src/gettext.c:279 src/ngettext.c:245
 #, c-format
 msgid "  -h, --help                display this help and exit\n"
 msgstr "  -h, --help                  напечатать эту справку и выйти\n"
 
-#: src/gettext.c:279 src/ngettext.c:246
+#: src/gettext.c:281 src/ngettext.c:247
 #, c-format
 msgid "  -V, --version             display version information and exit\n"
-msgstr ""
-"  -V, --version               показать номер версии и завершить работу\n"
+msgstr "  -V, --version               показать номер версии и завершить работу\n"
 
-#: src/gettext.c:283
+#: src/gettext.c:285
 #, c-format, no-wrap
 msgid ""
 "If the TEXTDOMAIN parameter is not given, the domain is determined from the\n"
@@ -279,12 +277,12 @@ msgstr ""
 "стандартный вывод, выводятся их переводы из указанного домена.\n"
 "Стандартный каталог поиска: %s\n"
 
-#: src/ngettext.c:217
+#: src/ngettext.c:218
 #, c-format, no-wrap
 msgid "Usage: %s [OPTION] [TEXTDOMAIN] MSGID MSGID-PLURAL COUNT\n"
 msgstr "Использование: %s [ПАРАМЕТР] [ДОМЕН] MSGID MSGID-PLURAL ЧИСЛО\n"
 
-#: src/ngettext.c:222
+#: src/ngettext.c:223
 #, c-format, no-wrap
 msgid ""
 "Display native language translation of a textual message whose grammatical\n"
@@ -293,36 +291,31 @@ msgstr ""
 "Отображает перевод текстового сообщения, грамматическая форма которого\n"
 "зависит от некоторого числа.\n"
 
-#: src/ngettext.c:227
+#: src/ngettext.c:228
 #, c-format, no-wrap
 msgid "  -d, --domain=TEXTDOMAIN   retrieve translated message from TEXTDOMAIN\n"
 msgstr "  -d, --domain=ДОМЕН          возвращает переведённое сообщение из ДОМЕНА\n"
 
-#: src/ngettext.c:235
+#: src/ngettext.c:236
 #, c-format
-msgid ""
-"  [TEXTDOMAIN]              retrieve translated message from TEXTDOMAIN\n"
-msgstr ""
-"  [ДОМЕН]                     возвращает переведённое сообщение из ДОМЕНА\n"
+msgid "  [TEXTDOMAIN]              retrieve translated message from TEXTDOMAIN\n"
+msgstr "  [ДОМЕН]                     возвращает переведённое сообщение из ДОМЕНА\n"
 
-#: src/ngettext.c:237
+#: src/ngettext.c:238
 #, c-format
-msgid ""
-"  MSGID MSGID-PLURAL        translate MSGID (singular) / MSGID-PLURAL "
-"(plural)\n"
+msgid "  MSGID MSGID-PLURAL        translate MSGID (singular) / MSGID-PLURAL (plural)\n"
 msgstr ""
 "  MSGID MSGID-PLURAL          переводит MSGID (единственное число) /\n"
 "                              MSGID-PLURAL (множественное число)\n"
 
-#: src/ngettext.c:239
+#: src/ngettext.c:240
 #, c-format
-msgid ""
-"  COUNT                     choose singular/plural form based on this value\n"
+msgid "  COUNT                     choose singular/plural form based on this value\n"
 msgstr ""
 "  КОЛИЧЕСТВО                  выбирать форму единственного/множественного\n"
 "                              числа основываясь на этом значении\n"
 
-#: src/ngettext.c:250
+#: src/ngettext.c:251
 #, c-format, no-wrap
 msgid ""
 "If the TEXTDOMAIN parameter is not given, the domain is determined from the\n"
@@ -365,10 +358,8 @@ msgstr ""
 #~ "  [TEXTDOMAIN] MSGID        retrieve translated message corresponding\n"
 #~ "                            to MSGID from TEXTDOMAIN\n"
 #~ msgstr ""
-#~ "  -d, --domain=ДОМЕН        использовать переведённые сообщения из "
-#~ "ДОМЕНА\n"
-#~ "  -e                        разрешить использование некоторых "
-#~ "экранирующих\n"
+#~ "  -d, --domain=ДОМЕН        использовать переведённые сообщения из ДОМЕНА\n"
+#~ "  -e                        разрешить использование некоторых экранирующих\n"
 #~ "                            последовательностей\n"
 #~ "  -E                        (игнорируется для совместимости)\n"
 #~ "  -h, --help                показать эту справку и выйти\n"
@@ -383,10 +374,8 @@ msgstr ""
 #~ "  -h, --help                display this help and exit\n"
 #~ "  -V, --version             display version information and exit\n"
 #~ "  [TEXTDOMAIN]              retrieve translated message from TEXTDOMAIN\n"
-#~ "  MSGID MSGID-PLURAL        translate MSGID (singular) / MSGID-PLURAL "
-#~ "(plural)\n"
-#~ "  COUNT                     choose singular/plural form based on this "
-#~ "value\n"
+#~ "  MSGID MSGID-PLURAL        translate MSGID (singular) / MSGID-PLURAL (plural)\n"
+#~ "  COUNT                     choose singular/plural form based on this value\n"
 #~ msgstr ""
 #~ "  -d, --domain=ДОМЕН     использовать переведенные сообщения из ДОМЕНА\n"
 #~ "  -e                     разрешить использование некоторых экранирующих\n"
@@ -404,13 +393,10 @@ msgstr ""
 
 #~ msgid ""
 #~ "Copyright (C) %s Free Software Foundation, Inc.\n"
-#~ "This is free software; see the source for copying conditions.  There is "
-#~ "NO\n"
-#~ "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR "
-#~ "PURPOSE.\n"
+#~ "This is free software; see the source for copying conditions.  There is NO\n"
+#~ "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n"
 #~ msgstr ""
 #~ "Copyright (C) %s Free Software Foundation, Inc.\n"
-#~ "Это свободная программа; подробности об условиях распространения "
-#~ "смотрите\n"
+#~ "Это свободная программа; подробности об условиях распространения смотрите\n"
 #~ "в исходном тексте.  Мы НЕ предоставляем гарантий; даже гарантий\n"
 #~ "КОММЕРЧЕСКОЙ ЦЕННОСТИ или ПРИГОДНОСТИ ДЛЯ КОНКРЕТНОЙ ЦЕЛИ.\n"

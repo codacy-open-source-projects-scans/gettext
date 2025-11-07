@@ -1,5 +1,5 @@
 /* Perl format strings.
-   Copyright (C) 2004, 2006-2007, 2009, 2019-2020, 2023 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <bruno@clisp.org>, 2003.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -46,7 +44,7 @@
      a nonempty digit sequence starting with a nonzero digit,
    - is optionally followed by '.' and a precision specification: '*' (reads
      an argument) or '*m$' where m is a positive integer starting with a
-     nonzero digit or a digit sequence,
+     nonzero digit or an optional nonempty digit sequence,
    - is optionally followed by a size specifier, one of 'h' 'l' 'll' 'L' 'q'
      'V' 'I32' 'I64' 'I',
    - is finished by a specifier
@@ -101,32 +99,31 @@ typedef enum format_arg_type format_arg_type_t;
 
 struct numbered_arg
 {
-  unsigned int number;
+  size_t number;
   format_arg_type_t type;
 };
 
 struct spec
 {
-  unsigned int directives;
-  unsigned int numbered_arg_count;
+  size_t directives;
+  /* We consider a directive as "likely intentional" if it does not contain a
+     space.  This prevents xgettext from flagging strings like "100% complete"
+     as 'perl-format' if they don't occur in a context that requires a format
+     string.  */
+  size_t likely_intentional_directives;
+  size_t numbered_arg_count;
   struct numbered_arg *numbered;
 };
 
-/* Locale independent test for a decimal digit.
-   Argument can be  'char' or 'unsigned char'.  (Whereas the argument of
-   <ctype.h> isdigit must be an 'unsigned char'.)  */
-#undef isdigit
-#define isdigit(c) ((unsigned int) ((c) - '0') < 10)
-
 /* Locale independent test for a nonzero decimal digit.  */
-#define isnonzerodigit(c) ((unsigned int) ((c) - '1') < 9)
+#define c_isnonzerodigit(c) ((unsigned int) ((c) - '1') < 9)
 
 
 static int
 numbered_arg_compare (const void *p1, const void *p2)
 {
-  unsigned int n1 = ((const struct numbered_arg *) p1)->number;
-  unsigned int n2 = ((const struct numbered_arg *) p2)->number;
+  size_t n1 = ((const struct numbered_arg *) p1)->number;
+  size_t n2 = ((const struct numbered_arg *) p2)->number;
 
   return (n1 > n2 ? 1 : n1 < n2 ? -1 : 0);
 }
@@ -136,14 +133,16 @@ format_parse (const char *format, bool translated, char *fdi,
               char **invalid_reason)
 {
   const char *const format_start = format;
-  unsigned int directives;
-  unsigned int numbered_arg_count;
+  size_t directives;
+  size_t likely_intentional_directives;
+  size_t numbered_arg_count;
   struct numbered_arg *numbered;
-  unsigned int numbered_allocated;
-  unsigned int unnumbered_arg_count;
+  size_t numbered_allocated;
+  size_t unnumbered_arg_count;
   struct spec *result;
 
   directives = 0;
+  likely_intentional_directives = 0;
   numbered_arg_count = 0;
   numbered = NULL;
   numbered_allocated = 0;
@@ -153,25 +152,26 @@ format_parse (const char *format, bool translated, char *fdi,
     if (*format++ == '%')
       {
         /* A directive.  */
-        unsigned int number = 0;
+        size_t number = 0;
         bool vectorize = false;
         format_arg_type_t type;
         format_arg_type_t size;
+        bool likely_intentional = true;
 
         FDI_SET (format - 1, FMTDIR_START);
         directives++;
 
-        if (isnonzerodigit (*format))
+        if (c_isnonzerodigit (*format))
           {
             const char *f = format;
-            unsigned int m = 0;
+            size_t m = 0;
 
             do
               {
                 m = 10 * m + (*f - '0');
                 f++;
               }
-            while (isdigit (*f));
+            while (c_isdigit (*f));
 
             if (*f == '$')
               {
@@ -183,7 +183,11 @@ format_parse (const char *format, bool translated, char *fdi,
         /* Parse flags.  */
         while (*format == ' ' || *format == '+' || *format == '-'
                || *format == '#' || *format == '0')
-          format++;
+          {
+            if (*format == ' ')
+              likely_intentional = false;
+            format++;
+          }
 
         /* Parse vector.  */
         if (*format == 'v')
@@ -211,23 +215,23 @@ format_parse (const char *format, bool translated, char *fdi,
                 numbered[numbered_arg_count].type = FAT_SCALAR_VECTOR; /* or FAT_STRING? */
                 numbered_arg_count++;
               }
-            else if (isnonzerodigit (*f))
+            else if (c_isnonzerodigit (*f))
               {
-                unsigned int m = 0;
+                size_t m = 0;
 
                 do
                   {
                     m = 10 * m + (*f - '0');
                     f++;
                   }
-                while (isdigit (*f));
+                while (c_isdigit (*f));
 
                 if (*f == '$')
                   {
                     f++;
                     if (*f == 'v')
                       {
-                        unsigned int vector_number = m;
+                        size_t vector_number = m;
 
                         format = ++f;
                         vectorize = true;
@@ -264,21 +268,21 @@ format_parse (const char *format, bool translated, char *fdi,
         /* Parse width.  */
         if (*format == '*')
           {
-            unsigned int width_number = 0;
+            size_t width_number = 0;
 
             format++;
 
-            if (isnonzerodigit (*format))
+            if (c_isnonzerodigit (*format))
               {
                 const char *f = format;
-                unsigned int m = 0;
+                size_t m = 0;
 
                 do
                   {
                     m = 10 * m + (*f - '0');
                     f++;
                   }
-                while (isdigit (*f));
+                while (c_isdigit (*f));
 
                 if (*f == '$')
                   {
@@ -299,9 +303,9 @@ format_parse (const char *format, bool translated, char *fdi,
             numbered[numbered_arg_count].type = FAT_INTEGER;
             numbered_arg_count++;
           }
-        else if (isnonzerodigit (*format))
+        else if (c_isnonzerodigit (*format))
           {
-            do format++; while (isdigit (*format));
+            do format++; while (c_isdigit (*format));
           }
 
         /* Parse precision.  */
@@ -311,21 +315,21 @@ format_parse (const char *format, bool translated, char *fdi,
 
             if (*format == '*')
               {
-                unsigned int precision_number = 0;
+                size_t precision_number = 0;
 
                 format++;
 
-                if (isnonzerodigit (*format))
+                if (c_isnonzerodigit (*format))
                   {
                     const char *f = format;
-                    unsigned int m = 0;
+                    size_t m = 0;
 
                     do
                       {
                         m = 10 * m + (*f - '0');
                         f++;
                       }
-                    while (isdigit (*f));
+                    while (c_isdigit (*f));
 
                     if (*f == '$')
                       {
@@ -346,7 +350,7 @@ format_parse (const char *format, bool translated, char *fdi,
               }
             else
               {
-                while (isdigit (*format)) format++;
+                while (c_isdigit (*format)) format++;
               }
           }
 
@@ -429,7 +433,7 @@ format_parse (const char *format, bool translated, char *fdi,
             if (size == FAT_SIZE_SHORT || size == FAT_SIZE_LONG)
               {
                 *invalid_reason =
-                  xasprintf (_("In the directive number %u, the size specifier is incompatible with the conversion specifier '%c'."), directives, *format);
+                  xasprintf (_("In the directive number %zu, the size specifier is incompatible with the conversion specifier '%c'."), directives, *format);
                 FDI_SET (format, FMTDIR_ERROR);
                 goto bad_format;
               }
@@ -469,6 +473,8 @@ format_parse (const char *format, bool translated, char *fdi,
             numbered_arg_count++;
           }
 
+        if (likely_intentional)
+          likely_intentional_directives++;
         FDI_SET (format, FMTDIR_END);
 
         format++;
@@ -477,7 +483,7 @@ format_parse (const char *format, bool translated, char *fdi,
   /* Sort the numbered argument array, and eliminate duplicates.  */
   if (numbered_arg_count > 1)
     {
-      unsigned int i, j;
+      size_t i, j;
       bool err;
 
       qsort (numbered, numbered_arg_count,
@@ -523,6 +529,7 @@ format_parse (const char *format, bool translated, char *fdi,
 
   result = XMALLOC (struct spec);
   result->directives = directives;
+  result->likely_intentional_directives = likely_intentional_directives;
   result->numbered_arg_count = numbered_arg_count;
   result->numbered = numbered;
   return result;
@@ -552,6 +559,14 @@ format_get_number_of_directives (void *descr)
 }
 
 static bool
+format_is_unlikely_intentional (void *descr)
+{
+  struct spec *spec = (struct spec *) descr;
+
+  return spec->likely_intentional_directives == 0;
+}
+
+static bool
 format_check (void *msgid_descr, void *msgstr_descr, bool equality,
               formatstring_error_logger_t error_logger, void *error_logger_data,
               const char *pretty_msgid, const char *pretty_msgstr)
@@ -562,9 +577,9 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
 
   if (spec1->numbered_arg_count + spec2->numbered_arg_count > 0)
     {
-      unsigned int i, j;
-      unsigned int n1 = spec1->numbered_arg_count;
-      unsigned int n2 = spec2->numbered_arg_count;
+      size_t i, j;
+      size_t n1 = spec1->numbered_arg_count;
+      size_t n2 = spec2->numbered_arg_count;
 
       /* Check that the argument numbers are the same.
          Both arrays are sorted.  We search for the first difference.  */
@@ -580,7 +595,7 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
             {
               if (error_logger)
                 error_logger (error_logger_data,
-                              _("a format specification for argument %u, as in '%s', doesn't exist in '%s'"),
+                              _("a format specification for argument %zu, as in '%s', doesn't exist in '%s'"),
                               spec2->numbered[j].number, pretty_msgstr,
                               pretty_msgid);
               err = true;
@@ -592,7 +607,7 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
                 {
                   if (error_logger)
                     error_logger (error_logger_data,
-                                  _("a format specification for argument %u doesn't exist in '%s'"),
+                                  _("a format specification for argument %zu doesn't exist in '%s'"),
                                   spec1->numbered[i].number, pretty_msgstr);
                   err = true;
                   break;
@@ -613,7 +628,7 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
                   {
                     if (error_logger)
                       error_logger (error_logger_data,
-                                    _("format specifications in '%s' and '%s' for argument %u are not the same"),
+                                    _("format specifications in '%s' and '%s' for argument %zu are not the same"),
                                     pretty_msgid, pretty_msgstr,
                                     spec2->numbered[j].number);
                     err = true;
@@ -635,7 +650,7 @@ struct formatstring_parser formatstring_perl =
   format_parse,
   format_free,
   format_get_number_of_directives,
-  NULL,
+  format_is_unlikely_intentional,
   format_check
 };
 
@@ -651,8 +666,8 @@ static void
 format_print (void *descr)
 {
   struct spec *spec = (struct spec *) descr;
-  unsigned int last;
-  unsigned int i;
+  size_t last;
+  size_t i;
 
   if (spec == NULL)
     {
@@ -664,7 +679,7 @@ format_print (void *descr)
   last = 1;
   for (i = 0; i < spec->numbered_arg_count; i++)
     {
-      unsigned int number = spec->numbered[i].number;
+      size_t number = spec->numbered[i].number;
 
       if (i > 0)
         printf (" ");
@@ -762,7 +777,7 @@ main ()
 /*
  * For Emacs M-x compile
  * Local Variables:
- * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DHAVE_CONFIG_H -DTEST format-perl.c ../gnulib-lib/libgettextlib.la"
+ * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DTEST format-perl.c ../gnulib-lib/libgettextlib.la"
  * End:
  */
 

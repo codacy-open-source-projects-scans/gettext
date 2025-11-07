@@ -1,5 +1,5 @@
-/* Unicode CLDR plural rule parser and converter
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+/* Unicode CLDR plural rule parser and converter.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
    This file was written by Daiki Ueno <ueno@gnu.org>, 2015.
 
@@ -17,24 +17,18 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 %{
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+
+#define SB_NO_APPENDF
 #include "unistr.h"
 #include "xalloc.h"
 #include "string-buffer.h"
 
 #include "cldr-plural-exp.h"
-#include "cldr-plural.h"
-
-/* Prototypes for local functions.  */
-static int yylex (YYSTYPE *lval, struct cldr_plural_parse_args *arg);
-static void yyerror (struct cldr_plural_parse_args *arg, const char *str);
 
 /* Allocation of expressions.  */
 
@@ -119,6 +113,25 @@ new_range (struct cldr_plural_operand_ty *start,
   result->end = end;
   return result;
 }
+
+/* Internal state of the Bison-generated parser.  */
+
+struct cldr_plural_parse_args
+{
+  /* The lifetime of cp, cp_end is limited to the cldr_plural_parse
+     invocation.  */
+  const char *cp;
+  const char *cp_end;
+
+  struct cldr_plural_rule_list_ty *result;
+};
+
+#include "cldr-plural.h"
+
+/* Prototypes for local functions, that must come after the rules.  */
+static int yylex (YYSTYPE *lval, struct cldr_plural_parse_args *arg);
+static void yyerror (struct cldr_plural_parse_args *arg, const char *str);
+
 %}
 
 %require "3.0"
@@ -272,16 +285,18 @@ sample_ellipsis: %empty
         ;
 
 sample_range: DECIMAL
-	{ free ($1); }
+        { free ($1); }
         | DECIMAL '~' DECIMAL
         { free ($1); free ($3); }
         | INTEGER
         { free ($1); }
         | INTEGER '~' INTEGER
-	{ free ($1); free ($3); }
+        { free ($1); free ($3); }
         ;
 
 %%
+
+/* Functions invoked by the Bison-generated parser.  */
 
 static int
 yylex (YYSTYPE *lval, struct cldr_plural_parse_args *arg)
@@ -311,27 +326,27 @@ yylex (YYSTYPE *lval, struct cldr_plural_parse_args *arg)
       arg->cp = exp + length;
       return ELLIPSIS;
     }
-  else if (strncmp ("...", exp, 3) == 0)
+  else if (str_startswith (exp, "..."))
     {
       arg->cp = exp + 3;
       return ELLIPSIS;
     }
-  else if (strncmp ("..", exp, 2) == 0)
+  else if (str_startswith (exp, ".."))
     {
       arg->cp = exp + 2;
       return RANGE;
     }
-  else if (strncmp ("other", exp, 5) == 0)
+  else if (str_startswith (exp, "other"))
     {
       arg->cp = exp + 5;
       return OTHER;
     }
-  else if (strncmp ("@integer", exp, 8) == 0)
+  else if (str_startswith (exp, "@integer"))
     {
       arg->cp = exp + 8;
       return AT_INTEGER;
     }
-  else if (strncmp ("@decimal", exp, 8) == 0)
+  else if (str_startswith (exp, "@decimal"))
     {
       arg->cp = exp + 8;
       return AT_DECIMAL;
@@ -463,4 +478,23 @@ static void
 yyerror (struct cldr_plural_parse_args *arg, char const *s)
 {
   fprintf (stderr, "%s\n", s);
+}
+
+/* Entry point to the parser.  */
+
+struct cldr_plural_rule_list_ty *
+cldr_plural_parse (const char *input)
+{
+  struct cldr_plural_parse_args arg;
+
+  memset (&arg, 0, sizeof (struct cldr_plural_parse_args));
+  arg.cp = input;
+  arg.cp_end = input + strlen (input);
+  arg.result = XMALLOC (struct cldr_plural_rule_list_ty);
+  memset (arg.result, 0, sizeof (struct cldr_plural_rule_list_ty));
+
+  if (yyparse (&arg) != 0)
+    return NULL;
+
+  return arg.result;
 }

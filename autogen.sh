@@ -4,9 +4,9 @@
 # also regenerates all aclocal.m4, config.h.in, Makefile.in, configure files
 # with new versions of autoconf or automake.
 #
-# This script requires autoconf-2.64..2.72 and automake-1.13..1.17 in the PATH.
+# This script requires autoconf-2.64..2.72 and automake-1.13..1.18 in the PATH.
 
-# Copyright (C) 2003-2024 Free Software Foundation, Inc.
+# Copyright (C) 2003-2025 Free Software Foundation, Inc.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,9 +21,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Prerequisite (if not used from a released tarball): either
-#   - the GNULIB_SRCDIR environment variable pointing to a gnulib checkout, or
-#   - a preceding invocation of './autopull.sh'.
+# Prerequisite (if not used from a released tarball):
+#   - A preceding invocation of './autopull.sh'.
+#   - If the GNULIB_SRCDIR environment variable was set during the
+#     './autopull.sh' invocation, pointing to a gnulib checkout, it should
+#     still be set now, during the './autogen.sh' invocation.
 #
 # Usage: ./autogen.sh [--skip-gnulib]
 #
@@ -98,34 +100,49 @@ if ! $skip_gnulib; then
     attribute
     basename-lgpl
     binary-io
+    bool
+    c-ctype
+    c-strtold
     closeout
     error
-    getopt-gnu
+    fzprintf-posix
     gettext-h
     havelib
+    mbrtoc32
+    mbszero
     memmove
     noreturn
+    options
     progname
     propername
+    quote
     relocatable-prog
     setlocale
     sigpipe
-    stdbool
-    stdio
-    stdlib
+    stdint-h
+    stdio-h
+    stdlib-h
+    strtoimax
+    strtold
     strtoul
-    unistd
+    strtoumax
+    unistd-h
     unlocked-io
     xalloc
     xstring-buffer
+    xstrtold
   '
   GNULIB_MODULES_RUNTIME_OTHER='
     gettext-runtime-misc
     ansi-c++-opt
     csharpcomp-script
+    d
+    dcomp-script
     java
     javacomp-script
     manywarnings
+    modula2
+    modula2comp-script
   '
   $GNULIB_TOOL --dir=gettext-runtime --lib=libgrt --source-base=gnulib-lib --m4-base=gnulib-m4 --no-libtool --local-dir=gnulib-local --local-symlink \
     --import $GNULIB_MODULES_RUNTIME_FOR_SRC $GNULIB_MODULES_RUNTIME_OTHER || exit $?
@@ -172,15 +189,16 @@ if ! $skip_gnulib; then
     binary-io
     bison
     bison-i18n
+    bool
     byteswap
     c-ctype
     c-strcase
     c-strcasestr
     c-strstr
+    carray-list
     clean-temp
     closedir
     closeout
-    configmake
     copy-file
     csharpcomp
     csharpexec
@@ -200,15 +218,19 @@ if ! $skip_gnulib; then
     gcd
     getaddrinfo
     getline
-    getopt-gnu
+    getrusage
     gettext-h
+    gocomp-script
+    hash-map
+    hash-set
+    hashkey-string
     iconv
     javacomp
     javaexec
     libunistring-optional
     libxml
     localcharset
-    locale
+    locale-h
     localename
     localtime
     lock
@@ -218,11 +240,13 @@ if ! $skip_gnulib; then
     memset
     minmax
     mkdir
+    next-prime
     noreturn
     obstack
     open
     opendir
     openmp-init
+    options
     pipe-filter-ii
     progname
     propername
@@ -230,6 +254,7 @@ if ! $skip_gnulib; then
     readdir
     relocatable-prog
     relocatable-script
+    set
     setlocale
     sf-istream
     sh-filename
@@ -237,95 +262,198 @@ if ! $skip_gnulib; then
     sigpipe
     sigprocmask
     spawn-pipe
-    stdbool
-    stdio
-    stdlib
+    stat-time
+    stdio-h
+    stdlib-h
     stpcpy
     stpncpy
+    str_startswith
     strchrnul
     strcspn
     strerror
     string-desc
+    strnlen
     strpbrk
     strtol
     strtoul
     supersede
-    sys_select
-    sys_stat
-    sys_time
+    sys_select-h
+    sys_stat-h
+    sys_time-h
     trim
     unicase/u8-casefold
     unictype/ctype-space
+    unictype/property-white-space
     unictype/syntax-java-whitespace
+    unictype/property-xid-start
+    unictype/property-xid-continue
     unilbrk/ulc-width-linebreaks
     uniname/uniname
     uninorm/nfc
-    unistd
+    unistd-h
     unistr/u8-check
     unistr/u8-mbtouc
     unistr/u8-mbtoucr
     unistr/u8-uctomb
+    unistr/u16-check
+    unistr/u16-to-u8
     unistr/u16-mbtouc
+    unistr/u32-check
+    unistr/u32-to-u8
     uniwidth/width
     unlocked-io
     unsetenv
     vasprintf
+    vc-mtime
     wait-process
     write
     xalloc
     xconcat-filename
     xerror
+    xlist
     xmalloca
+    xmap
     xmemdup0
+    xset
     xsetenv
     xstrerror
     xstriconv
     xstriconveh
     xstring-buffer
+    xstring-buffer-reversed
     xstring-desc
     xvasprintf
   '
   # Common dependencies of GNULIB_MODULES_TOOLS_FOR_SRC and GNULIB_MODULES_TOOLS_FOR_LIBGREP.
   GNULIB_MODULES_TOOLS_FOR_SRC_COMMON_DEPENDENCIES='
+    absolute-header
+    alignasof
     alloca-opt
+    assert-h
+    attribute
+    basename-lgpl
+    bool
+    btowc
+    builtin-expect
+    c99
+    calloc-gnu
+    calloc-posix
+    cloexec
+    close
+    double-slash-root
+    dup2
+    errno-h
+    error
+    error-h
+    exitfail
     extensions
+    extensions-aix
+    extern-inline
+    fcntl
+    fcntl-h
+    fd-hook
+    filename
+    flexmember
+    fstat
+    gen-header
+    getdtablesize
+    getprogname
     gettext-h
+    gnulib-i18n
+    hard-locale
+    ialloc
+    idx
     include_next
-    locale
+    intprops
+    inttypes-h-incomplete
+    iswblank
+    iswctype
+    iswdigit
+    iswpunct
+    iswxdigit
+    largefile
+    libc-config
+    limits-h
     localcharset
+    localeconv
+    locale-h
+    lock
+    lstat
+    malloca
+    malloc-gnu
     malloc-posix
     mbrtowc
     mbsinit
+    mbszero
+    mbtowc
+    memchr
+    memcmp
+    memmove
+    minmax
+    msvc-inval
+    msvc-nothrow
     multiarch
+    obstack
+    once
+    open
+    pathmax
+    pthread-h
+    pthread-once
+    reallocarray
+    realloc-posix
+    sched-h
     setlocale-null
+    setlocale-null-unlocked
     snippet/arg-nonnull
     snippet/c++defs
+    snippet/_Noreturn
     snippet/warn-on-use
     ssize_t
-    stdbool
-    stddef
-    stdint
-    stdlib
+    stat
+    stat-time
+    stdckdint-h
+    stddef-h
+    std-gnu11
+    stdint-h
+    stdio-h
+    stdlib-h
     streq
-    unistd
+    strerror
+    strerror-override
+    string-h
+    sys_stat-h
+    sys_types-h
+    threadlib
+    time-h
+    unistd-h
+    vararrays
     verify
-    wchar
+    wchar-h
+    wctype
     wctype-h
     windows-mutex
     windows-once
     windows-recmutex
     windows-rwlock
+    xalloc
+    xalloc-die
+    xalloc-oversized
   '
   GNULIB_MODULES_TOOLS_OTHER='
     gettext-tools-misc
     ansi-c++-opt
     csharpcomp-script
     csharpexec-script
+    d
+    dcomp-script
     java
     javacomp-script
     javaexec-script
     manywarnings
-    stdint
+    modula2
+    modula2comp-script
+    stdint-h
+    test-xfail
   '
   GNULIB_MODULES_TOOLS_LIBUNISTRING_TESTS='
     unilbrk/u8-possible-linebreaks-tests
@@ -337,22 +465,26 @@ if ! $skip_gnulib; then
   GNULIB_MODULES_LIBGETTEXTLIB="$GNULIB_MODULES_TOOLS_FOR_SRC $GNULIB_MODULES_TOOLS_FOR_SRC_COMMON_DEPENDENCIES $GNULIB_MODULES_TOOLS_OTHER"
   $GNULIB_TOOL --dir=gettext-tools --lib=libgettextlib --source-base=gnulib-lib --m4-base=gnulib-m4 --tests-base=gnulib-tests --makefile-name=Makefile.gnulib --libtool --with-tests --local-dir=gnulib-local --local-symlink \
     --import \
+    --avoid=float-h-tests \
+    --avoid=hashcode-string1 \
     --avoid=fdutimensat-tests --avoid=futimens-tests --avoid=utime-tests --avoid=utimens-tests --avoid=utimensat-tests \
-    --avoid=array-list-tests --avoid=linked-list-tests --avoid=linkedhash-list-tests \
+    --avoid=array-list-tests --avoid=array-map-tests --avoid=array-oset-tests --avoid=carray-list-tests --avoid=linked-list-tests --avoid=linkedhash-list-tests \
+    --avoid=uninorm/decomposing-form-tests \
     `for m in $GNULIB_MODULES_TOOLS_LIBUNISTRING_TESTS; do echo --avoid=$m; done` \
     $GNULIB_MODULES_LIBGETTEXTLIB || exit $?
   $GNULIB_TOOL --copy-file m4/libtextstyle.m4 gettext-tools/gnulib-m4/libtextstyle.m4 || exit $?
   # In gettext-tools/libgrep:
   GNULIB_MODULES_TOOLS_FOR_LIBGREP='
+    kwset
     mbrlen
     regex
   '
-  $GNULIB_TOOL --dir=gettext-tools --macro-prefix=grgl --lib=libgrep --source-base=libgrep --m4-base=libgrep/gnulib-m4 --witness-c-macro=IN_GETTEXT_TOOLS_LIBGREP --makefile-name=Makefile.gnulib --local-dir=gnulib-local --local-symlink \
+  $GNULIB_TOOL --dir=gettext-tools --macro-prefix=grgl --source-base=libgrep/gnulib-lib --m4-base=libgrep/gnulib-m4 --makefile-name=Makefile.gnulib --witness-c-macro=IN_GETTEXT_TOOLS_LIBGREP --local-dir=gnulib-local --local-symlink \
     --import \
     `for m in $GNULIB_MODULES_TOOLS_FOR_SRC_COMMON_DEPENDENCIES; do \
        if test \`$GNULIB_TOOL --extract-applicability $m\` != all; then \
          case $m in \
-           locale | stdbool | stddef | stdint | stdlib | unistd | wchar | wctype-h) ;; \
+           bool | locale-h | stddef-h | stdint-h | stdlib-h | unistd-h | wchar-h | wctype-h) ;; \
            *) echo --avoid=$m ;; \
          esac; \
        fi; \
@@ -363,6 +495,7 @@ if ! $skip_gnulib; then
   GNULIB_MODULES_LIBGETTEXTPO='
     attribute
     basename-lgpl
+    bool
     close
     c-ctype
     c-strcase
@@ -386,15 +519,19 @@ if ! $skip_gnulib; then
     open
     relocatable-lib
     sigpipe
-    stdbool
-    stdio
-    stdlib
+    stdio-h
+    stdlib-h
     stpcpy
     stpncpy
+    str_startswith
     strchrnul
     strerror
     string-desc
+    strnlen
     unictype/ctype-space
+    unictype/property-white-space
+    unictype/property-xid-start
+    unictype/property-xid-continue
     unilbrk/ulc-width-linebreaks
     unistr/u8-mbtouc
     unistr/u8-mbtoucr
@@ -464,6 +601,8 @@ if ! $skip_gnulib; then
   $GNULIB_TOOL --copy-file build-aux/update-copyright || exit $?
   $GNULIB_TOOL --copy-file build-aux/useless-if-before-free || exit $?
   $GNULIB_TOOL --copy-file build-aux/vc-list-files || exit $?
+  $GNULIB_TOOL --copy-file m4/init-package-version.m4 || exit $?
+  $GNULIB_TOOL --copy-file m4/version-stamp.m4 || exit $?
   $GNULIB_TOOL --copy-file top/GNUmakefile . || exit $?
   $GNULIB_TOOL --copy-file top/maint.mk . || exit $?
 
@@ -471,6 +610,9 @@ if ! $skip_gnulib; then
   for file in config.guess config.sub; do
     $GNULIB_TOOL --copy-file build-aux/$file && chmod a+x build-aux/$file || exit $?
   done
+
+  # Fetch INSTALL.generic.
+  $GNULIB_TOOL --copy-file doc/INSTALL.UTF-8 INSTALL.generic || exit $?
 fi
 
 # Make sure we get new versions of files brought in by automake.
@@ -504,6 +646,16 @@ aclocal -I ../../m4 -I ../m4 -I gnulib-m4 \
   || exit $?
 cd "$dir0"
 
+echo "$0: copying common files to gettext-runtime..."
+cp -p gettext-tools/wizard/po-templates/traditional/Makefile.in.in gettext-runtime/po/Makefile.in.in
+cp -p gettext-tools/wizard/po-templates/traditional/Rules-quot gettext-runtime/po/Rules-quot
+cp -p gettext-tools/wizard/po-templates/traditional/boldquot.sed gettext-runtime/po/boldquot.sed
+cp -p gettext-tools/wizard/po-templates/traditional/quot.sed gettext-runtime/po/quot.sed
+cp -p gettext-tools/wizard/po-templates/traditional/en@quot.header gettext-runtime/po/en@quot.header
+cp -p gettext-tools/wizard/po-templates/traditional/en@boldquot.header gettext-runtime/po/en@boldquot.header
+cp -p gettext-tools/wizard/po-templates/traditional/insert-header.sed gettext-runtime/po/insert-header.sed
+cp -p gettext-tools/wizard/po-templates/traditional/remove-potcdate.sed gettext-runtime/po/remove-potcdate.sed
+
 echo "$0: generating configure in gettext-runtime..."
 cd gettext-runtime
 aclocal -I m4 -I ../m4 -I gnulib-m4 \
@@ -532,16 +684,17 @@ aclocal -I ../../gettext-runtime/m4 -I ../../m4 \
   || exit $?
 cd "$dir0"
 
-echo "$0: copying common files from gettext-runtime to gettext-tools..."
+echo "$0: copying common files to gettext-tools..."
 cp -p gettext-runtime/ABOUT-NLS gettext-tools/ABOUT-NLS
-cp -p gettext-runtime/po/Makefile.in.in gettext-tools/po/Makefile.in.in
-cp -p gettext-runtime/po/Rules-quot gettext-tools/po/Rules-quot
-cp -p gettext-runtime/po/boldquot.sed gettext-tools/po/boldquot.sed
-cp -p gettext-runtime/po/quot.sed gettext-tools/po/quot.sed
-cp -p gettext-runtime/po/en@quot.header gettext-tools/po/en@quot.header
-cp -p gettext-runtime/po/en@boldquot.header gettext-tools/po/en@boldquot.header
-cp -p gettext-runtime/po/insert-header.sed gettext-tools/po/insert-header.sed
-cp -p gettext-runtime/po/remove-potcdate.sed gettext-tools/po/remove-potcdate.sed
+cp -p gettext-tools/wizard/po-templates/traditional/Makefile.in.in gettext-tools/po/Makefile.in.in
+cp -p gettext-tools/wizard/po-templates/traditional/Rules-quot gettext-tools/po/Rules-quot
+cp -p gettext-tools/wizard/po-templates/traditional/boldquot.sed gettext-tools/po/boldquot.sed
+cp -p gettext-tools/wizard/po-templates/traditional/quot.sed gettext-tools/po/quot.sed
+cp -p gettext-tools/wizard/po-templates/traditional/en@quot.header gettext-tools/po/en@quot.header
+cp -p gettext-tools/wizard/po-templates/traditional/en@boldquot.header gettext-tools/po/en@boldquot.header
+cp -p gettext-tools/wizard/po-templates/traditional/insert-header.sed gettext-tools/po/insert-header.sed
+cp -p gettext-tools/wizard/po-templates/traditional/remove-potcdate.sed gettext-tools/po/remove-potcdate.sed
+cp -p gettext-tools/wizard/po-templates/traditional/remove-potcdate.sed gettext-tools/examples/po/remove-potcdate.sed
 
 echo "$0: generating configure in gettext-tools..."
 cd gettext-tools

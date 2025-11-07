@@ -1,5 +1,5 @@
 /* C format strings.
-   Copyright (C) 2001-2004, 2006-2007, 2009-2010, 2019, 2023 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <haible@clisp.cons.org>, 2001.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -33,16 +31,16 @@
 #include "format-invalid.h"
 
 #define INVALID_C99_MACRO(directive_number) \
-  xasprintf (_("In the directive number %u, the token after '<' is not the name of a format specifier macro. The valid macro names are listed in ISO C 99 section 7.8.1."), directive_number)
+  xasprintf (_("In the directive number %zu, the token after '<' is not the name of a format specifier macro. The valid macro names are listed in ISO C 99 section 7.8.1."), directive_number)
 
 #define INVALID_ANGLE_BRACKET(directive_number) \
-  xasprintf (_("In the directive number %u, the token after '<' is not followed by '>'."), directive_number)
+  xasprintf (_("In the directive number %zu, the token after '<' is not followed by '>'."), directive_number)
 
 #define INVALID_SIZE_SPECIFIER(directive_number) \
-  xasprintf (_("In the directive number %u, the argument size specifier is invalid."), directive_number)
+  xasprintf (_("In the directive number %zu, the argument size specifier is invalid."), directive_number)
 
 #define INVALID_IGNORED_ARGUMENT(referenced_arg, ignored_arg) \
-  xasprintf (_("The string refers to argument number %u but ignores argument number %u."), referenced_arg, ignored_arg)
+  xasprintf (_("The string refers to argument number %zu but ignores argument number %zu."), referenced_arg, ignored_arg)
 
 /* Execute statement if memory allocation function returned NULL.  */
 #define IF_OOM(allocated_ptr, statement)  /* nothing, since we use xalloc.h */
@@ -105,20 +103,20 @@ format_free (void *descr)
   free (spec);
 }
 
-static bool
-format_is_unlikely_intentional (void *descr)
-{
-  struct spec *spec = (struct spec *) descr;
-
-  return spec->unlikely_intentional;
-}
-
 static int
 format_get_number_of_directives (void *descr)
 {
   struct spec *spec = (struct spec *) descr;
 
   return spec->directives;
+}
+
+static bool
+format_is_unlikely_intentional (void *descr)
+{
+  struct spec *spec = (struct spec *) descr;
+
+  return spec->likely_intentional_directives == 0 || spec->unlikely_intentional;
 }
 
 static bool
@@ -129,7 +127,7 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
   struct spec *spec1 = (struct spec *) msgid_descr;
   struct spec *spec2 = (struct spec *) msgstr_descr;
   bool err = false;
-  unsigned int i;
+  size_t i;
 
   /* Check the argument types are the same.  */
   if (equality
@@ -148,7 +146,7 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
         {
           if (error_logger)
             error_logger (error_logger_data,
-                          _("format specifications in '%s' and '%s' for argument %u are not the same"),
+                          _("format specifications in '%s' and '%s' for argument %zu are not the same"),
                           pretty_msgid, pretty_msgstr, i + 1);
           err = true;
         }
@@ -191,9 +189,9 @@ get_sysdep_c_format_directives (const char *string, bool translated,
 
   if (descr != NULL && descr->sysdep_directives_count > 0)
     {
-      unsigned int n = descr->sysdep_directives_count;
+      size_t n = descr->sysdep_directives_count;
       struct interval *intervals = XNMALLOC (n, struct interval);
-      unsigned int i;
+      size_t i;
 
       for (i = 0; i < n; i++)
         {
@@ -227,7 +225,7 @@ static void
 format_print (void *descr)
 {
   struct spec *spec = (struct spec *) descr;
-  unsigned int i;
+  size_t i;
 
   if (spec == NULL)
     {
@@ -374,7 +372,7 @@ main ()
 /*
  * For Emacs M-x compile
  * Local Variables:
- * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DHAVE_CONFIG_H -DTEST format-c.c ../gnulib-lib/libgettextlib.la"
+ * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DTEST format-c.c ../gnulib-lib/libgettextlib.la"
  * End:
  */
 

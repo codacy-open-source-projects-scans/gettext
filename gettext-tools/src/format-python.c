@@ -1,5 +1,5 @@
 /* Python format strings.
-   Copyright (C) 2001-2004, 2006-2009, 2019-2020, 2023 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Written by Bruno Haible <haible@clisp.cons.org>, 2001.
 
    This program is free software: you can redistribute it and/or modify
@@ -15,9 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -50,7 +48,7 @@
    - is optionally followed by a width specification: '*' (reads an argument)
      or a nonempty digit sequence,
    - is optionally followed by '.' and a precision specification: '*' (reads
-     an argument) or a nonempty digit sequence,
+     an argument) or an optional nonempty digit sequence,
    - is optionally followed by a size specifier, one of 'h' 'l' 'L'.
    - is finished by a specifier
        - '%', that needs no argument,
@@ -89,18 +87,17 @@ struct unnamed_arg
 
 struct spec
 {
-  unsigned int directives;
-  unsigned int named_arg_count;
-  unsigned int unnamed_arg_count;
+  size_t directives;
+  /* We consider a directive as "likely intentional" if it does not contain a
+     space.  This prevents xgettext from flagging strings like "100% complete"
+     as 'python-format' if they don't occur in a context that requires a format
+     string.  */
+  size_t likely_intentional_directives;
+  size_t named_arg_count;
+  size_t unnamed_arg_count;
   struct named_arg *named;
   struct unnamed_arg *unnamed;
 };
-
-/* Locale independent test for a decimal digit.
-   Argument can be  'char' or 'unsigned char'.  (Whereas the argument of
-   <ctype.h> isdigit must be an 'unsigned char'.)  */
-#undef isdigit
-#define isdigit(c) ((unsigned int) ((c) - '0') < 10)
 
 
 static int
@@ -119,10 +116,11 @@ format_parse (const char *format, bool translated, char *fdi,
 {
   const char *const format_start = format;
   struct spec spec;
-  unsigned int allocated;
+  size_t allocated;
   struct spec *result;
 
   spec.directives = 0;
+  spec.likely_intentional_directives = 0;
   spec.named_arg_count = 0;
   spec.unnamed_arg_count = 0;
   spec.named = NULL;
@@ -136,13 +134,14 @@ format_parse (const char *format, bool translated, char *fdi,
         char *name = NULL;
         bool zero_precision = false;
         enum format_arg_type type;
+        bool likely_intentional = true;
 
         FDI_SET (format - 1, FMTDIR_START);
         spec.directives++;
 
         if (*format == '(')
           {
-            unsigned int depth;
+            size_t depth;
             const char *name_start;
             const char *name_end;
             size_t n;
@@ -177,7 +176,11 @@ format_parse (const char *format, bool translated, char *fdi,
 
         while (*format == '-' || *format == '+' || *format == ' '
                || *format == '#' || *format == '0')
-          format++;
+          {
+            if (*format == ' ')
+              likely_intentional = false;
+            format++;
+          }
 
         if (*format == '*')
           {
@@ -186,6 +189,7 @@ format_parse (const char *format, bool translated, char *fdi,
             /* Named and unnamed specifications are exclusive.  */
             if (spec.named_arg_count > 0)
               {
+                free (name);
                 *invalid_reason = INVALID_MIXES_NAMED_UNNAMED ();
                 FDI_SET (format - 1, FMTDIR_ERROR);
                 goto bad_format;
@@ -199,9 +203,9 @@ format_parse (const char *format, bool translated, char *fdi,
             spec.unnamed[spec.unnamed_arg_count].type = FAT_INTEGER;
             spec.unnamed_arg_count++;
           }
-        else if (isdigit (*format))
+        else if (c_isdigit (*format))
           {
-            do format++; while (isdigit (*format));
+            do format++; while (c_isdigit (*format));
           }
 
         if (*format == '.')
@@ -215,6 +219,7 @@ format_parse (const char *format, bool translated, char *fdi,
                 /* Named and unnamed specifications are exclusive.  */
                 if (spec.named_arg_count > 0)
                   {
+                    free (name);
                     *invalid_reason = INVALID_MIXES_NAMED_UNNAMED ();
                     FDI_SET (format - 1, FMTDIR_ERROR);
                     goto bad_format;
@@ -228,7 +233,7 @@ format_parse (const char *format, bool translated, char *fdi,
                 spec.unnamed[spec.unnamed_arg_count].type = FAT_INTEGER;
                 spec.unnamed_arg_count++;
               }
-            else if (isdigit (*format))
+            else if (c_isdigit (*format))
               {
                 zero_precision = true;
                 do
@@ -237,7 +242,7 @@ format_parse (const char *format, bool translated, char *fdi,
                       zero_precision = false;
                     format++;
                   }
-                while (isdigit (*format));
+                while (c_isdigit (*format));
               }
           }
 
@@ -262,6 +267,7 @@ format_parse (const char *format, bool translated, char *fdi,
             type = FAT_FLOAT;
             break;
           default:
+            free (name);
             if (*format == '\0')
               {
                 *invalid_reason = INVALID_UNTERMINATED_DIRECTIVE ();
@@ -283,6 +289,7 @@ format_parse (const char *format, bool translated, char *fdi,
             /* Named and unnamed specifications are exclusive.  */
             if (spec.unnamed_arg_count > 0)
               {
+                free (name);
                 *invalid_reason = INVALID_MIXES_NAMED_UNNAMED ();
                 FDI_SET (format, FMTDIR_ERROR);
                 goto bad_format;
@@ -304,6 +311,7 @@ format_parse (const char *format, bool translated, char *fdi,
             /* Named and unnamed specifications are exclusive.  */
             if (spec.named_arg_count > 0)
               {
+                free (name);
                 *invalid_reason = INVALID_MIXES_NAMED_UNNAMED ();
                 FDI_SET (format, FMTDIR_ERROR);
                 goto bad_format;
@@ -318,6 +326,8 @@ format_parse (const char *format, bool translated, char *fdi,
             spec.unnamed_arg_count++;
           }
 
+        if (likely_intentional)
+          spec.likely_intentional_directives++;
         FDI_SET (format, FMTDIR_END);
 
         format++;
@@ -326,7 +336,7 @@ format_parse (const char *format, bool translated, char *fdi,
   /* Sort the named argument array, and eliminate duplicates.  */
   if (spec.named_arg_count > 1)
     {
-      unsigned int i, j;
+      size_t i, j;
       bool err;
 
       qsort (spec.named, spec.named_arg_count, sizeof (struct named_arg),
@@ -380,7 +390,7 @@ format_parse (const char *format, bool translated, char *fdi,
  bad_format:
   if (spec.named != NULL)
     {
-      unsigned int i;
+      size_t i;
       for (i = 0; i < spec.named_arg_count; i++)
         free (spec.named[i].name);
       free (spec.named);
@@ -397,7 +407,7 @@ format_free (void *descr)
 
   if (spec->named != NULL)
     {
-      unsigned int i;
+      size_t i;
       for (i = 0; i < spec->named_arg_count; i++)
         free (spec->named[i].name);
       free (spec->named);
@@ -413,6 +423,14 @@ format_get_number_of_directives (void *descr)
   struct spec *spec = (struct spec *) descr;
 
   return spec->directives;
+}
+
+static bool
+format_is_unlikely_intentional (void *descr)
+{
+  struct spec *spec = (struct spec *) descr;
+
+  return spec->likely_intentional_directives == 0;
 }
 
 static bool
@@ -444,11 +462,11 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
     {
       if (spec1->named_arg_count + spec2->named_arg_count > 0)
         {
-          unsigned int i, j;
-          unsigned int n1 = spec1->named_arg_count;
-          unsigned int n2 = spec2->named_arg_count;
+          size_t i, j;
+          size_t n1 = spec1->named_arg_count;
+          size_t n2 = spec2->named_arg_count;
 
-          /* Check that the argument names are the same.
+          /* Check the argument names in spec2 are contained in those of spec1.
              Both arrays are sorted.  We search for the first difference.  */
           for (i = 0, j = 0; i < n1 || j < n2; )
             {
@@ -511,7 +529,7 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
 
       if (spec1->unnamed_arg_count + spec2->unnamed_arg_count > 0)
         {
-          unsigned int i;
+          size_t i;
 
           /* Check the argument types are the same.  */
           if (spec1->unnamed_arg_count != spec2->unnamed_arg_count)
@@ -531,7 +549,7 @@ format_check (void *msgid_descr, void *msgstr_descr, bool equality,
                 {
                   if (error_logger)
                     error_logger (error_logger_data,
-                                  _("format specifications in '%s' and '%s' for argument %u are not the same"),
+                                  _("format specifications in '%s' and '%s' for argument %zu are not the same"),
                                   pretty_msgid, pretty_msgstr, i + 1);
                   err = true;
                 }
@@ -547,12 +565,12 @@ struct formatstring_parser formatstring_python =
   format_parse,
   format_free,
   format_get_number_of_directives,
-  NULL,
+  format_is_unlikely_intentional,
   format_check
 };
 
 
-unsigned int
+size_t
 get_python_format_unnamed_arg_count (const char *string)
 {
   /* Parse the format string.  */
@@ -562,7 +580,7 @@ get_python_format_unnamed_arg_count (const char *string)
 
   if (descr != NULL)
     {
-      unsigned int result = descr->unnamed_arg_count;
+      size_t result = descr->unnamed_arg_count;
 
       format_free (descr);
       return result;
@@ -586,7 +604,7 @@ static void
 format_print (void *descr)
 {
   struct spec *spec = (struct spec *) descr;
-  unsigned int i;
+  size_t i;
 
   if (spec == NULL)
     {
@@ -695,7 +713,7 @@ main ()
 /*
  * For Emacs M-x compile
  * Local Variables:
- * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DHAVE_CONFIG_H -DTEST format-python.c ../gnulib-lib/libgettextlib.la"
+ * compile-command: "/bin/sh ../libtool --tag=CC --mode=link gcc -o a.out -static -O -g -Wall -I.. -I../gnulib-lib -I../../gettext-runtime/intl -DTEST format-python.c ../gnulib-lib/libgettextlib.la"
  * End:
  */
 

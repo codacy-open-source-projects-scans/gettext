@@ -1,5 +1,5 @@
 dnl Configuration for the gettext-runtime directory of GNU gettext
-dnl Copyright (C) 1995-2024 Free Software Foundation, Inc.
+dnl Copyright (C) 1995-2025 Free Software Foundation, Inc.
 dnl
 dnl This program is free software: you can redistribute it and/or modify
 dnl it under the terms of the GNU General Public License as published by
@@ -17,11 +17,12 @@ dnl along with this program.  If not, see <https://www.gnu.org/licenses/>.
 dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.64])
-AC_INIT([libintl],
-	m4_esyscmd([../../build-aux/git-version-gen ../../.tarball-version]),
-	[bug-gettext@gnu.org])
+AC_INIT([libintl], [package], [bug-gettext@gnu.org])
 AC_CONFIG_SRCDIR([dcigettext.c])
 AC_CONFIG_AUX_DIR([../../build-aux])
+VERSION_NUMBER=`cd $srcdir/../.. \
+                && build-aux/git-version-gen .tarball-version`
+gl_INIT_PACKAGE_VERSION([$VERSION_NUMBER])
 AM_INIT_AUTOMAKE([silent-rules])
 AC_CONFIG_HEADERS([config.h])
 
@@ -305,9 +306,6 @@ AH_VERBATIM([znoexport], [
 #define gl_locale_name_environ            _libintl_locale_name_environ
 #define gl_locale_name_default            _libintl_locale_name_default
 #define gl_locale_name_unsafe             _libintl_locale_name_unsafe
-#define rpl_newlocale                     _libintl_newlocale
-#define rpl_duplocale                     _libintl_duplocale
-#define rpl_freelocale                    _libintl_freelocale
 /* Symbols defined by gnulib module 'lock'.  */
 #if USE_ISOC_THREADS || USE_ISOC_AND_POSIX_THREADS
 #define glthread_lock_init                            _libintl_lock_init
@@ -453,6 +451,11 @@ if false; then
   AC_DEFINE([rpl_fprintf],      [_libintl_fprintf],   [Hidden symbol.])
   AC_DEFINE([rpl_vfprintf],     [_libintl_vfprintf],  [Hidden symbol.])
 fi
+
+dnl These symbols must not be hidden; they are exported via libgnuintl.in.h.
+AC_DEFINE([rpl_newlocale],      [libintl_newlocale],  [Exported symbol.])
+AC_DEFINE([rpl_duplocale],      [libintl_duplocale],  [Exported symbol.])
+AC_DEFINE([rpl_freelocale],     [libintl_freelocale], [Exported symbol.])
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([gnulib-lib/Makefile])
