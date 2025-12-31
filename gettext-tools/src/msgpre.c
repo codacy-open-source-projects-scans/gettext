@@ -1,6 +1,5 @@
-/* Edit translations using a subprocess.
+/* Pretranslate using machine translation.
    Copyright (C) 2001-2025 Free Software Foundation, Inc.
-   Written by Bruno Haible <haible@clisp.cons.org>, 2001.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,6 +13,8 @@
 
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
+
+/* Written by Bruno Haible <bruno@clisp.org>, 2025.  */
 
 
 #include <config.h>
@@ -52,25 +53,25 @@
 #include "xalloc.h"
 #include "findprog.h"
 #include "pipe-filter.h"
-#include "xsetenv.h"
-#include "filters.h"
 #include "msgl-iconv.h"
 #include "xerror-handler.h"
 #include "po-charset.h"
+#include "c-strstr.h"
 #include "propername.h"
 #include "gettext.h"
 
 #define _(str) gettext (str)
 
 
-/* We use a child process, and communicate through a bidirectional pipe.  */
+/* We use the 'spit' program as a child process, and communicate through
+   a bidirectional pipe.  */
 
 
 /* Force output of PO file even if empty.  */
 static int force_po;
 
-/* Keep the header entry unmodified.  */
-static int keep_header;
+/* Keep the fuzzy messages unmodified.  */
+static int keep_fuzzy;
 
 /* Name of the subprogram.  */
 static const char *sub_name;
@@ -82,10 +83,8 @@ static const char *sub_path;
 static const char **sub_argv;
 static int sub_argc;
 
-static bool newline;
-
-/* Filter function.  */
-static void (*filter) (const char *str, size_t len, char **resultp, size_t *lengthp);
+/* If true do not print unneeded messages.  */
+static bool quiet;
 
 
 /* Forward declaration of local functions.  */
@@ -119,10 +118,17 @@ main (int argc, char **argv)
   bool do_version = false;
   char *output_file = NULL;
   const char *input_file = NULL;
+  const char *species = "ollama";
+  const char *url = "http://localhost:11434";
+  const char *model = NULL;
+  const char *to_language = NULL;
+  const char *prompt = NULL;
+  const char *postprocess = NULL;
   catalog_input_format_ty input_syntax = &input_format_po;
   catalog_output_format_ty output_syntax = &output_format_po;
   bool sort_by_filepos = false;
   bool sort_by_msgid = false;
+  quiet = false;
 
   /* Parse command line options.  */
   BEGIN_ALLOW_OMITTING_FIELD_INITIALIZERS
@@ -132,25 +138,29 @@ main (int argc, char **argv)
     { NULL,                 'n',            no_argument       },
     { "color",              CHAR_MAX + 6,   optional_argument },
     { "directory",          'D',            required_argument },
-    { "escape",             'E',            no_argument       },
     { "force-po",           0,              no_argument,      &force_po, 1 },
     { "help",               'h',            no_argument       },
-    { "indent",             CHAR_MAX + 1,   no_argument       },
+    { "indent",             CHAR_MAX + 8,   no_argument       },
     { "input",              'i',            required_argument },
-    { "keep-header",        0,              no_argument,      &keep_header, 1 },
-    { "newline",            CHAR_MAX + 9,   no_argument       },
-    { "no-escape",          CHAR_MAX + 2,   no_argument       },
-    { "no-location",        CHAR_MAX + 8,   no_argument       },
-    { "no-wrap",            CHAR_MAX + 3,   no_argument       },
+    { "keep-fuzzy",         0,              no_argument,      &keep_fuzzy, 1 },
+    { "model",              'm',            required_argument },
+    { "no-location",        CHAR_MAX + 9,   no_argument       },
+    { "no-wrap",            CHAR_MAX + 12,  no_argument       },
     { "output-file",        'o',            required_argument },
+    { "postprocess",        CHAR_MAX + 4,   required_argument },
+    { "prompt",             CHAR_MAX + 3,   required_argument },
     { "properties-input",   'P',            no_argument       },
     { "properties-output",  'p',            no_argument       },
+    { "quiet",              'q',            no_argument       },
+    { "silent",             'q',            no_argument       },
     { "sort-by-file",       'F',            no_argument       },
     { "sort-output",        's',            no_argument       },
+    { "species",            CHAR_MAX + 1,   required_argument },
     { "strict",             CHAR_MAX + 10,  no_argument       },
-    { "stringtable-input",  CHAR_MAX + 4,   no_argument       },
-    { "stringtable-output", CHAR_MAX + 5,   no_argument       },
+    { "stringtable-input",  CHAR_MAX + 5,   no_argument       },
+    { "stringtable-output", CHAR_MAX + 11,  no_argument       },
     { "style",              CHAR_MAX + 7,   required_argument },
+    { "url",                CHAR_MAX + 2,   required_argument },
     { "version",            'V',            no_argument       },
     { "width",              'w',            required_argument },
   };
@@ -166,22 +176,6 @@ main (int argc, char **argv)
         case '\0':                /* Long option with key == 0.  */
           break;
 
-        case 'D':
-          dir_list_append (optarg);
-          break;
-
-        case 'E':
-          message_print_style_escape (true);
-          break;
-
-        case 'F':
-          sort_by_filepos = true;
-          break;
-
-        case 'h':
-          do_help = true;
-          break;
-
         case 'i':
           if (input_file != NULL)
             {
@@ -191,63 +185,40 @@ main (int argc, char **argv)
           input_file = optarg;
           break;
 
-        case 'n':            /* -n */
-        case CHAR_MAX + 'n': /* --add-location[={full|yes|file|never|no}] */
-          if (handle_filepos_comment_option (optarg))
-            usage (EXIT_FAILURE);
+        case 'D':
+          dir_list_append (optarg);
           break;
 
         case 'o':
           output_file = optarg;
           break;
 
-        case 'p':
-          output_syntax = &output_format_properties;
+        case CHAR_MAX + 1: /* --species */
+          species = optarg;
+          break;
+
+        case CHAR_MAX + 2: /* --url */
+          url = optarg;
+          break;
+
+        case 'm': /* --model */
+          model = optarg;
+          break;
+
+        case CHAR_MAX + 3: /* --prompt */
+          prompt = optarg;
+          break;
+
+        case CHAR_MAX + 4: /* --postprocess */
+          postprocess = optarg;
           break;
 
         case 'P':
           input_syntax = &input_format_properties;
           break;
 
-        case 's':
-          sort_by_msgid = true;
-          break;
-
-        case CHAR_MAX + 10: /* --strict */
-          message_print_style_uniforum ();
-          break;
-
-        case 'V':
-          do_version = true;
-          break;
-
-        case 'w':
-          {
-            char *endp;
-            int value = strtol (optarg, &endp, 10);
-            if (endp != optarg)
-              message_page_width_set (value);
-          }
-          break;
-
-        case CHAR_MAX + 1:
-          message_print_style_indent ();
-          break;
-
-        case CHAR_MAX + 2:
-          message_print_style_escape (false);
-          break;
-
-        case CHAR_MAX + 3: /* --no-wrap */
-          message_page_width_ignore ();
-          break;
-
-        case CHAR_MAX + 4: /* --stringtable-input */
+        case CHAR_MAX + 5: /* --stringtable-input */
           input_syntax = &input_format_stringtable;
-          break;
-
-        case CHAR_MAX + 5: /* --stringtable-output */
-          output_syntax = &output_format_stringtable;
           break;
 
         case CHAR_MAX + 6: /* --color */
@@ -259,12 +230,63 @@ main (int argc, char **argv)
           handle_style_option (optarg);
           break;
 
-        case CHAR_MAX + 8: /* --no-location */
+        case CHAR_MAX + 8: /* --indent */
+          message_print_style_indent ();
+          break;
+
+        case CHAR_MAX + 9: /* --no-location */
           message_print_style_filepos (filepos_comment_none);
           break;
 
-        case CHAR_MAX + 9: /* --newline */
-          newline = true;
+        case 'n':            /* -n */
+        case CHAR_MAX + 'n': /* --add-location[={full|yes|file|never|no}] */
+          if (handle_filepos_comment_option (optarg))
+            usage (EXIT_FAILURE);
+          break;
+
+        case CHAR_MAX + 10: /* --strict */
+          message_print_style_uniforum ();
+          break;
+
+        case 'p':
+          output_syntax = &output_format_properties;
+          break;
+
+        case CHAR_MAX + 11: /* --stringtable-output */
+          output_syntax = &output_format_stringtable;
+          break;
+
+        case 'w':
+          {
+            char *endp;
+            int value = strtol (optarg, &endp, 10);
+            if (endp != optarg)
+              message_page_width_set (value);
+          }
+          break;
+
+        case CHAR_MAX + 12: /* --no-wrap */
+          message_page_width_ignore ();
+          break;
+
+        case 's':
+          sort_by_msgid = true;
+          break;
+
+        case 'F':
+          sort_by_filepos = true;
+          break;
+
+        case 'h':
+          do_help = true;
+          break;
+
+        case 'V':
+          do_version = true;
+          break;
+
+        case 'q': /* --quiet, --silent */
+          quiet = true;
           break;
 
         default:
@@ -293,49 +315,24 @@ There is NO WARRANTY, to the extent permitted by law.\n\
   if (do_help)
     usage (EXIT_SUCCESS);
 
-  /* Test for the subprogram name.  */
-  if (optind == argc)
-    error (EXIT_FAILURE, 0, _("missing filter name"));
-  sub_name = argv[optind];
+  /* Test for extraneous arguments.  */
+  if (optind != argc)
+    error (EXIT_FAILURE, 0, _("too many arguments"));
+
+  /* Check --species option.  */
+  if (strcmp (species, "ollama") != 0)
+    error (EXIT_FAILURE, 0, _("invalid value for %s option: %s"),
+           "--species", species);
+
+  /* Check --model option.  */
+  if (model == NULL)
+    error (EXIT_FAILURE, 0, _("missing %s option"),
+           "--model");
 
   /* Verify selected options.  */
   if (sort_by_msgid && sort_by_filepos)
     error (EXIT_FAILURE, 0, _("%s and %s are mutually exclusive"),
            "--sort-output", "--sort-by-file");
-
-  /* Build argument list for the program.  */
-  sub_argc = argc - optind;
-  sub_argv = XNMALLOC (sub_argc + 1, const char *);
-  {
-    size_t i;
-    for (i = 0; i < sub_argc; i++)
-      sub_argv[i] = argv[optind + i];
-    sub_argv[i] = NULL;
-  }
-
-  /* Extra checks for sed scripts.  */
-  if (strcmp (sub_name, "sed") == 0)
-    {
-      if (sub_argc == 1)
-        error (EXIT_FAILURE, 0,
-               _("at least one sed script must be specified"));
-
-      /* Replace GNU sed specific options with portable sed options.  */
-      for (int i = 1; i < sub_argc; i++)
-        {
-          if (strcmp (sub_argv[i], "--expression") == 0)
-            sub_argv[i] = "-e";
-          else if (strcmp (sub_argv[i], "--file") == 0)
-            sub_argv[i] = "-f";
-          else if (strcmp (sub_argv[i], "--quiet") == 0
-                   || strcmp (sub_argv[i], "--silent") == 0)
-            sub_argv[i] = "-n";
-
-          if (strcmp (sub_argv[i], "-e") == 0
-              || strcmp (sub_argv[i], "-f") == 0)
-            i++;
-        }
-    }
 
   /* By default, input comes from standard input.  */
   if (input_file == NULL)
@@ -344,46 +341,89 @@ There is NO WARRANTY, to the extent permitted by law.\n\
   /* Read input file.  */
   msgdomain_list_ty *result = read_catalog_file (input_file, input_syntax);
 
-  /* Recognize special programs as built-ins.  */
-  if (strcmp (sub_name, "recode-sr-latin") == 0 && sub_argc == 1)
+  /* Convert the input to UTF-8 first.  */
+  result = iconv_msgdomain_list (result, po_charset_utf8, true, input_file,
+                                 textmode_xerror_handler);
+
+  /* Warn if the current locale is not suitable for this PO file.  */
+  compare_po_locale_charsets (result);
+
+  /* Extract the target language from the header entry.  */
+  if (prompt == NULL)
     {
-      filter = serbian_to_latin;
+      bool header_found = false;
+      for (size_t k = 0; k < result->nitems; k++)
+        {
+          message_list_ty *mlp = result->item[k]->messages;
+          message_ty *header = message_list_search (mlp, NULL, "");
+          if (header != NULL && !header->obsolete)
+            {
+              header_found = true;
+              const char *nullentry = header->msgstr;
+              const char *language = c_strstr (nullentry, "Language: ");
+              if (language != NULL)
+                {
+                  language += 10;
 
-      /* Convert the input to UTF-8 first.  */
-      result = iconv_msgdomain_list (result, po_charset_utf8, true, input_file,
-                                     textmode_xerror_handler);
+                  size_t len = strcspn (language, " \t\n");
+                  if (len > 0)
+                    {
+                      char *memory = (char *) malloc (len + 1);
+                      memcpy (memory, language, len);
+                      memory[len] = '\0';
+
+                      to_language = memory;
+                      break;
+                    }
+                }
+            }
+
+          if (to_language != NULL)
+            break;
+        }
+
+      if (!header_found)
+        error (EXIT_FAILURE, 0, _("The input does not have a header entry."));
+
+      if (to_language == NULL)
+        error (EXIT_FAILURE, 0,
+               _("The input's header entry does not contain the '%s' header field."),
+               "Language");
     }
-  else if (strcmp (sub_name, "quot") == 0 && sub_argc == 1)
-    {
-      filter = ascii_quote_to_unicode;
 
-      /* Convert the input to UTF-8 first.  */
-      result = iconv_msgdomain_list (result, po_charset_utf8, true, input_file,
-                                     textmode_xerror_handler);
-    }
-  else if (strcmp (sub_name, "boldquot") == 0 && sub_argc == 1)
-    {
-      filter = ascii_quote_to_unicode_bold;
+  /* The name of the subprogram.  */
+  sub_name = "spit";
 
-      /* Convert the input to UTF-8 first.  */
-      result = iconv_msgdomain_list (result, po_charset_utf8, true, input_file,
-                                     textmode_xerror_handler);
-    }
-  else
-    {
-      filter = generic_filter;
+  /* Attempt to locate the subprogram.
+     This is an optimization, to avoid that spawn/exec searches the PATH
+     on every call.  */
+  sub_path = find_in_path (sub_name);
 
-      /* Warn if the current locale is not suitable for this PO file.  */
-      compare_po_locale_charsets (result);
+  /* Build the argument list for the subprogram.  */
+  sub_argv = (const char **) XNMALLOC (7, const char *);
+  {
+    sub_argv[0] = sub_path;
+    size_t i = 1;
 
-      /* Attempt to locate the program.
-         This is an optimization, to avoid that spawn/exec searches the PATH
-         on every call.  */
-      sub_path = find_in_path (sub_name);
+    if (species != NULL)
+      sub_argv[i++] = xasprintf ("--species=%s", species);
 
-      /* Finish argument list for the program.  */
-      sub_argv[0] = sub_path;
-    }
+    if (url != NULL)
+      sub_argv[i++] = xasprintf ("--url=%s", url);
+
+    sub_argv[i++] = xasprintf ("--model=%s", model);
+
+    if (prompt != NULL)
+      sub_argv[i++] = xasprintf ("--prompt=%s", prompt);
+    else
+      sub_argv[i++] = xasprintf ("--to=%s", to_language);
+
+    if (postprocess != NULL)
+      sub_argv[i++] = xasprintf ("--postprocess=%s", postprocess);
+
+    sub_argv[i] = NULL;
+    sub_argc = i;
+  }
 
   /* Apply the subprogram.  */
   result = process_msgdomain_list (result);
@@ -412,12 +452,16 @@ usage (int status)
   else
     {
       printf (_("\
-Usage: %s [OPTION] FILTER [FILTER-OPTION]\n\
+Usage: %s [OPTION...]\n\
 "), program_name);
       printf ("\n");
       printf (_("\
-Applies a filter to all translations of a translation catalog.\n\
+Pretranslates a translation catalog.\n\
 "));
+      printf ("\n");
+      printf (_("\
+Warning: The pretranslations might not be what you expect.\n\
+They might be of the wrong form, be of poor quality, or reflect some biases.\n"));
       printf ("\n");
       printf (_("\
 Mandatory arguments to long options are mandatory for short options too.\n"));
@@ -440,25 +484,25 @@ The results are written to standard output if no output file is specified\n\
 or if it is -.\n"));
       printf ("\n");
       printf (_("\
-The FILTER can be any program that reads a translation from standard input\n\
-and writes a modified translation to standard output.\n\
-"));
+Message selection:\n"));
+      printf (_("\
+      --keep-fuzzy            Keep fuzzy messages unmodified.\n\
+                              Pretranslate only untranslated messages.\n"));
       printf ("\n");
       printf (_("\
-Filter input and output:\n"));
+Large Language Model (LLM) options:\n"));
       printf (_("\
-  --newline                   add a newline at the end of input and\n\
-                                remove a newline from the end of output"));
-      printf ("\n");
+      --species=TYPE          Specifies the type of LLM.  The default and only\n\
+                              valid value is '%s'.\n"),
+              "ollama");
       printf (_("\
-Useful FILTER-OPTIONs when the FILTER is 'sed':\n"));
+      --url=URL               Specifies the URL of the server that runs the LLM.\n"));
       printf (_("\
-  -e, --expression=SCRIPT     add SCRIPT to the commands to be executed\n"));
+  -m, --model=MODEL           Specifies the model to use.\n"));
       printf (_("\
-  -f, --file=SCRIPTFILE       add the contents of SCRIPTFILE to the commands\n\
-                                to be executed\n"));
+      --prompt=TEXT           Specifies the prompt to use before standard input.\n"));
       printf (_("\
-  -n, --quiet, --silent       suppress automatic printing of pattern space\n"));
+      --postprocess=COMMAND   Specifies a command to post-process the output.\n"));
       printf ("\n");
       printf (_("\
 Input file syntax:\n"));
@@ -476,15 +520,9 @@ Output details:\n"));
       printf (_("\
       --style=STYLEFILE       specify CSS style rule file for --color\n"));
       printf (_("\
-      --no-escape             do not use C escapes in output (default)\n"));
-      printf (_("\
-  -E, --escape                use C escapes in output, no extended chars\n"));
-      printf (_("\
       --force-po              write PO file even if empty\n"));
       printf (_("\
       --indent                indented output style\n"));
-      printf (_("\
-      --keep-header           keep header entry unmodified, don't filter it\n"));
       printf (_("\
       --no-location           suppress '#: filename:line' lines\n"));
       printf (_("\
@@ -511,6 +549,8 @@ Informative output:\n"));
   -h, --help                  display this help and exit\n"));
       printf (_("\
   -V, --version               output version information and exit\n"));
+      printf (_("\
+  -q, --quiet, --silent       suppress progress indicators\n"));
       printf ("\n");
       /* TRANSLATORS: The first placeholder is the web address of the Savannah
          project of this package.  The second placeholder is the bug-reporting
@@ -617,7 +657,7 @@ process_string (const char *str, size_t len, char **resultp, size_t *lengthp)
 {
   char *result;
   size_t length;
-  filter (str, len, &result, &length);
+  generic_filter (str, len, &result, &length);
 
   /* Remove NUL bytes from result.  */
   {
@@ -641,143 +681,94 @@ process_string (const char *str, size_t len, char **resultp, size_t *lengthp)
 }
 
 
-/* Do the same thing as process_string but append a newline to STR
-   before processing, and remove a newline from the result.
- */
-static void
-process_string_with_newline (const char *str, size_t len, char **resultp,
-                             size_t *lengthp)
-{
-  char *newstr = XNMALLOC (len + 1, char);
-  memcpy (newstr, str, len);
-  newstr[len] = '\n';
-
-  char *result;
-  size_t length;
-  process_string (newstr, len + 1, &result, &length);
-
-  free (newstr);
-
-  if (length > 0 && result[length - 1] == '\n')
-    result[--length] = '\0';
-  else
-    error (0, 0, _("filter output is not terminated with a newline"));
-
-  *resultp = result;
-  *lengthp = length;
-}
+/* Number of messages processed so far.  */
+static size_t messages_processed;
 
 
 static void
 process_message (message_ty *mp)
 {
-  /* Keep the header entry unmodified, if --keep-header was given.  */
-  if (is_header (mp) && keep_header)
+  /* Keep the header entry unmodified.  */
+  if (is_header (mp))
     return;
 
-  const char *msgstr = mp->msgstr;
-  size_t msgstr_len = mp->msgstr_len;
+  /* Ignore obsolete messages.  */
+  if (mp->obsolete)
+    return;
 
-  /* Set environment variables for the subprocess.
-     Note: These environment variables, especially MSGFILTER_MSGCTXT and
-     MSGFILTER_MSGID, may contain non-ASCII characters.  The subprocess
-     may not interpret these values correctly if the locale encoding is
-     different from the PO file's encoding.  We want about this situation,
-     above.
-     On Unix, this problem is often harmless.  On Windows, however, - both
-     native Windows and Cygwin - the values of environment variables *must*
-     be in the encoding that is the value of GetACP(), because the system
-     may convert the environment from char** to wchar_t** before spawning
-     the subprocess and back from wchar_t** to char** in the subprocess,
-     and it does so using the GetACP() codepage.  */
-  if (mp->msgctxt != NULL)
-    xsetenv ("MSGFILTER_MSGCTXT", mp->msgctxt, 1);
-  else
-    unsetenv ("MSGFILTER_MSGCTXT");
-  xsetenv ("MSGFILTER_MSGID", mp->msgid, 1);
-  if (mp->msgid_plural != NULL)
-    xsetenv ("MSGFILTER_MSGID_PLURAL", mp->msgid_plural, 1);
-  else
-    unsetenv ("MSGFILTER_MSGID_PLURAL");
-  {
-    char *location =
-      xasprintf ("%s:%ld", mp->pos.file_name, (long) mp->pos.line_number);
-    xsetenv ("MSGFILTER_LOCATION", location, 1);
-    free (location);
-  }
-  if (mp->prev_msgctxt != NULL)
-    xsetenv ("MSGFILTER_PREV_MSGCTXT", mp->prev_msgctxt, 1);
-  else
-    unsetenv ("MSGFILTER_PREV_MSGCTXT");
-  if (mp->prev_msgid != NULL)
-    xsetenv ("MSGFILTER_PREV_MSGID", mp->prev_msgid, 1);
-  else
-    unsetenv ("MSGFILTER_PREV_MSGID");
-  if (mp->prev_msgid_plural != NULL)
-    xsetenv ("MSGFILTER_PREV_MSGID_PLURAL", mp->prev_msgid_plural, 1);
-  else
-    unsetenv ("MSGFILTER_PREV_MSGID_PLURAL");
+  /* Translate only untranslated or, if --keep-fuzzy is not specified, fuzzy
+     messages.  */
+  if (!(mp->msgstr[0] == '\0'
+        || (mp->is_fuzzy && !keep_fuzzy)))
+    return;
 
-  /* Count NUL delimited substrings.  */
-  size_t nsubstrings;
+  /* Because querying a Large Language Model can take a while
+     we print something to signal we are not dead.  */
+  if (!quiet)
+    {
+      fputc ('.', stderr);
+      messages_processed++;
+    }
+
+  /* Take the msgid.
+     For a plural message, take the msgid_plural and repeat its translation
+     for each of the plural forms.  Let the translator work out the plural
+     forms.  */
+  const char *msgid = (mp->msgid_plural != NULL ? mp->msgid_plural : mp->msgid);
+
+  char *result;
+  size_t length;
+  process_string (msgid, strlen (msgid), &result, &length);
+
+  /* Avoid an error later, during "msgfmt --check", due to a trailing newline.  */
+  if (strlen (msgid) > 0 && msgid[strlen (msgid) - 1] == '\n')
+    {
+      /* msgid ends in a newline.  Ensure that the result ends in a newline
+         as well.  */
+      if (!(length > 0 && result[length - 1] == '\n'))
+        {
+          result = (char *) xrealloc (result, length + 1);
+          result[length] = '\n';
+          length++;
+        }
+    }
+  else
+    {
+      /* msgid does not end in a newline.  Ensure that the same holds for the
+         result.  */
+      while (length > 0 && result[length - 1] == '\n')
+        length--;
+    }
+
+  /* Count the number of plural forms.  */
+  size_t nplurals;
   {
-    nsubstrings = 0;
+    const char *msgstr = mp->msgstr;
+    size_t msgstr_len = mp->msgstr_len;
+    nplurals = 0;
     for (const char *p = msgstr; p < msgstr + msgstr_len; p += strlen (p) + 1)
-      nsubstrings++;
+      nplurals++;
   }
 
-  /* Process each NUL delimited substring separately.  */
-  char **substrings = XNMALLOC (nsubstrings, char *);
-  size_t total_len;
+  /* Produce nplurals copies of the result, each with an added NUL.  */
+  size_t msgstr_len = nplurals * (length + 1);
+  char *msgstr = XNMALLOC (msgstr_len, char);
   {
-    const char *p;
+    char *p;
     size_t k;
-    for (p = msgstr, k = 0, total_len = 0; k < nsubstrings; k++)
+    for (p = msgstr, k = 0; k < nplurals; k++)
       {
-        if (mp->msgid_plural != NULL)
-          {
-            char *plural_form_string = xasprintf ("%lu", (unsigned long) k);
-
-            xsetenv ("MSGFILTER_PLURAL_FORM", plural_form_string, 1);
-            free (plural_form_string);
-          }
-        else
-          unsetenv ("MSGFILTER_PLURAL_FORM");
-
-        char *result;
-        size_t length;
-        if (newline)
-          process_string_with_newline (p, strlen (p), &result, &length);
-        else
-          process_string (p, strlen (p), &result, &length);
-
-        result = (char *) xrealloc (result, length + 1);
-        result[length] = '\0';
-        substrings[k] = result;
-        total_len += length + 1;
-
-        p += strlen (p) + 1;
+        memcpy (p, result, length);
+        p += length;
+        *p++ = '\0';
       }
   }
 
-  /* Concatenate the results, including the NUL after each.  */
-  char *total_str = XNMALLOC (total_len, char);
-  {
-    size_t k;
-    char *q;
-    for (k = 0, q = total_str; k < nsubstrings; k++)
-      {
-        size_t length = strlen (substrings[k]);
+  mp->msgstr = msgstr;
+  mp->msgstr_len = msgstr_len;
 
-        memcpy (q, substrings[k], length + 1);
-        free (substrings[k]);
-        q += length + 1;
-      }
-  }
-  free (substrings);
-
-  mp->msgstr = total_str;
-  mp->msgstr_len = total_len;
+  /* Mark the message as fuzzy, so that the translator can review it.  */
+  mp->is_fuzzy = (msgstr_len > 0);
 }
 
 
@@ -792,8 +783,13 @@ process_message_list (message_list_ty *mlp)
 static msgdomain_list_ty *
 process_msgdomain_list (msgdomain_list_ty *mdlp)
 {
+  messages_processed = 0;
+
   for (size_t k = 0; k < mdlp->nitems; k++)
     process_message_list (mdlp->item[k]->messages);
+
+  if (messages_processed > 0)
+    fputc ('\n', stderr);
 
   return mdlp;
 }

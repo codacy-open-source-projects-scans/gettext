@@ -67,6 +67,7 @@ src/msgl-check.c
 src/msgl-iconv.c
 src/msgl-merge.c
 src/msgmerge.c
+src/msgpre.c
 src/msgunfmt.c
 src/msguniq.c
 src/open-catalog.c
@@ -83,6 +84,7 @@ src/read-resources.c
 src/read-stringtable.c
 src/read-tcl.c
 src/recode-sr-latin.c
+src/spit.c
 src/urlget.c
 src/write-catalog.c
 src/write-csharp.c

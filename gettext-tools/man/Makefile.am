@@ -27,32 +27,38 @@ EXTRA_DIST =
 man_aux = \
 msgcmp.x msgfmt.x msgmerge.x msgunfmt.x xgettext.x \
 msgattrib.x msgcat.x msgcomm.x msgconv.x msgen.x msgexec.x msgfilter.x \
-msggrep.x msginit.x msguniq.x \
+msggrep.x msginit.x msgpre.x msguniq.x \
 recode-sr-latin.x \
-gettextize.x autopoint.x
+spit.x \
+gettextize.x autopoint.x po-fetch.x
 
 # Likewise.
 
 man_MAN1SRC = \
 msgcmp.1 msgfmt.1 msgmerge.1 msgunfmt.1 xgettext.1 \
 msgattrib.1 msgcat.1 msgcomm.1 msgconv.1 msgen.1 msgexec.1 msgfilter.1 \
-msggrep.1 msginit.1 msguniq.1 \
-recode-sr-latin.1
+msggrep.1 msginit.1 msgpre.1 msguniq.1 \
+recode-sr-latin.1 \
+spit.1
 man_MAN1WIZARD = \
 gettextize.1
 man_MAN1AUTOTOOLS = \
 autopoint.1
-man_MAN1 = $(man_MAN1SRC) $(man_MAN1WIZARD) $(man_MAN1AUTOTOOLS)
+man_MAN1MISC = \
+po-fetch.1
+man_MAN1 = $(man_MAN1SRC) $(man_MAN1WIZARD) $(man_MAN1AUTOTOOLS) $(man_MAN1MISC)
 man_MANS = $(man_MAN1)
 
 man_HTML = \
 msgcmp.1.html msgfmt.1.html msgmerge.1.html msgunfmt.1.html xgettext.1.html \
 msgattrib.1.html msgcat.1.html msgcomm.1.html msgconv.1.html msgen.1.html \
-msgexec.1.html msgfilter.1.html msggrep.1.html msginit.1.html msguniq.1.html \
+msgexec.1.html msgfilter.1.html msggrep.1.html msginit.1.html msgpre.1.html \
+msguniq.1.html \
 recode-sr-latin.1.html \
-gettextize.1.html autopoint.1.html
+spit.1.html \
+gettextize.1.html autopoint.1.html po-fetch.1.html
 
-EXTRA_DIST += help2man $(man_aux) $(man_MANS) $(man_HTML)
+EXTRA_DIST += help2man $(man_aux) po-fetch.1.diff $(man_MANS) $(man_HTML)
 MAINTAINERCLEANFILES = $(man_MANS) $(man_HTML)
 
 PERL = @PERL@
@@ -117,22 +123,32 @@ msgexec.1: msgexec.x ../src/msgexec.c
 msgfilter.1: msgfilter.x ../src/msgfilter.c
 msggrep.1: msggrep.x ../src/msggrep.c
 msginit.1: msginit.x ../src/msginit.c
+msgpre.1: msgpre.x ../src/msgpre.c
 msguniq.1: msguniq.x ../src/msguniq.c
 recode-sr-latin.1: recode-sr-latin.x ../src/recode-sr-latin.c
+spit.1: spit.x ../src/spit.c
 
 $(man_MAN1WIZARD): help2man $(top_srcdir)/../.version
 	progname=`echo $@ | sed -e 's/\.in$$//' -e 's/\.1$$//'`; \
 	IN_HELP2MAN=1 $(SHELL) x-to-1 $(UPDATEMODE) "$(PERL)" "$(HELP2MAN)" \
-	  ../wizard/$${progname}$(EXEEXT) $(srcdir)/$${progname}.x $@
+	  ../wizard/$${progname} $(srcdir)/$${progname}.x $@
 
 gettextize.1: gettextize.x ../wizard/gettextize.in
 
 $(man_MAN1AUTOTOOLS): help2man $(top_srcdir)/../.version
 	progname=`echo $@ | sed -e 's/\.in$$//' -e 's/\.1$$//'`; \
 	IN_HELP2MAN=1 $(SHELL) x-to-1 $(UPDATEMODE) "$(PERL)" "$(HELP2MAN) --version-option=--version-without-config" \
-	  ../autotools/$${progname}$(EXEEXT) $(srcdir)/$${progname}.x $@
+	  ../autotools/$${progname} $(srcdir)/$${progname}.x $@
 
 autopoint.1: autopoint.x ../autotools/autopoint.in
+
+$(man_MAN1MISC): help2man $(top_srcdir)/../.version
+	progname=`echo $@ | sed -e 's/\.in$$//' -e 's/\.1$$//'`; \
+	IN_HELP2MAN=1 $(SHELL) x-to-1 $(UPDATEMODE) "$(PERL)" "$(HELP2MAN)" \
+	  ../misc/$${progname} $(srcdir)/$${progname}.x $@
+	patch $@ < $(srcdir)/po-fetch.1.diff
+
+po-fetch.1: po-fetch.x ../misc/po-fetch.in po-fetch.1.diff
 
 
 # Man pages in HTML format.
@@ -160,10 +176,13 @@ msgexec.1.html: msgexec.1
 msgfilter.1.html: msgfilter.1
 msggrep.1.html: msggrep.1
 msginit.1.html: msginit.1
+msgpre.1.html: msgpre.1
 msguniq.1.html: msguniq.1
 recode-sr-latin.1.html: recode-sr-latin.1
+spit.1.html: spit.1
 gettextize.1.html: gettextize.1
 autopoint.1.html: autopoint.1
+po-fetch.1.html: po-fetch.1
 
 install-html-local:
 	$(MKDIR_P) $(DESTDIR)$(htmldir)

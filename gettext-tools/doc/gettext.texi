@@ -169,6 +169,7 @@ version @value{VERSION}.
 * Template::                    Making the PO Template File
 * Creating::                    Creating a New PO File
 * Updating::                    Updating Existing PO Files
+* Pretranslating::              Pretranslating PO Files
 * Editing::                     Editing PO Files
 * Manipulating::                Manipulating PO Files
 * Binaries::                    Producing Binary MO Files
@@ -253,6 +254,12 @@ Creating a New PO File
 Updating Existing PO Files
 
 * msgmerge Invocation::         Invoking the @code{msgmerge} Program
+
+Pretranslating PO Files
+
+* Installing an LLM::           Installing a Large Language Model
+* msgpre Invocation::           Invoking the @code{msgpre} Program
+* spit Invocation::             Invoking the @code{spit} Program
 
 Editing PO Files
 
@@ -395,7 +402,8 @@ Integrating with Version Control Systems
 
 * Distributed Development::     Avoiding version mismatch in distributed development
 * Files under Version Control::  Files to put under version control
-* Translations under Version Control::  Put PO Files under Version Control
+* PO Template File under Version Control?::  Put the POT File under Version Control?
+* Translations under Version Control?::  Put PO Files under Version Control?
 * autopoint Invocation::        Invoking the @code{autopoint} Program
 * po-fetch Invocation::         Invoking the @code{po-fetch} Program
 
@@ -4034,6 +4042,88 @@ format of the plural forms field is described in @ref{Plural forms} and
 @section Invoking the @code{msgmerge} Program
 
 @include msgmerge.texi
+
+@node Pretranslating
+@chapter Pretranslating PO Files
+@cindex Pretranslating PO Files
+@cindex Machine translation
+
+As a translator,
+you may save yourself some work
+by starting from a reasonably good translation produced by a machine,
+and modify that translation, to make it perfect.
+
+Thus, before you start working on a translation,
+you might have the PO file @emph{pretranslated}.
+
+This process, also called @emph{machine translation},
+is nowadays best performed through a Large Language Model (LLM).
+(See @url{https://en.wikipedia.org/wiki/Machine_translation#Neural_MT},
+@url{https://en.wikipedia.org/wiki/Neural_machine_translation#Generative_LLMs}.)
+
+@node Installing an LLM
+@section Installing a Large Language Model
+
+We don't recommend to use machine translation
+through a web service in the cloud, controlled by someone else than yourself.
+Such a machine translation service would be have major drawbacks
+(it could go away any time,
+it could be used to spy on you or manipulate you,
+or the costs could go up beyond your control);
+see @url{https://www.gnu.org/philosophy/who-does-that-server-really-serve.en.html}.
+Additionally, such a service typically has some cost
+(between $10 and $25 per megabyte, as of 2025).
+
+Instead, we recommend a Large Language Model execution engine
+that runs on hardware under your control.
+This can be a desktop computer,
+or for instance a single-board computer in your local network.
+
+@cindex ollama
+At this point (in 2025),
+a Large Language Model execution engine that is Free Software is
+@samp{ollama}, that can be downloaded from @url{https://ollama.com/}.
+
+Together with an LLM of reasonable quality,
+such as the model @code{ministral-3:14b},
+the system requirements are as follows:
+@itemize @bullet
+@item
+RAM: 16 GB.
+@item
+Disk space: 10 GB (1 GB for @code{ollama}, 9 GB for the model).
+@item
+GPU or TPU: A GPU (Graphics Processing Unit) or TPU (Tensor Processing Unit)
+is not needed.
+As of 2025, a high-end GPU from certain vendors
+can be used by @code{ollama} to provide an optional speedup.
+@end itemize
+
+Additional configuration:
+@itemize @bullet
+@item
+If you are running @code{ollama} on your computer directly,
+no further configuration is needed.
+@item
+If you are running @code{ollama} on a separate machine,
+and want to make it accessible from all machines in the LAN:
+Edit the file @file{/etc/systemd/system/ollama.services},
+adding a line: @code{Environment="OLLAMA_HOST=0.0.0.0"}.
+See @url{https://github.com/ollama/ollama/issues/703}.
+@item
+If you are running @code{ollama} in a virtual machine,
+make the port 11434 accessible through port forwarding.
+@end itemize
+
+@node msgpre Invocation
+@section Invoking the @code{msgpre} Program
+
+@include msgpre.texi
+
+@node spit Invocation
+@section Invoking the @code{spit} Program
+
+@include spit.texi
 
 @node Editing
 @chapter Editing PO Files
@@ -9065,7 +9155,9 @@ this script does not do anything.
 @item
 In packages where the translations are collected by a translation project,
 it uses a @code{po-fetch} invocation.
-See @ref{po-fetch Invocation} for the possible arguments.
+See @ref{Translations under Version Control?}
+for this script's relation to version control,
+and see @ref{po-fetch Invocation} for the possible arguments.
 @end itemize
 
 @cindex @code{fetch-po} target
@@ -9073,7 +9165,7 @@ This script implements the @code{Makefile}'s target @code{fetch-po}.
 
 This script is not contained in distribution tarballs by default,
 because it is part of the maintainer's release management infrastructure
-and because it may, in rare cases, contains secrets (such as API keys).
+and because it may, in rare cases, contain secrets (such as API keys).
 
 @node po/LINGUAS
 @subsection @file{LINGUAS} in @file{po/}
@@ -9877,7 +9969,8 @@ version controlled files.
 @menu
 * Distributed Development::     Avoiding version mismatch in distributed development
 * Files under Version Control::  Files to put under version control
-* Translations under Version Control::  Put PO Files under Version Control
+* PO Template File under Version Control?::  Put the POT File under Version Control?
+* Translations under Version Control?::  Put PO Files under Version Control?
 * autopoint Invocation::        Invoking the @code{autopoint} Program
 * po-fetch Invocation::         Invoking the @code{po-fetch} Program
 @end menu
@@ -10001,45 +10094,86 @@ into @code{AM_GNU_GETTEXT_VERSION(0.12.1)}, and all other developers that
 use the CVS will henceforth need to have GNU @code{gettext} 0.12.1 or newer
 installed.
 
-@node Translations under Version Control
-@subsection Put PO Files under Version Control
+@node PO Template File under Version Control?
+@subsection Put the PO Template File under Version Control or not?
 
-Since translations are valuable assets as well as the source code, it
-would make sense to put them under version control.  The GNU gettext
-infrastructure supports two ways to deal with translations in the
-context of a version controlled repository.
+The PO template file (@code{.pot} file) is a generated file.
+It should be treated like other generated files,
+as discussed in the previous section (@ref{Files under Version Control}).
 
-@enumerate
-@item
-Both POT file and PO files are committed into the repository.
+For instance, if a package uses the third approach,
+the @code{.pot} file will @strong{not} be put under version control.
 
-@item
-Only PO files are committed into the repository.
+@node Translations under Version Control?
+@subsection Put the PO Files under Version Control or not?
 
-@end enumerate
-
-If a POT file is absent when building, it will be generated by
-scanning the source files with @code{xgettext}, and then the PO files
-are regenerated as a dependency.  On the other hand, some maintainers
-want to keep the POT file unchanged during the development phase.  So,
-even if a POT file is present and older than the source code, it won't
-be updated automatically.  You can manually update it with @code{make
-$(DOMAIN).pot-update}, and commit it at certain point.
-
-Special advices for particular version control systems:
+The PO files produced by translators are source files.
+Whether they are put under version control,
+is related to how the @code{fetch-po} script operates.
 
 @itemize @bullet
 @item
-Location comments such as @code{#: lib/error.c:116} are sometimes
-annoying, since these comments are volatile and may introduce unwanted
-change to the working copy when building.  To mitigate this, you can
-decide to omit those comments from the PO files in the repository.
+In packages whose translators commit their PO files
+directly into the version control of the package,
+or where a translations project's daemon does this automatically
+on behalf of the translators,
+they are in version control.
+This is the case where the @code{fetch-po} script does not do anything.
 
-This is possible with the @code{--no-location} option of the
-@code{msgmerge} command @footnote{you can also use it through the
-@samp{MSGMERGE_OPTIONS} option from @file{Makevars}}.  The drawback is
-that, if the location information is needed, translators have to
-recover the location comments by running @code{msgmerge} again.
+@item
+In packages where the translations are collected by a translation project,
+the maintainer has the choice:
+@itemize @bullet
+@item
+He may want to rely on this translation project only.
+This means:
+@itemize @bullet
+@item
+He will @strong{not} put the PO files under version control.
+@item
+Instead he will list them in the @code{.gitignore} file.
+@item
+In the script that fetches auxiliary sources from other places in the internet,
+typically called @samp{autopull.sh} or @samp{bootstrap --pull},
+he will have an invocation
+@smallexample
+(cd po && ./fetch-po)
+@end smallexample
+@item
+The @code{fetch-po} script will have
+a @code{po-fetch} invocation @strong{without} the @code{--git} option.
+@end itemize
+@noindent
+The net effect is that
+the developers will access the translation project's site regularly,
+namely each time they execute the @samp{autopull.sh} script.
+@item
+Or he may want to use the package's version control as a ``cache''
+for the PO files from the translation project.
+This means:
+@itemize @bullet
+@item
+He will put the PO files under version control.
+@item
+The @samp{autopull.sh} or @samp{bootstrap --pull} script is not modified.
+@item
+The @code{fetch-po} script will have
+a @code{po-fetch} invocation @strong{with} the @code{--git} option.
+@item
+Before making a release, the maintainer will run
+@smallexample
+(cd po && ./fetch-po)
+@end smallexample
+@noindent
+and commit the changed or added or removed files in the @code{po/} directory.
+@end itemize
+@noindent
+The net effect is that
+only the maintainer will access the translation project's site,
+and only when making a release.
+In all other situations,
+the developers will be using the PO files from the package's version control.
+@end itemize
 
 @end itemize
 

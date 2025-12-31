@@ -449,7 +449,7 @@ Informative output:\n"));
          email address for this package.  Please add _another line_ saying
          "Report translation bugs to <...>\n" with the address for translation
          bugs (typically your translation team's web or email address).  */
-      printf(_("\
+      printf (_("\
 Report bugs in the bug tracker at <%s>\n\
 or by email to <%s>.\n"),
              "https://savannah.gnu.org/projects/gettext",
@@ -559,7 +559,7 @@ catalogname_for_locale (const char *locale)
     "cr_CA",    /* Cree         Canada */
     /* Don't put "crh_UZ" or "crh_UA" here.  That would be asking for fruitless
        political discussion.  */
-    "cs_CZ",    /* Czech        Czech Republic */
+    "cs_CZ",    /* Czech        Czechia */
     "csb_PL",   /* Kashubian    Poland */
     "cy_GB",    /* Welsh        Britain */
     "da_DK",    /* Danish       Denmark */
