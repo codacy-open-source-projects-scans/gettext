@@ -307,7 +307,8 @@ This is free software: you are free to change and redistribute it.\n\
 There is NO WARRANTY, to the extent permitted by law.\n\
 "),
               "1995-2026", "https://gnu.org/licenses/gpl.html");
-      printf (_("Written by %s.\n"), proper_name ("Peter Miller"));
+      printf (_("Written by %s and %s.\n"),
+              proper_name ("Peter Miller"), proper_name ("Bruno Haible"));
       exit (EXIT_SUCCESS);
     }
 
@@ -407,7 +408,7 @@ There is NO WARRANTY, to the extent permitted by law.\n\
   /* Merge the two files.  */
   msgdomain_list_ty *def;
   msgdomain_list_ty *result =
-    merge (argv[optind], argv[optind + 1], input_syntax, &def);
+    merge (argv[optind], input_syntax, argv[optind + 1], input_syntax, &def);
 
   /* Sort the results.  */
   if (sort_by_filepos)

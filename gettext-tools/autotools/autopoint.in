@@ -221,7 +221,7 @@ func_version ()
 License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
 This is free software: you are free to change and redistribute it.
 There is NO WARRANTY, to the extent permitted by law."
-  echo "Written by" "Bruno Haible"
+  printf 'Written by %s.\n' "Bruno Haible"
 }
 
 # func_fatal_error message
@@ -413,7 +413,8 @@ case "$ver" in
   0.23 | 0.23.1 | 0.23.2 | \
   0.24 | 0.24.1 | 0.24.2 | \
   0.25 | 0.25.1 | \
-  0.26 )
+  0.26 | \
+  1.0 )
     ;;
   *)
     func_fatal_error "The AM_GNU_GETTEXT_VERSION declaration in your $configure_in
