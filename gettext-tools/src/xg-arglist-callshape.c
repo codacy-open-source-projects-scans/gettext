@@ -163,6 +163,48 @@ split_keywordspec (const char *spec,
   string_list_destroy (&xcomments);
 }
 
+bool
+split_keywordspec_ok (const char *keyword, size_t keyword_len)
+{
+  /* If the keyword contains a colon, it means an invalid parse
+     in split_keywordspec().  */
+  return memchr (keyword, ':', keyword_len) == NULL;
+}
+
+bool
+split_keywordspec_ok2 (const char *keyword, size_t keyword_len)
+{
+  /* If the keyword contains a colon that is not part of a colon pair,
+     it means an invalid parse in split_keywordspec().  */
+  const char *keyword_end = keyword + keyword_len;
+  for (const char *p = keyword; p < keyword_end; )
+    {
+      const char *colon = memchr (p, ':', keyword_end - p);
+      if (colon == NULL)
+        break;
+      if (!(colon + 1 < keyword_end && colon[1] == ':'))
+        /* Found a colon that is not part of a colon pair.  */
+        return false;
+      /* Found a colon pair.  */
+      p = colon + 2;
+    }
+  return true;
+}
+
+bool
+split_keywordspec_ok_lisp (const char *keyword, size_t keyword_len)
+{
+  /* If the keyword contains more than a single colon or a colon pair,
+     it means an invalid parse in split_keywordspec().  */
+  const char *keyword_end = keyword + keyword_len;
+  const char *colon = memchr (keyword, ':', keyword_end - keyword);
+  if (colon == NULL)
+    return true;
+  if (colon + 1 < keyword_end && colon[1] == ':')
+    colon++;
+  return memchr (colon, ':', keyword_end - colon) == NULL;
+}
+
 
 void
 insert_keyword_callshape (hash_table *table,
@@ -174,7 +216,10 @@ insert_keyword_callshape (hash_table *table,
   if (hash_find_entry (table, keyword, keyword_len, &old_value))
     {
       /* Create a one-element 'struct callshapes'.  */
-      struct callshapes *shapes = XMALLOC (struct callshapes);
+      struct callshapes *shapes =
+        (struct callshapes *)
+        xmalloc (FLEXSIZEOF (struct callshapes, shapes,
+                             1 * sizeof (struct callshape)));
       shapes->nshapes = 1;
       shapes->shapes[0] = *shape;
       keyword =
@@ -211,9 +256,9 @@ insert_keyword_callshape (hash_table *table,
           /* Replace the existing 'struct callshapes' with a new one.  */
           struct callshapes *shapes =
             (struct callshapes *)
-            xmalloc (xsum (sizeof (struct callshapes),
-                           xtimes (old_shapes->nshapes,
-                                   sizeof (struct callshape))));
+            xmalloc (FLEXSIZEOF (struct callshapes, shapes,
+                                 xtimes (old_shapes->nshapes + 1,
+                                         sizeof (struct callshape))));
 
           shapes->keyword = old_shapes->keyword;
           shapes->keyword_len = old_shapes->keyword_len;

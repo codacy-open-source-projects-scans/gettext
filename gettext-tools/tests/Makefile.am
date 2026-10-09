@@ -1,5 +1,5 @@
 ## Makefile for the gettext-tools/tests subdirectory of GNU gettext
-## Copyright (C) 1995-2025 Free Software Foundation, Inc.
+## Copyright (C) 1995-2026 Free Software Foundation, Inc.
 ##
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -99,11 +99,12 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-c-format-1 xgettext-c-format-2 xgettext-c-format-3 \
 	xgettext-c-format-4 xgettext-c-format-5 xgettext-c-format-6 \
 	xgettext-c-ctxt-1 xgettext-c-ctxt-2 xgettext-c-ctxt-3 \
-	xgettext-c-c++-1 xgettext-c-c++-2 \
+	xgettext-c-c++-1 xgettext-c-c++-2 xgettext-c-c++-3 \
 	xgettext-c-stackovfl-1 xgettext-c-stackovfl-2 \
 	xgettext-csharp-1 xgettext-csharp-2 xgettext-csharp-3 \
 	xgettext-csharp-4 xgettext-csharp-5 xgettext-csharp-6 \
 	xgettext-csharp-7 xgettext-csharp-8 xgettext-csharp-9 \
+	xgettext-csharp-10 \
 	xgettext-csharp-stackovfl-1 xgettext-csharp-stackovfl-2 \
 	xgettext-csharp-stackovfl-3 xgettext-csharp-stackovfl-4 \
 	xgettext-d-1 xgettext-d-2 xgettext-d-3 xgettext-d-4 xgettext-d-5 \
@@ -124,7 +125,7 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-its-1 xgettext-its-2 \
 	xgettext-java-1 xgettext-java-2 xgettext-java-3 xgettext-java-4 \
 	xgettext-java-5 xgettext-java-6 xgettext-java-7 xgettext-java-8 \
-	xgettext-java-9 \
+	xgettext-java-9 xgettext-java-10 \
 	xgettext-java-stackovfl-1 xgettext-java-stackovfl-2 \
 	xgettext-java-stackovfl-3 xgettext-java-stackovfl-4 \
 	xgettext-javascript-1 xgettext-javascript-2 xgettext-javascript-3 \
@@ -168,7 +169,8 @@ TESTS = gettext-1 gettext-2 \
 	xgettext-python-stackovfl-3 xgettext-python-stackovfl-4 \
 	xgettext-ruby-1 xgettext-ruby-2 \
 	xgettext-rust-1 xgettext-rust-2 xgettext-rust-3 xgettext-rust-4 \
-	xgettext-rust-5 xgettext-rust-6 xgettext-rust-7 \
+	xgettext-rust-5 xgettext-rust-6 xgettext-rust-7 xgettext-rust-8 \
+	xgettext-rust-9 \
 	xgettext-rust-stackovfl-1 xgettext-rust-stackovfl-2 \
 	xgettext-rust-stackovfl-3 xgettext-rust-stackovfl-4 \
 	xgettext-scheme-1 xgettext-scheme-2 xgettext-scheme-3 \
@@ -240,7 +242,7 @@ TESTS = gettext-1 gettext-2 \
 	lang-java \
 	lang-csharp \
 	lang-javascript \
-	lang-guile lang-clisp lang-elisp lang-librep \
+	lang-guile lang-scheme-scm lang-clisp lang-elisp lang-librep \
 	lang-rust \
 	lang-go \
 	lang-ruby \

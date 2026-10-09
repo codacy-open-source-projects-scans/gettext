@@ -24,11 +24,13 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fnmatch.h>
+#include <string.h>
 
 #include <libxml/parser.h>
 #include <libxml/uri.h>
 
 #include <error.h>
+#include "attribute.h"
 #include "basename-lgpl.h"
 #include "concat-filename.h"
 #include "c-strcase.h"
@@ -55,8 +57,9 @@ struct document_locating_rule_ty
 /* This type represents a list of <documentRule> elements.  */
 struct document_locating_rule_list_ty
 {
-  struct document_locating_rule_ty *items;
   size_t nitems;
+  struct document_locating_rule_ty *items
+    COUNTED_BY (nitems);
   /* nitems_max is the number of allocated elements.  nitems ≤ nitems_max.  */
   size_t nitems_max;
 };
@@ -81,8 +84,9 @@ struct locating_rule_ty
    possibly from different *.loc files.  */
 struct locating_rule_list_ty
 {
-  struct locating_rule_ty *items;
   size_t nitems;
+  struct locating_rule_ty *items
+    COUNTED_BY (nitems);
   /* nitems_max is the number of allocated elements.  nitems ≤ nitems_max.  */
   size_t nitems_max;
 };
@@ -151,7 +155,7 @@ locating_rule_match (struct locating_rule_ty *rule,
       char *reduced = xstrdup (base);
       /* Remove a trailing ".in" - it's a generic suffix.  */
       while (strlen (reduced) >= 3
-             && memcmp (reduced + strlen (reduced) - 3, ".in", 3) == 0)
+             && memeq (reduced + strlen (reduced) - 3, ".in", 3))
         reduced[strlen (reduced) - 3] = '\0';
 
       int err = fnmatch (rule->pattern, last_component (reduced), FNM_PATHNAME);
@@ -270,7 +274,8 @@ document_locating_rule_list_add (struct document_locating_rule_list_ty *rules,
                   sizeof (struct document_locating_rule_ty)
                   * rules->nitems_max);
     }
-  memcpy (&rules->items[rules->nitems++], &rule,
+  size_t item_index = rules->nitems++;
+  memcpy (&rules->items[item_index], &rule,
           sizeof (struct document_locating_rule_ty));
 }
 
@@ -328,7 +333,6 @@ locating_rule_list_add_from_file (struct locating_rule_list_ty *rules,
           if (!xmlHasProp (node, BAD_CAST "pattern"))
             {
               missing_attribute (node, "pattern");
-              xmlFreeDoc (doc);
             }
           else
             {
@@ -354,7 +358,8 @@ locating_rule_list_add_from_file (struct locating_rule_list_ty *rules,
                     xrealloc (rules->items,
                               sizeof (struct locating_rule_ty) * rules->nitems_max);
                 }
-              memcpy (&rules->items[rules->nitems++], &rule,
+              size_t item_index = rules->nitems++;
+              memcpy (&rules->items[item_index], &rule,
                       sizeof (struct locating_rule_ty));
             }
         }
@@ -381,7 +386,7 @@ locating_rule_list_add_from_directory (struct locating_rule_list_ty *rules,
           const char *name = dp->d_name;
           size_t namlen = strlen (name);
 
-          if (namlen > 4 && memcmp (name + namlen - 4, ".loc", 4) == 0)
+          if (namlen > 4 && memeq (name + namlen - 4, ".loc", 4))
             {
               char *locator_file_name =
                 xconcatenated_filename (directory, name, NULL);

@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <locale.h>
+#include <stdcountof.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -94,8 +95,6 @@
 #ifndef F_OK
 # define F_OK 0
 #endif
-
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 extern const char * _nl_expand_alias (const char *name);
 
@@ -284,7 +283,7 @@ There is NO WARRANTY, to the extent permitted by law.\n\
   if (locale == NULL)
     {
       locale = gl_locale_name (LC_MESSAGES, "LC_MESSAGES");
-      if (strcmp (locale, "C") == 0)
+      if (streq (locale, "C"))
         {
           const char *doc_url =
             "https://www.gnu.org/software/gettext/manual/html_node/Setting-the-POSIX-Locale.html";
@@ -311,7 +310,7 @@ This is necessary so you can test your translations.\n"),
     output_file = xasprintf ("%s.po", catalogname);
 
   msgdomain_list_ty *result;
-  if (strcmp (output_file, "-") != 0
+  if (!streq (output_file, "-")
       && access (output_file, F_OK) == 0)
     {
       /* The output PO file already exists.  Assume the translator wants to
@@ -357,7 +356,7 @@ This is necessary so you can test your translations.\n"),
       result = fill_header (result, true);
 
       /* Initialize translations.  */
-      if (strcmp (language, "en") == 0)
+      if (streq (language, "en"))
         result = msgdomain_list_english (result);
       else
         result = update_msgstr_plurals (result);
@@ -487,7 +486,7 @@ find_pot ()
               const char *name = dp->d_name;
               size_t namlen = strlen (name);
 
-              if (namlen > 4 && memcmp (name + namlen - 4, ".pot", 4) == 0)
+              if (namlen > 4 && memeq (name + namlen - 4, ".pot", 4))
                 {
                   if (found == NULL)
                     found = xstrdup (name);
@@ -758,8 +757,8 @@ catalogname_for_locale (const char *locale)
   }
 
   /* If the territory is the language's principal territory, drop it.  */
-  for (size_t i = 0; i < SIZEOF (locales_with_principal_territory); i++)
-    if (strcmp (locale, locales_with_principal_territory[i]) == 0)
+  for (size_t i = 0; i < countof (locales_with_principal_territory); i++)
+    if (streq (locale, locales_with_principal_territory[i]))
       {
         const char *language_end = strchr (locale, '_');
         if (language_end == NULL)
@@ -848,7 +847,7 @@ static const char *
 englishname_of_language ()
 {
   for (size_t i = 0; i < language_table_size; i++)
-    if (strcmp (language_table[i].code, language) == 0)
+    if (streq (language_table[i].code, language))
       return language_table[i].english;
 
   return xasprintf ("Language %s", language);
@@ -863,7 +862,7 @@ project_id (const char *header)
      it was already filled in by xgettext.  */
   {
     const char *old_field = get_field (header, "Project-Id-Version");
-    if (old_field != NULL && strcmp (old_field, "PACKAGE VERSION") != 0)
+    if (old_field != NULL && !streq (old_field, "PACKAGE VERSION"))
       {
         /* Remove the last word from old_field.  */
         const char *last_space = strrchr (old_field, ' ');
@@ -958,7 +957,7 @@ project_id_version (const char *header)
      xgettext.  */
   {
     const char *old_field = get_field (header, "Project-Id-Version");
-    if (old_field != NULL && strcmp (old_field, "PACKAGE VERSION") != 0)
+    if (old_field != NULL && !streq (old_field, "PACKAGE VERSION"))
       return old_field;
   }
 
@@ -1222,7 +1221,7 @@ language_team_englishname ()
 {
   /* Search for a name depending on the catalogname.  */
   for (size_t i = 0; i < language_variant_table_size; i++)
-    if (strcmp (language_variant_table[i].code, catalogname) == 0)
+    if (streq (language_variant_table[i].code, catalogname))
       return language_variant_table[i].english;
 
   /* Search for a name depending on the language only.  */
@@ -1365,12 +1364,12 @@ plural_forms ()
 {
   /* Search for a formula depending on the catalogname.  */
   for (size_t i = 0; i < plural_table_size; i++)
-    if (strcmp (plural_table[i].lang, catalogname) == 0)
+    if (streq (plural_table[i].lang, catalogname))
       return plural_table[i].value;
 
   /* Search for a formula depending on the language only.  */
   for (size_t i = 0; i < plural_table_size; i++)
-    if (strcmp (plural_table[i].lang, language) == 0)
+    if (streq (plural_table[i].lang, language))
       return plural_table[i].value;
 
   const char *gettextcldrdir = getenv ("GETTEXTCLDRDIR");
@@ -1390,7 +1389,7 @@ plural_forms ()
         dirs[0] = "common";
         dirs[1] = "supplemental";
         dirs[2] = "plurals.xml";
-        for (size_t i = 0; i < SIZEOF (dirs); i++)
+        for (size_t i = 0; i < countof (dirs); i++)
           {
             char *dir = xconcatenated_filename (last_dir, dirs[i], NULL);
             free (last_dir);
@@ -1645,7 +1644,7 @@ get_title ()
          *not* "Traduzioni inglesi ...".  */
       const char *msgid = N_("English translations for %s package");
       result = gettext (msgid);
-      if (result != msgid && strcmp (result, msgid) != 0)
+      if (result != msgid && !streq (result, msgid))
         /* Use the English and the foreign title.  */
         result = xasprintf ("%s\n%s", english,
                             xstr_iconv (result, locale_charset (),
@@ -1791,13 +1790,13 @@ fill_header (msgdomain_list_ty *mdlp, bool fresh)
   if (fresh)
     {
       fields = fresh_fields;
-      nfields = SIZEOF (fresh_fields);
+      nfields = countof (fresh_fields);
       field_last_translator = FRESH_FIELDS_LAST_TRANSLATOR;
     }
   else
     {
       fields = update_fields;
-      nfields = SIZEOF (update_fields);
+      nfields = countof (update_fields);
       field_last_translator = UPDATE_FIELDS_LAST_TRANSLATOR;
     }
 
@@ -1873,7 +1872,7 @@ fill_header (msgdomain_list_ty *mdlp, bool fresh)
                              (time (&now), (localtime (&now))->tm_year + 1900));
               }
 
-              subst_string_list (header_mp->comment, SIZEOF (subst), subst);
+              subst_string_list (header_mp->comment, countof (subst), subst);
             }
 
           /* Finally remove the fuzzy attribute.  */

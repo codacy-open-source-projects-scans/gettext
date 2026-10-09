@@ -1,5 +1,5 @@
 /* Test program, used by the intl-setlocale-1 test.
-   Copyright (C) 2000-2025 Free Software Foundation, Inc.
+   Copyright (C) 2000-2026 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -31,6 +31,9 @@
 # include "libgnuintl.h"
 #endif
 
+/* We cannot rely on <stdcountof.h> here.  */
+#define countof(array) ((size_t) (sizeof (array) / sizeof ((array)[0])))
+
 #define N_(string) string
 
 struct data_t
@@ -44,10 +47,10 @@ struct data_t strings[] =
   { "String1", N_("First string for testing.") },
   { "String2", N_("Another string for testing.") }
 };
-const int data_cnt = sizeof (strings) / sizeof (strings[0]);
+const int data_cnt = countof (strings);
 
 const char *lang[] = { "de_DE.UTF-8", "fr_FR.UTF-8", "ll_CC" };
-const int lang_cnt = sizeof (lang) / sizeof (lang[0]);
+const int lang_cnt = countof (lang);
 
 int
 main (void)

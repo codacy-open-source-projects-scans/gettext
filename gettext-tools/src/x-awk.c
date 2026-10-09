@@ -23,6 +23,7 @@
 
 #include <errno.h>
 #include <stdbool.h>
+#include <stdcountof.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,8 +45,6 @@
 #include "gettext.h"
 
 #define _(s) gettext(s)
-
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 
 /* The awk syntax is defined in the gawk manual page and documentation.
@@ -81,11 +80,9 @@ x_awk_keyword (const char *name)
       const char *end;
       struct callshape shape;
       split_keywordspec (name, &end, &shape);
-
-      /* The characters between name and end should form a valid C identifier.
-         A colon means an invalid parse in split_keywordspec().  */
-      const char *colon = strchr (name, ':');
-      if (colon == NULL || colon >= end)
+      if (split_keywordspec_ok (name, end - name))
+        /* The characters between name and end should form a valid
+           C identifier.  */
         insert_keyword_callshape (&keywords, name, end - name, &shape);
     }
 }
@@ -488,11 +485,11 @@ phase3_get (token_ty *tp)
                     echo; echo $k; awk "function foo () { $k / 10 }" < /dev/null
                   done
              */
-            if (strcmp (tp->string, "do") == 0
-                || strcmp (tp->string, "exit") == 0
-                || strcmp (tp->string, "print") == 0
-                || strcmp (tp->string, "printf") == 0
-                || strcmp (tp->string, "return") == 0)
+            if (streq (tp->string, "do")
+                || streq (tp->string, "exit")
+                || streq (tp->string, "print")
+                || streq (tp->string, "printf")
+                || streq (tp->string, "return"))
               prefer_division_over_regexp = false;
             else
               prefer_division_over_regexp = true;
@@ -644,7 +641,7 @@ phase3_unget (token_ty *tp)
 {
   if (tp->type != token_type_eof)
     {
-      if (phase3_pushback_length == SIZEOF (phase3_pushback))
+      if (phase3_pushback_length == countof (phase3_pushback))
         abort ();
       phase3_pushback[phase3_pushback_length++] = *tp;
     }
@@ -780,8 +777,8 @@ extract_parenthesized (message_list_ty *mlp,
               state = 0;
           }
           next_is_argument =
-            (strcmp (token.string, "print") == 0
-             || strcmp (token.string, "printf") == 0);
+            (streq (token.string, "print")
+             || streq (token.string, "printf"));
           next_context_iter =
             flag_context_list_iterator (
               flag_context_list_table_lookup (

@@ -33,6 +33,7 @@
 #endif
 #include <ctype.h>
 #include <sys/types.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #if defined _WIN32 && !defined __CYGWIN__
 # include <wchar.h>
@@ -48,8 +49,6 @@
 #  define NULL 0
 # endif
 #endif
-
-/* @@ end of prolog @@ */
 
 #ifdef _LIBC
 /* Rename the non ANSI C functions.  This is required by the standard
@@ -98,16 +97,6 @@ _nl_make_l10nflist (struct loaded_l10nfile **l10nfile_list,
 		    const char *modifier,
 		    const char *filename, int do_allocate)
 {
-  char *abs_filename;
-#if defined _WIN32 && !defined __CYGWIN__
-  wchar_t *abs_wfilename;
-#endif
-  struct loaded_l10nfile **lastp;
-  struct loaded_l10nfile *retval;
-  size_t dirlist_count;
-  size_t entries;
-  int cnt;
-
   /* If LANGUAGE contains an absolute directory specification, we ignore
      DIRLIST and WDIRLIST.  */
   if (!IS_RELATIVE_FILE_NAME (language))
@@ -119,17 +108,18 @@ _nl_make_l10nflist (struct loaded_l10nfile **l10nfile_list,
     }
 
   /* Allocate room for the full file name.  */
-  abs_filename = (char *) malloc (dirlist_len
-				  + strlen (language)
-				  + ((mask & XPG_TERRITORY) != 0
-				     ? strlen (territory) + 1 : 0)
-				  + ((mask & XPG_CODESET) != 0
-				     ? strlen (codeset) + 1 : 0)
-				  + ((mask & XPG_NORM_CODESET) != 0
-				     ? strlen (normalized_codeset) + 1 : 0)
-				  + ((mask & XPG_MODIFIER) != 0
-				     ? strlen (modifier) + 1 : 0)
-				  + 1 + strlen (filename) + 1);
+  char *abs_filename =
+    (char *) malloc (dirlist_len
+		     + strlen (language)
+		     + ((mask & XPG_TERRITORY) != 0
+		        ? strlen (territory) + 1 : 0)
+		     + ((mask & XPG_CODESET) != 0
+		        ? strlen (codeset) + 1 : 0)
+		     + ((mask & XPG_NORM_CODESET) != 0
+		        ? strlen (normalized_codeset) + 1 : 0)
+		     + ((mask & XPG_MODIFIER) != 0
+		        ? strlen (modifier) + 1 : 0)
+		     + 1 + strlen (filename) + 1);
 
   if (abs_filename == NULL)
     return NULL;
@@ -178,6 +168,7 @@ _nl_make_l10nflist (struct loaded_l10nfile **l10nfile_list,
 
 #if defined _WIN32 && !defined __CYGWIN__
   /* Construct wide-char file name.  */
+  wchar_t *abs_wfilename;
   if (wdirlist_len > 0)
     {
       /* Since dirlist_len == 0, just concatenate wdirlist and abs_filename.  */
@@ -218,7 +209,8 @@ _nl_make_l10nflist (struct loaded_l10nfile **l10nfile_list,
 
   /* Look in list of already loaded domains whether it is already
      available.  */
-  lastp = l10nfile_list;
+  struct loaded_l10nfile *retval;
+  struct loaded_l10nfile **lastp = l10nfile_list;
 #if defined _WIN32 && !defined __CYGWIN__
   if (abs_wfilename != NULL)
     {
@@ -273,6 +265,7 @@ _nl_make_l10nflist (struct loaded_l10nfile **l10nfile_list,
       return retval;
     }
 
+  size_t dirlist_count;
 #ifdef _LIBC
   dirlist_count = (dirlist_len > 0 ? __argz_count (dirlist, dirlist_len) : 1);
 #else
@@ -311,7 +304,7 @@ _nl_make_l10nflist (struct loaded_l10nfile **l10nfile_list,
   retval->next = *lastp;
   *lastp = retval;
 
-  entries = 0;
+  size_t entries = 0;
   /* Recurse to fill the inheritance list of RETVAL.
      If the DIRLIST is a real list (i.e. DIRLIST_COUNT > 1), the RETVAL
      entry does not correspond to a real file; retval->filename contains
@@ -324,7 +317,7 @@ _nl_make_l10nflist (struct loaded_l10nfile **l10nfile_list,
      that the extra bits in the locale name are dropped in this order:
      first the modifier, then the territory, then the codeset, then the
      normalized_codeset.  */
-  for (cnt = dirlist_count > 1 ? mask : mask - 1; cnt >= 0; --cnt)
+  for (int cnt = dirlist_count > 1 ? mask : mask - 1; cnt >= 0; --cnt)
     if ((cnt & ~mask) == 0
 	&& !((cnt & XPG_CODESET) != 0 && (cnt & XPG_NORM_CODESET) != 0))
       {
@@ -366,30 +359,29 @@ const char *
 _nl_normalize_codeset (const char *codeset, size_t name_len)
 {
   size_t len = 0;
-  int only_digit = 1;
-  char *retval;
-  char *wp;
-  size_t cnt;
+  bool only_digit = true;
 
-  for (cnt = 0; cnt < name_len; ++cnt)
+  for (size_t cnt = 0; cnt < name_len; ++cnt)
     if (isalnum ((unsigned char) codeset[cnt]))
       {
 	++len;
 
 	if (isalpha ((unsigned char) codeset[cnt]))
-	  only_digit = 0;
+	  only_digit = false;
       }
 
-  retval = (char *) malloc ((only_digit ? 3 : 0) + len + 1);
+  char *retval = (char *) malloc ((only_digit ? 3 : 0) + len + 1);
 
   if (retval != NULL)
     {
+      char *wp;
+
       if (only_digit)
 	wp = stpcpy (retval, "iso");
       else
 	wp = retval;
 
-      for (cnt = 0; cnt < name_len; ++cnt)
+      for (size_t cnt = 0; cnt < name_len; ++cnt)
 	if (isalpha ((unsigned char) codeset[cnt]))
 	  *wp++ = tolower ((unsigned char) codeset[cnt]);
 	else if (isdigit ((unsigned char) codeset[cnt]))
@@ -401,9 +393,7 @@ _nl_normalize_codeset (const char *codeset, size_t name_len)
   return (const char *) retval;
 }
 
-
-/* @@ begin of epilog @@ */
-
+
 /* We don't want libintl.a to depend on any other library.  So we
    avoid the non-standard function stpcpy.  In GNU C Library this
    function is available, though.  Also allow the symbol HAVE_STPCPY

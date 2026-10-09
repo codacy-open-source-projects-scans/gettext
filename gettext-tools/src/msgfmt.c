@@ -408,9 +408,9 @@ main (int argc, char *argv[])
         case CHAR_MAX + 13: /* --endianness={big|little} */
           {
             int endianness;
-            if (strcmp (optarg, "big") == 0)
+            if (streq (optarg, "big"))
               endianness = 1;
-            else if (strcmp (optarg, "little") == 0)
+            else if (streq (optarg, "little"))
               endianness = 0;
             else
               error (EXIT_FAILURE, 0, _("invalid endianness: %s"), optarg);
@@ -1136,9 +1136,9 @@ static const char *
 add_mo_suffix (const char *fname)
 {
   size_t len = strlen (fname);
-  if (len > 3 && memcmp (fname + len - 3, ".mo", 3) == 0)
+  if (len > 3 && memeq (fname + len - 3, ".mo", 3))
     return fname;
-  if (len > 4 && memcmp (fname + len - 4, ".gmo", 4) == 0)
+  if (len > 4 && memeq (fname + len - 4, ".gmo", 4))
     return fname;
   char *result = XNMALLOC (len + 4, char);
   stpcpy (stpcpy (result, fname), ".mo");
@@ -1151,7 +1151,7 @@ new_domain (const char *name, const char *file_name)
 {
   struct msg_domain **p_dom = &domain_list;
 
-  while (*p_dom != NULL && strcmp (name, (*p_dom)->domain_name) != 0)
+  while (*p_dom != NULL && !streq (name, (*p_dom)->domain_name))
     p_dom = &(*p_dom)->next;
 
   if (*p_dom == NULL)
@@ -1576,7 +1576,8 @@ msgfmt_operand_list_append (msgfmt_operand_list_ty *operands,
                                   * operands->nitems_max);
     }
 
-  msgfmt_operand_ty *operand = &operands->items[operands->nitems++];
+  size_t item_index = operands->nitems++;
+  msgfmt_operand_ty *operand = &operands->items[item_index];
   operand->language = xstrdup (language);
   operand->mlp = messages;
 }

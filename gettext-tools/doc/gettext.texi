@@ -325,6 +325,7 @@ Producing Binary MO Files
 * msgfmt Invocation::           Invoking the @code{msgfmt} Program
 * msgunfmt Invocation::         Invoking the @code{msgunfmt} Program
 * MO Files::                    The Format of GNU MO Files
+* Security of MO Files::        Security considerations around MO Files
 
 The Programmer's View
 
@@ -462,7 +463,7 @@ Individual Programming Languages
 * C#::                          C#
 * JavaScript::                  JavaScript
 * TypeScript::                  TypeScript
-* Scheme::                      GNU guile - Scheme
+* Scheme::                      Scheme
 * Common Lisp::                 GNU clisp - Common Lisp
 * clisp C::                     GNU clisp C sources
 * Emacs Lisp::                  Emacs Lisp
@@ -486,6 +487,11 @@ Individual Programming Languages
 * Pike::                        Pike
 * GCC-source::                  GNU Compiler Collection sources
 * YCP::                         YCP - YaST2 scripting language
+
+Scheme
+
+* GNU guile::                   GNU guile
+* Other Schemes::               Other Scheme implementations
 
 sh - Shell Script
 
@@ -3877,7 +3883,7 @@ area.
 Fill in the language code of the language.  This can be in one of three
 forms:
 
-@itemize -
+@itemize @bullet
 @item
 @samp{@var{ll}}, an @w{ISO 639} two-letter language code (lowercase).
 For some languages,
@@ -3895,13 +3901,26 @@ code serves to distinguish the dialects. See @ref{Language Codes} and
 @ref{Country Codes} for the lists of codes.
 
 @item
-@samp{@var{ll}_@var{CC}@@@var{variant}}, where @samp{@var{ll}} is an
-@w{ISO 639} two-letter
-or three-letter
-language code (lowercase), @samp{@var{CC}} is an
-@w{ISO 3166} two-letter country code (uppercase), and @samp{@var{variant}} is
-a variant designator. The variant designator (lowercase) can be a script
-designator, such as @samp{latin} or @samp{cyrillic}.
+@samp{@var{ll}@@@var{variant}} or @samp{@var{ll}_@var{CC}@@@var{variant}},
+where @samp{@var{ll}} is an
+@w{ISO 639} two-letter or three-letter language code (lowercase),
+@samp{@var{CC}} is an
+@w{ISO 3166} two-letter country code (uppercase),
+and @samp{@var{variant}} is a variant designator.
+The variant designator (lowercase) can be a script designator,
+such as @samp{latin} or @samp{cyrillic},
+or it can indicate a dialect.
+For example, the following language codes are in use:
+@itemize -
+@item
+@samp{be@@latin} and @samp{sr@@latin} for Belarusian and Serbian,
+written in Latin script.
+@item
+@samp{uz@@cyrillic} for Uzbek, written in Cyrillic script.
+@item
+@samp{ca@@valencia} for Catalan, as spoken in the region around Valencia
+(the southern Catalan dialect).
+@end itemize
 @end itemize
 
 The naming convention @samp{@var{ll}_@var{CC}} is also the way locales are
@@ -6850,7 +6869,7 @@ Returns a @code{NULL} terminated array of the supported format types.
 
 @deftypefun {const char *} po_format_pretty_name (const@tie{}char@tie{}*@var{format_type})
 Returns the pretty name associated with @var{format_type}.  For example,
-it returns ``C#'' when @var{format_type} is ``csharp_format''.
+it returns @code{"C#"} when @var{format_type} is @code{"csharp-format"}.
 Return @code{NULL} if @var{format_type} is not a supported format type.
 @end deftypefun
 
@@ -6905,6 +6924,7 @@ the inclusion of @samp{<gettext-po.h>}.
 * msgfmt Invocation::           Invoking the @code{msgfmt} Program
 * msgunfmt Invocation::         Invoking the @code{msgunfmt} Program
 * MO Files::                    The Format of GNU MO Files
+* Security of MO Files::        Security considerations around MO Files
 @end menu
 
 @node msgfmt Invocation
@@ -7082,6 +7102,36 @@ T + ((N-1)*8)| length & offset (N-1)th translation      |  | | | |
              +------------------------------------------+
 @end group
 @end example
+
+@node Security of MO Files
+@section Security considerations around MO Files
+
+A @code{.mo} file should be installed
+with the same write permissions as the program or library to which it belongs.
+For instance,
+if a distribution installs a program (executable) or shared library
+as owned by @code{root} and not writable by unprivileged users,
+it should install the @code{.mo} files
+as owned by @code{root} and not writable by unprivileged users as well.
+
+This is necessary for two reasons:
+@itemize @bullet
+@item
+The code in GNU libintl and GNU libc that interprets the MO files
+does not defensively check against out-of-range offsets
+and invalid fields in the @code{.mo} file's header (see @ref{MO Files}).
+@item
+For programming languages like C, the translation of a format string
+is supposed to consume the same number and the same type of arguments
+as the untranslated format string.
+(Otherwise, the program that makes use of the translation may crash.)
+@end itemize
+
+For these two reasons also, it is recommended that
+the @code{.mo} filesare created through @samp{msgfmt -c}.
+The use of @code{msgfmt} will guarantee that the @code{.mo} file is well-formed,
+and the use of the @code{-c} or @code{--check} option will guarantee
+the consistency of the translations of format strings.
 
 @node Programmers
 @chapter The Programmer's View
@@ -10695,9 +10745,9 @@ chapter 22.3 @w{Formatted Output},
 
 Emacs Lisp format strings are documented in the Emacs Lisp reference,
 section @w{Formatting Strings},
-@uref{https://www.gnu.org/manual/elisp-manual-21-2.8/html_chapter/elisp_4.html#SEC75}.
+@uref{https://www.gnu.org/software/emacs/manual/html_node/elisp/Formatting-Strings.html}.
 Note that as of version 21, XEmacs supports numbered argument specifications
-in format strings while FSF Emacs doesn't.
+in format strings while GNU Emacs doesn't.
 
 @node librep-format
 @subsection librep Format Strings
@@ -11169,7 +11219,7 @@ that language, and to combine the resulting files using @code{msgcat}.
 * C#::                          C#
 * JavaScript::                  JavaScript
 * TypeScript::                  TypeScript
-* Scheme::                      GNU guile - Scheme
+* Scheme::                      Scheme
 * Common Lisp::                 GNU clisp - Common Lisp
 * clisp C::                     GNU clisp C sources
 * Emacs Lisp::                  Emacs Lisp
@@ -11237,7 +11287,7 @@ that language, and to combine the resulting files using @code{msgcat}.
 @table @asis
 @item RPMs
 
-@item Ubuntu packages
+@item Debian/Ubuntu packages
 
 @item File extension
 
@@ -11331,7 +11381,7 @@ using GNU gettext.
 @item RPMs
 gettext
 
-@item Ubuntu packages
+@item Debian/Ubuntu packages
 gettext
 
 @item File extension
@@ -11354,7 +11404,7 @@ files, created by the Free Pascal compiler version 3.0.0 or newer.
 @item RPMs
 fpk
 
-@item Ubuntu packages
+@item Debian/Ubuntu packages
 fp-compiler
 
 @item File extension
@@ -11371,7 +11421,7 @@ fp-compiler
 @item RPMs
 glade, libglade, glade2, libglade2, intltool
 
-@item Ubuntu packages
+@item Debian/Ubuntu packages
 glade, libglade2-dev, intltool
 
 @item File extension
@@ -11388,7 +11438,7 @@ glade, libglade2-dev, intltool
 @item RPMs
 glib2
 
-@item Ubuntu packages
+@item Debian/Ubuntu packages
 libglib2.0-dev
 
 @item File extension
@@ -11408,7 +11458,7 @@ This file format is specified in
 @item RPMs
 appdata-tools, appstream, libappstream-glib, libappstream-glib-builder
 
-@item Ubuntu packages
+@item Debian/Ubuntu packages
 appdata-tools, appstream, libappstream-glib-dev
 
 @item File extension
@@ -11655,7 +11705,7 @@ or through an attribute @code{gt:escape="yes"} on the particular XML element.
 @table @asis
 @item RPMs
 
-@item Ubuntu packages
+@item Debian/Ubuntu packages
 
 @item File extension
 

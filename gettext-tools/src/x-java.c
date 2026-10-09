@@ -23,6 +23,7 @@
 
 #include <errno.h>
 #include <stdbool.h>
+#include <stdcountof.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,8 +51,6 @@
 #include "gettext.h"
 
 #define _(s) gettext(s)
-
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 
 /* The Java syntax is defined in the
@@ -94,12 +93,9 @@ x_java_keyword (const char *name)
       const char *end;
       struct callshape shape;
       split_keywordspec (name, &end, &shape);
-
-      /* The characters between name and end should form a valid Java
-         identifier sequence with dots.
-         A colon means an invalid parse in split_keywordspec().  */
-      const char *colon = strchr (name, ':');
-      if (colon == NULL || colon >= end)
+      if (split_keywordspec_ok (name, end - name))
+        /* The characters between name and end should form a valid Java
+           identifier sequence with dots.  */
         insert_keyword_callshape (&keywords, name, end - name, &shape);
     }
 }
@@ -221,14 +217,14 @@ phase1_ungetc (int c)
             phase1_pushback[phase1_pushback_length - 1]++;
           else
             {
-              if (phase1_pushback_length == SIZEOF (phase1_pushback))
+              if (phase1_pushback_length == countof (phase1_pushback))
                 abort ();
               phase1_pushback[phase1_pushback_length++] = MULTIPLE_U (1);
             }
         }
       else
         {
-          if (phase1_pushback_length == SIZEOF (phase1_pushback))
+          if (phase1_pushback_length == countof (phase1_pushback))
             abort ();
           phase1_pushback[phase1_pushback_length++] = c;
         }
@@ -326,7 +322,7 @@ phase2_ungetc (int c)
 {
   if (c != P2_EOF)
     {
-      if (phase2_pushback_length == SIZEOF (phase2_pushback))
+      if (phase2_pushback_length == countof (phase2_pushback))
         abort ();
       phase2_pushback[phase2_pushback_length++] = c;
     }
@@ -395,7 +391,7 @@ phase3_ungetc (int c)
     {
       if (c == '\n')
         --line_number;
-      if (phase3_pushback_length == SIZEOF (phase3_pushback))
+      if (phase3_pushback_length == countof (phase3_pushback))
         abort ();
       phase3_pushback[phase3_pushback_length++] = c;
     }
@@ -1528,7 +1524,7 @@ phase5_unget (token_ty *tp)
 {
   if (tp->type != token_type_eof)
     {
-      if (phase5_pushback_length == SIZEOF (phase5_pushback))
+      if (phase5_pushback_length == countof (phase5_pushback))
         abort ();
       phase5_pushback[phase5_pushback_length++] = *tp;
     }
@@ -1603,7 +1599,7 @@ phase6_unget (token_ty *tp)
 {
   if (tp->type != token_type_eof)
     {
-      if (phase6_pushback_length == SIZEOF (phase6_pushback))
+      if (phase6_pushback_length == countof (phase6_pushback))
         abort ();
       phase6_pushback[phase6_pushback_length++] = *tp;
     }
@@ -1691,7 +1687,7 @@ extract_parenthesized (message_list_ty *mlp, token_type_ty terminator,
         {
         case token_type_symbol:
           {
-            /* Combine symbol1 . ... . symbolN to a single strings, so that
+            /* Combine symbol1 . ... . symbolN to a single string, so that
                we can recognize static function calls like
                GettextResource.gettext.  The information present for
                symbolI.....symbolN has precedence over the information for
@@ -1737,7 +1733,7 @@ extract_parenthesized (message_list_ty *mlp, token_type_ty terminator,
                java-printf-format, whereas in
                  foobar (EXPR).formatted()
                they should not.  */
-            if (strcmp (sum, "return") != 0)
+            if (!streq (sum, "return"))
               {
                 for (const char *dottedname = sum;;)
                   {
@@ -1806,7 +1802,7 @@ extract_parenthesized (message_list_ty *mlp, token_type_ty terminator,
                 token_ty token3;
                 x_java_lex (&token3);
                 if (token3.type == token_type_symbol
-                    && strcmp (token3.string, "formatted") == 0)
+                    && streq (token3.string, "formatted"))
                   {
                     /* Mark the messages found in the region as java-printf-format
                        a posteriori.  */

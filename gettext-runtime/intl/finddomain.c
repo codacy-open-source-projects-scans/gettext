@@ -47,7 +47,7 @@
 # include "glthread/lock.h"
 #endif
 
-/* @@ end of prolog @@ */
+
 /* List of already loaded domains.
    On most platforms, it is sorted in decreasing order of ->filename.
    On native Windows platforms, the elements with ->filename != NULL
@@ -70,15 +70,6 @@ _nl_find_domain (const char *dirname,
 		 char *locale,
 		 const char *domainname, struct binding *domainbinding)
 {
-  struct loaded_l10nfile *retval;
-  const char *language;
-  const char *modifier;
-  const char *territory;
-  const char *codeset;
-  const char *normalized_codeset;
-  const char *alias_value;
-  int mask;
-
   /* LOCALE can consist of up to four recognized parts for the XPG syntax:
 
 		language[_territory][.codeset][@modifier]
@@ -98,30 +89,29 @@ _nl_find_domain (const char *dirname,
 
   /* If we have already tested for this locale entry there has to
      be one data set in the list of loaded domains.  */
-  retval = _nl_make_l10nflist (&_nl_loaded_domains,
-			       dirname,
-			       dirname != NULL ? strlen (dirname) + 1 : 0,
+  struct loaded_l10nfile *retval =
+    _nl_make_l10nflist (&_nl_loaded_domains,
+			dirname,
+			dirname != NULL ? strlen (dirname) + 1 : 0,
 #if defined _WIN32 && !defined __CYGWIN__
-			       wdirname,
-			       wdirname != NULL ? wcslen (wdirname) + 1 : 0,
+			wdirname,
+			wdirname != NULL ? wcslen (wdirname) + 1 : 0,
 #endif
-			       0, locale, NULL, NULL, NULL, NULL,
-			       domainname, 0);
+			0, locale, NULL, NULL, NULL, NULL,
+			domainname, 0);
 
   gl_rwlock_unlock (lock);
 
   if (retval != NULL)
     {
       /* We know something about this locale.  */
-      int cnt;
-
       if (retval->decided <= 0)
 	_nl_load_domain (retval, domainbinding);
 
       if (retval->data != NULL)
 	return retval;
 
-      for (cnt = 0; retval->successor[cnt] != NULL; ++cnt)
+      for (int cnt = 0; retval->successor[cnt] != NULL; ++cnt)
 	{
 	  if (retval->successor[cnt]->decided <= 0)
 	    _nl_load_domain (retval->successor[cnt], domainbinding);
@@ -137,7 +127,7 @@ _nl_find_domain (const char *dirname,
   /* See whether the locale value is an alias.  If yes its value
      *overwrites* the alias name.  No test for the original value is
      done.  */
-  alias_value = _nl_expand_alias (locale);
+  const char *alias_value = _nl_expand_alias (locale);
   if (alias_value != NULL)
     {
       size_t len = strlen (alias_value) + 1;
@@ -150,8 +140,13 @@ _nl_find_domain (const char *dirname,
 
   /* Now we determine the single parts of the locale name.  First
      look for the language.  Termination symbols are `_', '.', and `@'.  */
-  mask = _nl_explode_name (locale, &language, &modifier, &territory,
-			   &codeset, &normalized_codeset);
+  const char *language;
+  const char *modifier;
+  const char *territory;
+  const char *codeset;
+  const char *normalized_codeset;
+  int mask = _nl_explode_name (locale, &language, &modifier, &territory,
+			       &codeset, &normalized_codeset);
   if (mask != -1) /* not out-of-memory? */
     {
       /* We need to protect modifying the _NL_LOADED_DOMAINS data.  */
@@ -178,8 +173,7 @@ _nl_find_domain (const char *dirname,
 	    _nl_load_domain (retval, domainbinding);
 	  if (retval->data == NULL)
 	    {
-	      int cnt;
-	      for (cnt = 0; retval->successor[cnt] != NULL; ++cnt)
+	      for (int cnt = 0; retval->successor[cnt] != NULL; ++cnt)
 		{
 		  if (retval->successor[cnt]->decided <= 0)
 		    _nl_load_domain (retval->successor[cnt], domainbinding);

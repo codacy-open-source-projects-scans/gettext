@@ -267,7 +267,7 @@ message_comment_filepos (message_ty *mp,
   for (size_t j = 0; j < mp->filepos_count; j++)
     {
       lex_pos_ty *pp = &mp->filepos[j];
-      if (strcmp (pp->file_name, file_name) == 0
+      if (streq (pp->file_name, file_name)
           && pp->line_number == line_number)
         return;
     }
@@ -277,7 +277,8 @@ message_comment_filepos (message_ty *mp,
   mp->filepos = xrealloc (mp->filepos, nbytes);
 
   /* Insert the position at the end.  Don't sort the file positions here.  */
-  lex_pos_ty *pp = &mp->filepos[mp->filepos_count++];
+  size_t filepos_index = mp->filepos_count++;
+  lex_pos_ty *pp = &mp->filepos[filepos_index];
   pp->file_name = xstrdup (file_name);
   pp->line_number = line_number;
 }
@@ -394,7 +395,8 @@ message_list_append (message_list_ty *mlp, message_ty *mp)
       size_t nbytes = mlp->nitems_max * sizeof (message_ty *);
       mlp->item = xrealloc (mlp->item, nbytes);
     }
-  mlp->item[mlp->nitems++] = mp;
+  size_t item_index = mlp->nitems++;
+  mlp->item[item_index] = mp;
 
   if (mlp->use_hashtable)
     if (message_list_hash_insert_entry (&mlp->htable, mp))
@@ -413,10 +415,10 @@ message_list_prepend (message_list_ty *mlp, message_ty *mp)
       size_t nbytes = mlp->nitems_max * sizeof (message_ty *);
       mlp->item = xrealloc (mlp->item, nbytes);
     }
-  for (size_t j = mlp->nitems; j > 0; j--)
+  mlp->nitems++;
+  for (size_t j = mlp->nitems - 1; j > 0; j--)
     mlp->item[j] = mlp->item[j - 1];
   mlp->item[0] = mp;
-  mlp->nitems++;
 
   if (mlp->use_hashtable)
     if (message_list_hash_insert_entry (&mlp->htable, mp))
@@ -435,13 +437,13 @@ message_list_insert_at (message_list_ty *mlp, size_t n, message_ty *mp)
       size_t nbytes = mlp->nitems_max * sizeof (message_ty *);
       mlp->item = xrealloc (mlp->item, nbytes);
     }
+  mlp->nitems++;
   {
     size_t j;
-    for (j = mlp->nitems; j > n; j--)
+    for (j = mlp->nitems - 1; j > n; j--)
       mlp->item[j] = mlp->item[j - 1];
     mlp->item[j] = mp;
   }
-  mlp->nitems++;
 
   if (mlp->use_hashtable)
     if (message_list_hash_insert_entry (&mlp->htable, mp))
@@ -581,9 +583,9 @@ message_list_search (const message_list_ty *mlp,
           message_ty *mp = mlp->item[j];
 
           if ((msgctxt != NULL
-               ? mp->msgctxt != NULL && strcmp (msgctxt, mp->msgctxt) == 0
+               ? mp->msgctxt != NULL && streq (msgctxt, mp->msgctxt)
                : mp->msgctxt == NULL)
-              && strcmp (msgid, mp->msgid) == 0)
+              && streq (msgid, mp->msgid))
             return mp;
         }
       return NULL;
@@ -601,7 +603,7 @@ fuzzy_search_goal_function (const message_ty *mp,
      give mp a small advantage if mp is valid regardless of any context or
      has the same context as the one being looked up.  */
   if (mp->msgctxt == NULL
-      || (msgctxt != NULL && strcmp (msgctxt, mp->msgctxt) == 0))
+      || (msgctxt != NULL && streq (msgctxt, mp->msgctxt)))
     {
       bonus = 0.00001;
       /* Since we will consider (weight + bonus) at the end, we are only
@@ -694,7 +696,8 @@ message_list_list_append (message_list_list_ty *mllp, message_list_ty *mlp)
       size_t nbytes = mllp->nitems_max * sizeof (message_list_ty *);
       mllp->item = xrealloc (mllp->item, nbytes);
     }
-  mllp->item[mllp->nitems++] = mlp;
+  size_t item_index = mllp->nitems++;
+  mllp->item[item_index] = mlp;
 }
 
 
@@ -807,7 +810,8 @@ msgdomain_list_append (msgdomain_list_ty *mdlp, msgdomain_ty *mdp)
       size_t nbytes = mdlp->nitems_max * sizeof (msgdomain_ty *);
       mdlp->item = xrealloc (mdlp->item, nbytes);
     }
-  mdlp->item[mdlp->nitems++] = mdp;
+  size_t item_index = mdlp->nitems++;
+  mdlp->item[item_index] = mdp;
 }
 
 
@@ -826,7 +830,7 @@ msgdomain_list_sublist (msgdomain_list_ty *mdlp, const char *domain,
                         bool create)
 {
   for (size_t j = 0; j < mdlp->nitems; j++)
-    if (strcmp (mdlp->item[j]->domain, domain) == 0)
+    if (streq (mdlp->item[j]->domain, domain))
       return mdlp->item[j]->messages;
 
   if (create)

@@ -23,14 +23,13 @@
 /* Specification.  */
 #include "po-charset.h"
 
+#include <stdcountof.h>
 #include <string.h>
 
 #include "c-strcase.h"
 #include "gettext.h"
 
 #define _(str) gettext (str)
-
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 static const char ascii[] = "ASCII";
 
@@ -96,7 +95,7 @@ po_charset_canonicalize (const char *charset)
     utf8
   };
 
-  for (size_t i = 0; i < SIZEOF (standard_charsets); i++)
+  for (size_t i = 0; i < countof (standard_charsets); i++)
     if (c_strcasecmp (charset, standard_charsets[i]) == 0)
       return standard_charsets[i < 3 ? 0 : i < 27 ? ((i - 3) & ~1) + 3 : i];
   return NULL;
@@ -107,9 +106,9 @@ bool
 po_charset_ascii_compatible (const char *canon_charset)
 {
   /* There are only a few exceptions to ASCII compatibility.  */
-  if (strcmp (canon_charset, "SHIFT_JIS") == 0
-      || strcmp (canon_charset, "JOHAB") == 0
-      || strcmp (canon_charset, "VISCII") == 0)
+  if (streq (canon_charset, "SHIFT_JIS")
+      || streq (canon_charset, "JOHAB")
+      || streq (canon_charset, "VISCII"))
     return false;
   else
     return true;
@@ -129,8 +128,8 @@ bool po_is_charset_weird (const char *canon_charset)
     "JOHAB"
   };
 
-  for (size_t i = 0; i < SIZEOF (weird_charsets); i++)
-    if (strcmp (canon_charset, weird_charsets[i]) == 0)
+  for (size_t i = 0; i < countof (weird_charsets); i++)
+    if (streq (canon_charset, weird_charsets[i]))
       return true;
   return false;
 }
@@ -151,8 +150,8 @@ bool po_is_charset_weird_cjk (const char *canon_charset)
     "JOHAB"             /* 0x{00..7F},    0x{84..F9}{31..FE} */
   };
 
-  for (size_t i = 0; i < SIZEOF (weird_cjk_charsets); i++)
-    if (strcmp (canon_charset, weird_cjk_charsets[i]) == 0)
+  for (size_t i = 0; i < countof (weird_cjk_charsets); i++)
+    if (streq (canon_charset, weird_cjk_charsets[i]))
       return true;
   return false;
 }
@@ -397,24 +396,24 @@ po_charset_character_iterator (const char *canon_charset)
 {
   if (canon_charset == utf8)
     return utf8_character_iterator;
-  if (strcmp (canon_charset, "GB2312") == 0
-      || strcmp (canon_charset, "EUC-KR") == 0)
+  if (streq (canon_charset, "GB2312")
+      || streq (canon_charset, "EUC-KR"))
     return euc_character_iterator;
-  if (strcmp (canon_charset, "EUC-JP") == 0)
+  if (streq (canon_charset, "EUC-JP"))
     return euc_jp_character_iterator;
-  if (strcmp (canon_charset, "EUC-TW") == 0)
+  if (streq (canon_charset, "EUC-TW"))
     return euc_tw_character_iterator;
-  if (strcmp (canon_charset, "BIG5") == 0)
+  if (streq (canon_charset, "BIG5"))
     return big5_character_iterator;
-  if (strcmp (canon_charset, "BIG5-HKSCS") == 0)
+  if (streq (canon_charset, "BIG5-HKSCS"))
     return big5hkscs_character_iterator;
-  if (strcmp (canon_charset, "GBK") == 0)
+  if (streq (canon_charset, "GBK"))
     return gbk_character_iterator;
-  if (strcmp (canon_charset, "GB18030") == 0)
+  if (streq (canon_charset, "GB18030"))
     return gb18030_character_iterator;
-  if (strcmp (canon_charset, "SHIFT_JIS") == 0)
+  if (streq (canon_charset, "SHIFT_JIS"))
     return shift_jis_character_iterator;
-  if (strcmp (canon_charset, "JOHAB") == 0)
+  if (streq (canon_charset, "JOHAB"))
     return johab_character_iterator;
   return char_iterator;
 }

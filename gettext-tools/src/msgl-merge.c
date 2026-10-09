@@ -23,6 +23,7 @@
 #include "msgl-merge.h"
 
 #include <stdbool.h>
+#include <stdcountof.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -401,14 +402,12 @@ message_merge (message_ty *def, message_ty *ref, bool force_fuzzy,
 
           /* Compare with any of the known fields.  */
           size_t cnt;
-          for (cnt = 0;
-               cnt < sizeof (known_fields) / sizeof (known_fields[0]);
-               ++cnt)
+          for (cnt = 0; cnt < countof (known_fields); ++cnt)
             if (c_strncasecmp (cp, known_fields[cnt].name, known_fields[cnt].len)
                 == 0)
               break;
 
-          if (cnt < sizeof (known_fields) / sizeof (known_fields[0]))
+          if (cnt < countof (known_fields))
             {
               header_fields[cnt].string = &cp[known_fields[cnt].len];
               header_fields[cnt].len = len - known_fields[cnt].len;
@@ -498,8 +497,8 @@ message_merge (message_ty *def, message_ty *ref, bool force_fuzzy,
               for (size_t i = 0; i < language_variant_table_size; i++)
                 if (strlen (language_variant_table[i].english)
                     == language_team_len
-                    && memcmp (language_variant_table[i].english,
-                               language_team_ptr, language_team_len) == 0)
+                    && memeq (language_variant_table[i].english,
+                              language_team_ptr, language_team_len))
                   {
                     header_fields[LANGUAGE].string =
                       language_variant_table[i].code;
@@ -508,8 +507,8 @@ message_merge (message_ty *def, message_ty *ref, bool force_fuzzy,
               if (header_fields[LANGUAGE].string == NULL)
                 for (size_t i = 0; i < language_table_size; i++)
                   if (strlen (language_table[i].english) == language_team_len
-                      && memcmp (language_table[i].english,
-                                 language_team_ptr, language_team_len) == 0)
+                      && memeq (language_table[i].english,
+                                language_team_ptr, language_team_len))
                     {
                       header_fields[LANGUAGE].string = language_table[i].code;
                       break;
@@ -673,7 +672,7 @@ message_merge (message_ty *def, message_ty *ref, bool force_fuzzy,
   if (!result->is_fuzzy
       && (ref->msgid_plural != NULL
           ? def->msgid_plural == NULL
-            || strcmp (ref->msgid_plural, def->msgid_plural) != 0
+            || !streq (ref->msgid_plural, def->msgid_plural)
           : def->msgid_plural != NULL))
     result->is_fuzzy = true;
 

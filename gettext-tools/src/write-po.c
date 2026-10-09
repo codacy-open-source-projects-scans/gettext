@@ -327,7 +327,7 @@ message_print_comment_filepos (const message_ty *mp, ostream_t stream,
 
               size_t j;
               for (j = 0; j < filepos_count; j++)
-                if (strcmp (filepos[j].file_name, pp->file_name) == 0)
+                if (streq (filepos[j].file_name, pp->file_name))
                   break;
 
               if (j == filepos_count)
@@ -411,7 +411,7 @@ message_print_comment_filepos (const message_ty *mp, ostream_t stream,
                       ostream_write_str (stream, "\xE2\x81\xA9"); /* U+2069 */
                     }
                   else if (canon_charset != NULL
-                           && strcmp (canon_charset, "GB18030") == 0)
+                           && streq (canon_charset, "GB18030"))
                     {
                       ostream_write_str (stream, "\x81\x36\xAC\x34"); /* U+2068 */
                       ostream_write_str (stream, cp);
@@ -571,11 +571,11 @@ handle_filepos_comment_option (const char *option)
 {
   if (option != NULL)
     {
-      if (strcmp (option, "never") == 0 || strcmp (option, "no") == 0)
+      if (streq (option, "never") || streq (option, "no"))
         message_print_style_filepos (filepos_comment_none);
-      else if (strcmp (option, "full") == 0 || strcmp (option, "yes") == 0)
+      else if (streq (option, "full") || streq (option, "yes"))
         message_print_style_filepos (filepos_comment_full);
-      else if (strcmp (option, "file") == 0)
+      else if (streq (option, "file"))
         message_print_style_filepos (filepos_comment_file);
       else
         {
@@ -680,7 +680,7 @@ wrap (const message_ty *mp, ostream_t stream,
   if (value[0] != '\0')
     {
       bool is_msgstr =
-        (strlen (name) >= 6 && memcmp (name, "msgstr", 6) == 0);
+        (strlen (name) >= 6 && memeq (name, "msgstr", 6));
         /* or equivalent: = (css_class == class_msgstr) */
 
       for (size_t i = 0; i < NFORMATS; i++)
@@ -788,9 +788,9 @@ wrap (const message_ty *mp, ostream_t stream,
                     {
                       if (errno == EILSEQ)
                         {
-                          xeh->xerror (CAT_SEVERITY_ERROR, mp, NULL, 0, 0,
-                                       false,
-                                       _("invalid multibyte sequence"));
+                          xerror (xeh, CAT_SEVERITY_ERROR, mp, NULL, 0, 0,
+                                  false,
+                                  _("invalid multibyte sequence"));
                           continue;
                         }
                       else if (errno == EINVAL)
@@ -798,9 +798,9 @@ wrap (const message_ty *mp, ostream_t stream,
                           /* This could happen if an incomplete
                              multibyte sequence at the end of input
                              bytes.  */
-                          xeh->xerror (CAT_SEVERITY_ERROR, mp, NULL, 0, 0,
-                                       false,
-                                       _("incomplete multibyte sequence"));
+                          xerror (xeh, CAT_SEVERITY_ERROR, mp, NULL, 0, 0,
+                                  false,
+                                  _("incomplete multibyte sequence"));
                           continue;
                         }
                       else
@@ -869,8 +869,8 @@ wrap (const message_ty *mp, ostream_t stream,
                   char *error_message =
                     xasprintf (_("internationalized messages should not contain the '\\%c' escape sequence"),
                                c);
-                  xeh->xerror (CAT_SEVERITY_WARNING, mp, NULL, 0, 0, false,
-                               error_message);
+                  xerror (xeh, CAT_SEVERITY_WARNING, mp, NULL, 0, 0, false,
+                          error_message);
                   free (error_message);
                 }
             }
@@ -931,8 +931,8 @@ wrap (const message_ty *mp, ostream_t stream,
                     {
                       if (errno == EILSEQ)
                         {
-                          xeh->xerror (CAT_SEVERITY_ERROR, mp, NULL, 0, 0,
-                                       false, _("invalid multibyte sequence"));
+                          xerror (xeh, CAT_SEVERITY_ERROR, mp, NULL, 0, 0,
+                                  false, _("invalid multibyte sequence"));
                           continue;
                         }
                       else
@@ -1318,7 +1318,7 @@ The following msgctxt contains non-ASCII characters.\n\
 This will cause problems to translators who use a character encoding\n\
 different from yours. Consider using a pure ASCII msgctxt instead.\n\
 %s\n"), mp->msgctxt);
-      xeh->xerror (CAT_SEVERITY_WARNING, mp, NULL, 0, 0, true, warning_message);
+      xerror (xeh, CAT_SEVERITY_WARNING, mp, NULL, 0, 0, true, warning_message);
       free (warning_message);
     }
   if (!is_ascii_string (mp->msgid)
@@ -1330,7 +1330,7 @@ The following msgid contains non-ASCII characters.\n\
 This will cause problems to translators who use a character encoding\n\
 different from yours. Consider using a pure ASCII msgid instead.\n\
 %s\n"), mp->msgid);
-      xeh->xerror (CAT_SEVERITY_WARNING, mp, NULL, 0, 0, true, warning_message);
+      xerror (xeh, CAT_SEVERITY_WARNING, mp, NULL, 0, 0, true, warning_message);
       free (warning_message);
     }
   if (mp->msgctxt != NULL)
@@ -1483,7 +1483,7 @@ The following msgctxt contains non-ASCII characters.\n\
 This will cause problems to translators who use a character encoding\n\
 different from yours. Consider using a pure ASCII msgctxt instead.\n\
 %s\n"), mp->msgctxt);
-      xeh->xerror (CAT_SEVERITY_WARNING, mp, NULL, 0, 0, true, warning_message);
+      xerror (xeh, CAT_SEVERITY_WARNING, mp, NULL, 0, 0, true, warning_message);
       free (warning_message);
     }
   if (!is_ascii_string (mp->msgid)
@@ -1495,7 +1495,7 @@ The following msgid contains non-ASCII characters.\n\
 This will cause problems to translators who use a character encoding\n\
 different from yours. Consider using a pure ASCII msgid instead.\n\
 %s\n"), mp->msgid);
-      xeh->xerror (CAT_SEVERITY_WARNING, mp, NULL, 0, 0, true, warning_message);
+      xerror (xeh, CAT_SEVERITY_WARNING, mp, NULL, 0, 0, true, warning_message);
       free (warning_message);
     }
   if (mp->msgctxt != NULL)
@@ -1540,7 +1540,7 @@ msgdomain_list_print_po (msgdomain_list_ty *mdlp, ostream_t stream,
       /* If the first domain is the default, don't bother emitting
          the domain name, because it is the default.  */
       if (!(k == 0
-            && strcmp (mdlp->item[k]->domain, MESSAGE_DOMAIN_DEFAULT) == 0))
+            && streq (mdlp->item[k]->domain, MESSAGE_DOMAIN_DEFAULT)))
         {
           if (blank_line)
             print_blank_line (stream);
@@ -1589,7 +1589,7 @@ msgdomain_list_print_po (msgdomain_list_ty *mdlp, ostream_t stream,
               charset = allocated_charset;
 
               /* Treat the dummy default value as if it were absent.  */
-              if (strcmp (charset, "CHARSET") == 0)
+              if (streq (charset, "CHARSET"))
                 charset = "ASCII";
             }
         }

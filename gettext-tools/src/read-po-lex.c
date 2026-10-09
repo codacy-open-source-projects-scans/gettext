@@ -75,17 +75,17 @@ po_gram_error (struct po_parser_state *ps, const char *fmt, ...)
   va_start (ap, fmt);
   char *buffer;
   if (vasprintf (&buffer, fmt, ap) < 0)
-    ps->catr->xeh->xerror (CAT_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
-                           _("memory exhausted"));
+    xerror (ps->catr->xeh, CAT_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
+            _("memory exhausted"));
   va_end (ap);
-  ps->catr->xeh->xerror (CAT_SEVERITY_ERROR, NULL,
-                         ps->gram_pos.file_name, ps->gram_pos.line_number,
-                         ps->gram_pos_column + 1, false, buffer);
+  xerror (ps->catr->xeh, CAT_SEVERITY_ERROR, NULL,
+          ps->gram_pos.file_name, ps->gram_pos.line_number,
+          ps->gram_pos_column + 1, false, buffer);
   free (buffer);
 
   if (*(ps->catr->xeh->error_message_count_p) >= gram_max_allowed_errors)
-    ps->catr->xeh->xerror (CAT_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
-                           _("too many errors, aborting"));
+    xerror (ps->catr->xeh, CAT_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
+            _("too many errors, aborting"));
 }
 
 void
@@ -96,16 +96,16 @@ po_gram_error_at_line (abstract_catalog_reader_ty *catr, const lex_pos_ty *pp,
   va_start (ap, fmt);
   char *buffer;
   if (vasprintf (&buffer, fmt, ap) < 0)
-    catr->xeh->xerror (CAT_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
-                       _("memory exhausted"));
+    xerror (catr->xeh, CAT_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
+            _("memory exhausted"));
   va_end (ap);
-  catr->xeh->xerror (CAT_SEVERITY_ERROR, NULL, pp->file_name, pp->line_number,
-                     (size_t)(-1), false, buffer);
+  xerror (catr->xeh, CAT_SEVERITY_ERROR, NULL, pp->file_name, pp->line_number,
+          (size_t)(-1), false, buffer);
   free (buffer);
 
   if (*(catr->xeh->error_message_count_p) >= gram_max_allowed_errors)
-    catr->xeh->xerror (CAT_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
-                       _("too many errors, aborting"));
+    xerror (catr->xeh, CAT_SEVERITY_FATAL_ERROR, NULL, NULL, 0, 0, false,
+            _("too many errors, aborting"));
 }
 
 
@@ -155,9 +155,9 @@ po_lex_charset_set (struct po_parser_state *ps,
              only ASCII msgids.  */
           size_t filenamelen = strlen (filename);
 
-          if (!(strcmp (charset, "CHARSET") == 0
+          if (!(streq (charset, "CHARSET")
                 && ((filenamelen >= 4
-                     && memcmp (filename + filenamelen - 4, ".pot", 4) == 0)
+                     && memeq (filename + filenamelen - 4, ".pot", 4))
                     || is_pot_role)))
             {
               char *warning_message =
@@ -165,9 +165,9 @@ po_lex_charset_set (struct po_parser_state *ps,
 Charset \"%s\" is not a portable encoding name.\n\
 Message conversion to user's charset might not work.\n"),
                            charset);
-              ps->catr->xeh->xerror (CAT_SEVERITY_WARNING, NULL,
-                                     filename, (size_t)(-1), (size_t)(-1), true,
-                                     warning_message);
+              xerror (ps->catr->xeh, CAT_SEVERITY_WARNING, NULL,
+                      filename, (size_t)(-1), (size_t)(-1), true,
+                      warning_message);
               free (warning_message);
             }
         }
@@ -175,12 +175,12 @@ Message conversion to user's charset might not work.\n"),
         {
           ps->po_lex_charset = canon_charset;
 
-          if (strcmp (canon_charset, "UTF-8") == 0)
+          if (streq (canon_charset, "UTF-8"))
             {
               ps->catr->po_lex_isolate_start = "\xE2\x81\xA8";
               ps->catr->po_lex_isolate_end = "\xE2\x81\xA9";
             }
-          else if (strcmp (canon_charset, "GB18030") == 0)
+          else if (streq (canon_charset, "GB18030"))
             {
               ps->catr->po_lex_isolate_start = "\x81\x36\xAC\x34";
               ps->catr->po_lex_isolate_end = "\x81\x36\xAC\x35";
@@ -258,9 +258,9 @@ would fix this problem.\n");
                     xasprintf ("%s%s%s\n",
                                warning_message, recommendation, note);
 
-                  ps->catr->xeh->xerror (CAT_SEVERITY_WARNING, NULL,
-                                         filename, (size_t)(-1), (size_t)(-1),
-                                         true, whole_message);
+                  xerror (ps->catr->xeh, CAT_SEVERITY_WARNING, NULL,
+                          filename, (size_t)(-1), (size_t)(-1),
+                          true, whole_message);
 
                   free (whole_message);
                   free (warning_message);
@@ -296,9 +296,9 @@ would fix this problem.\n");
                     xasprintf ("%s%s%s\n",
                                warning_message, recommendation, note);
 
-                  ps->catr->xeh->xerror (CAT_SEVERITY_WARNING, NULL,
-                                         filename, (size_t)(-1), (size_t)(-1),
-                                         true, whole_message);
+                  xerror (ps->catr->xeh, CAT_SEVERITY_WARNING, NULL,
+                          filename, (size_t)(-1), (size_t)(-1),
+                          true, whole_message);
 
                   free (whole_message);
                   free (warning_message);
@@ -315,10 +315,10 @@ would fix this problem.\n");
       size_t filenamelen = strlen (filename);
 
       if (!(filenamelen >= 4
-            && memcmp (filename + filenamelen - 4, ".pot", 4) == 0))
-        ps->catr->xeh->xerror (CAT_SEVERITY_WARNING,
-                               NULL, filename, (size_t)(-1), (size_t)(-1), true,
-                               _("\
+            && memeq (filename + filenamelen - 4, ".pot", 4)))
+        xerror (ps->catr->xeh, CAT_SEVERITY_WARNING,
+                NULL, filename, (size_t)(-1), (size_t)(-1), true,
+                _("\
 Charset missing in header.\n\
 Message conversion to user's charset will not work.\n"));
     }
@@ -440,7 +440,7 @@ mb_equal (const mbchar_t mbc1, const mbchar_t mbc2)
   else
 #endif
     return (mbc1->bytes == mbc2->bytes
-            && memcmp (mbc1->buf, mbc2->buf, mbc1->bytes) == 0);
+            && memeq (mbc1->buf, mbc2->buf, mbc1->bytes));
 }
 
 /* <ctype.h>, <wctype.h> classification.  */
@@ -669,9 +669,9 @@ mbfile_getc (struct po_parser_state *ps, mbchar_t mbc, mbfile_t mbf)
               else
                 {
                   int err = errno;
-                  ps->catr->xeh->xerror (CAT_SEVERITY_FATAL_ERROR,
-                                         NULL, NULL, 0, 0, false,
-                                         xstrerror (_("iconv failure"), err));
+                  xerror (ps->catr->xeh, CAT_SEVERITY_FATAL_ERROR,
+                          NULL, NULL, 0, 0, false,
+                          xstrerror (_("iconv failure"), err));
                 }
             }
           else
@@ -861,11 +861,11 @@ lex_getc (struct po_parser_state *ps, mbchar_t mbc)
            bomb:
             {
               int err = errno;
-              ps->catr->xeh->xerror (CAT_SEVERITY_FATAL_ERROR,
-                                     NULL, NULL, 0, 0, false,
-                                     xstrerror (xasprintf (_("error while reading \"%s\""),
-                                                           ps->gram_pos.file_name),
-                                                err));
+              xerror (ps->catr->xeh, CAT_SEVERITY_FATAL_ERROR,
+                      NULL, NULL, 0, 0, false,
+                      xstrerror (xasprintf (_("error while reading \"%s\""),
+                                            ps->gram_pos.file_name),
+                                 err));
             }
           break;
         }
@@ -928,25 +928,25 @@ keyword_p (struct po_parser_state *ps, const char *s)
 {
   if (!ps->po_lex_previous)
     {
-      if (!strcmp (s, "domain"))
+      if (streq (s, "domain"))
         return DOMAIN;
-      if (!strcmp (s, "msgid"))
+      if (streq (s, "msgid"))
         return MSGID;
-      if (!strcmp (s, "msgid_plural"))
+      if (streq (s, "msgid_plural"))
         return MSGID_PLURAL;
-      if (!strcmp (s, "msgstr"))
+      if (streq (s, "msgstr"))
         return MSGSTR;
-      if (!strcmp (s, "msgctxt"))
+      if (streq (s, "msgctxt"))
         return MSGCTXT;
     }
   else
     {
       /* Inside a "#|" context, the keywords have a different meaning.  */
-      if (!strcmp (s, "msgid"))
+      if (streq (s, "msgid"))
         return PREV_MSGID;
-      if (!strcmp (s, "msgid_plural"))
+      if (streq (s, "msgid_plural"))
         return PREV_MSGID_PLURAL;
-      if (!strcmp (s, "msgctxt"))
+      if (streq (s, "msgctxt"))
         return PREV_MSGCTXT;
     }
   po_gram_error_at_line (ps->catr, &ps->gram_pos,

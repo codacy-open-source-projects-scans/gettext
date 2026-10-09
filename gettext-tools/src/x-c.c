@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <stdcountof.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,8 +51,6 @@
 #include "gettext.h"
 
 #define _(s) gettext(s)
-
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 
 /* The ANSI C standard defines several phases of translation:
@@ -129,11 +128,10 @@ add_keyword (const char *name, hash_table *keywords)
       const char *end;
       struct callshape shape;
       split_keywordspec (name, &end, &shape);
-
-      /* The characters between name and end should form a valid C identifier.
-         A colon means an invalid parse in split_keywordspec().  */
-      const char *colon = strchr (name, ':');
-      if (colon == NULL || colon >= end)
+      if (split_keywordspec_ok2 (name, end - name))
+        /* The characters between name and end should form a valid C identifier
+           or (in C++) a qualified identifier, i.e. a sequence of names
+           connected by scope resolution operators '::'.  */
         insert_keyword_callshape (keywords, name, end - name, &shape);
     }
 }
@@ -690,7 +688,7 @@ phase1_ungetc (int c)
       FALLTHROUGH;
 
     default:
-      if (phase1_pushback_length == SIZEOF (phase1_pushback))
+      if (phase1_pushback_length == countof (phase1_pushback))
         abort ();
       phase1_pushback[phase1_pushback_length++] = c;
       break;
@@ -759,7 +757,7 @@ phase2_ungetc (int c)
 {
   if (c != EOF)
     {
-      if (phase2_pushback_length == SIZEOF (phase2_pushback))
+      if (phase2_pushback_length == countof (phase2_pushback))
         abort ();
       phase2_pushback[phase2_pushback_length++] = c;
     }
@@ -800,7 +798,7 @@ phase3_ungetc (int c)
 {
   if (c != EOF)
     {
-      if (phase3_pushback_length == SIZEOF (phase3_pushback))
+      if (phase3_pushback_length == countof (phase3_pushback))
         abort ();
       phase3_pushback[phase3_pushback_length++] = c;
     }
@@ -961,6 +959,7 @@ enum token_type_ty
   token_type_rparen,                    /* ) */
   token_type_comma,                     /* , */
   token_type_colon,                     /* : */
+  token_type_scope,                     /* :: (C++ only) */
   token_type_name,                      /* abc */
   token_type_number,                    /* 2.7 */
   token_type_string_literal,            /* "abc" */
@@ -1561,7 +1560,7 @@ phase5_get (token_ty *tp)
               case 'P':
                 /* In C99 and C++17, 'p' and 'P' can be used as an exponent
                    marker.  */
-                FALLTHROUGH;
+                /*FALLTHROUGH;*/
               case 'e':
               case 'E':
                 sb_xappend1 (&buffer, c);
@@ -1769,6 +1768,16 @@ phase5_get (token_ty *tp)
       return;
 
     case ':':
+      if (cxx_extensions)
+        {
+          c = phase4_getc ();
+          if (c == ':')
+            {
+              tp->type = token_type_scope;
+              return;
+            }
+          phase4_ungetc (c);
+        }
       tp->type = token_type_colon;
       return;
 
@@ -1797,7 +1806,7 @@ phase5_unget (token_ty *tp)
 {
   if (tp->type != token_type_eof)
     {
-      if (phase5_pushback_length == SIZEOF (phase5_pushback))
+      if (phase5_pushback_length == countof (phase5_pushback))
         abort ();
       phase5_pushback[phase5_pushback_length++] = *tp;
     }
@@ -1892,7 +1901,7 @@ phase6_get (token_ty *tp)
                  normal input.  */
               if (bufpos == 0
                   && tp->type == token_type_name
-                  && strcmp (tp->string, "define") == 0)
+                  && streq (tp->string, "define"))
                 return;
 
               /* Accumulate.  */
@@ -1908,7 +1917,7 @@ phase6_get (token_ty *tp)
       /* If it is a #line directive, with no macros to expand, act on
          it.  Ignore all other directives.  */
       if (bufpos >= 3 && buf[0].type == token_type_name
-          && strcmp (buf[0].string, "line") == 0
+          && streq (buf[0].string, "line")
           && buf[1].type == token_type_number
           && buf[2].type == token_type_string_literal)
         {
@@ -1938,7 +1947,7 @@ phase6_unget (token_ty *tp)
 {
   if (tp->type != token_type_eof)
     {
-      if (phase6_pushback_length == SIZEOF (phase6_pushback))
+      if (phase6_pushback_length == countof (phase6_pushback))
         abort ();
       phase6_pushback[phase6_pushback_length++] = *tp;
     }
@@ -2113,12 +2122,12 @@ phase8_get (token_ty *tp)
 enum xgettext_token_type_ty
 {
   xgettext_token_type_eof,
-  xgettext_token_type_keyword,
   xgettext_token_type_symbol,
   xgettext_token_type_lparen,
   xgettext_token_type_rparen,
   xgettext_token_type_comma,
   xgettext_token_type_colon,
+  xgettext_token_type_scope,
   xgettext_token_type_string_literal,
   xgettext_token_type_other
 };
@@ -2129,11 +2138,7 @@ struct xgettext_token_ty
 {
   xgettext_token_type_ty type;
 
-  /* This field is used only for xgettext_token_type_keyword.  */
-  const struct callshapes *shapes;
-
-  /* This field is used only for xgettext_token_type_keyword,
-     xgettext_token_type_symbol.  */
+  /* This field is used only for xgettext_token_type_symbol.  */
   char *string;
 
   /* This field is used only for xgettext_token_type_string_literal.  */
@@ -2142,7 +2147,7 @@ struct xgettext_token_ty
   /* This field is used only for xgettext_token_type_string_literal.  */
   refcounted_string_list_ty *comment;
 
-  /* This field is used only for xgettext_token_type_keyword,
+  /* This field is used only for xgettext_token_type_symbol,
      xgettext_token_type_string_literal.  */
   lex_pos_ty pos;
 };
@@ -2151,9 +2156,18 @@ struct xgettext_token_ty
 /* 9. Convert the remaining preprocessing tokens to C tokens and
    discards any white space from the translation unit.  */
 
+static xgettext_token_ty phase9_pushback[2];
+static int phase9_pushback_length;
+
 static void
 x_c_lex (xgettext_token_ty *tp)
 {
+  if (phase9_pushback_length)
+    {
+      *tp = phase9_pushback[--phase9_pushback_length];
+      return;
+    }
+
   for (;;)
     {
       token_ty token;
@@ -2169,20 +2183,10 @@ x_c_lex (xgettext_token_ty *tp)
           {
             last_non_comment_line = newline_count;
 
-            void *keyword_value;
-            if (hash_find_entry (objc_extensions ? &objc_keywords : &c_keywords,
-                                 token.string, strlen (token.string),
-                                 &keyword_value)
-                == 0)
-              {
-                tp->type = xgettext_token_type_keyword;
-                tp->shapes = (const struct callshapes *) keyword_value;
-                tp->pos.file_name = logical_file_name;
-                tp->pos.line_number = token.line_number;
-              }
-            else
-              tp->type = xgettext_token_type_symbol;
+            tp->type = xgettext_token_type_symbol;
             tp->string = token.string;
+            tp->pos.file_name = logical_file_name;
+            tp->pos.line_number = token.line_number;
             return;
           }
 
@@ -2210,6 +2214,12 @@ x_c_lex (xgettext_token_ty *tp)
           tp->type = xgettext_token_type_colon;
           return;
 
+        case token_type_scope:
+          last_non_comment_line = newline_count;
+
+          tp->type = xgettext_token_type_scope;
+          return;
+
         case token_type_string_literal:
           last_non_comment_line = newline_count;
 
@@ -2230,6 +2240,18 @@ x_c_lex (xgettext_token_ty *tp)
           tp->type = xgettext_token_type_other;
           return;
         }
+    }
+}
+
+/* Supports 2 tokens of pushback.  */
+static void
+x_c_unlex (xgettext_token_ty *tp)
+{
+  if (tp->type != xgettext_token_type_eof)
+    {
+      if (phase9_pushback_length == countof (phase9_pushback))
+        abort ();
+      phase9_pushback[phase9_pushback_length++] = *tp;
     }
 }
 
@@ -2302,32 +2324,97 @@ extract_parenthesized (message_list_ty *mlp,
 
       switch (token.type)
         {
-        case xgettext_token_type_keyword:
-          next_shapes = token.shapes;
-          state = 1;
-          goto keyword_or_symbol;
-
         case xgettext_token_type_symbol:
-          state = 0;
-        keyword_or_symbol:
-          next_context_iter =
-            flag_context_list_iterator (
-              flag_context_list_table_lookup (
-                flag_context_list_table,
-                token.string, strlen (token.string)));
-          if (objc_extensions)
-            {
-              size_t token_string_len = strlen (token.string);
-              token.string = xrealloc (token.string, token_string_len + 2);
-              token.string[token_string_len] = ':';
-              token.string[token_string_len + 1] = '\0';
-              selectorcall_context_iter =
-                flag_context_list_iterator (
+          {
+            /* Combine symbol1 :: ... :: symbolN to a single string, so that
+               we can recognize function calls with qualified names.  The
+               information present for symbolI::...::symbolN has precedence
+               over the information for symbolJ::...::symbolN with J > I.  */
+            char *sum = token.string;
+            size_t sum_len = strlen (sum);
+
+            for (;;)
+              {
+                xgettext_token_ty token2;
+                x_c_lex (&token2);
+
+                if (token2.type == xgettext_token_type_scope)
+                  {
+                    xgettext_token_ty token3;
+                    x_c_lex (&token3);
+
+                    if (token3.type == xgettext_token_type_symbol)
+                      {
+                        char *addend = token3.string;
+                        size_t addend_len = strlen (addend);
+
+                        sum =
+                          (char *) xrealloc (sum, sum_len + 2 + addend_len + 1);
+                        memcpy (sum + sum_len, "::", 2);
+                        memcpy (sum + sum_len + 2, addend, addend_len + 1);
+                        sum_len += 2 + addend_len;
+
+                        free (addend);
+                        continue;
+                      }
+                    x_c_unlex (&token3);
+                  }
+                x_c_unlex (&token2);
+                break;
+              }
+
+            for (const char *qualifiedname = sum;;)
+              {
+                void *keyword_value;
+                if (hash_find_entry (objc_extensions ? &objc_keywords : &c_keywords,
+                                     qualifiedname, strlen (qualifiedname),
+                                     &keyword_value)
+                    == 0)
+                  {
+                    next_shapes = (const struct callshapes *) keyword_value;
+                    state = 1;
+                    break;
+                  }
+
+                qualifiedname = strstr (qualifiedname, "::");
+                if (qualifiedname == NULL)
+                  {
+                    state = 0;
+                    break;
+                  }
+                qualifiedname += 2;
+              }
+
+            flag_context_list_ty *context_list;
+            for (const char *qualifiedname = sum;;)
+              {
+                context_list =
                   flag_context_list_table_lookup (
                     flag_context_list_table,
-                    token.string, token_string_len + 1));
-            }
-          free (token.string);
+                    qualifiedname, strlen (qualifiedname));
+                if (context_list != NULL)
+                  break;
+
+                qualifiedname = strstr (qualifiedname, "::");
+                if (qualifiedname == NULL)
+                  break;
+                qualifiedname += 2;
+              }
+            next_context_iter = flag_context_list_iterator (context_list);
+
+            if (objc_extensions)
+              {
+                sum = xrealloc (sum, sum_len + 2);
+                sum[sum_len] = ':';
+                sum[sum_len + 1] = '\0';
+                selectorcall_context_iter =
+                  flag_context_list_iterator (
+                    flag_context_list_table_lookup (
+                      flag_context_list_table,
+                      sum, sum_len + 1));
+              }
+            free (sum);
+          }
           break;
 
         case xgettext_token_type_lparen:
@@ -2408,6 +2495,7 @@ extract_parenthesized (message_list_ty *mlp,
           state = 0;
           break;
 
+        case xgettext_token_type_scope:
         case xgettext_token_type_other:
           next_context_iter = null_context_list_iterator;
           selectorcall_context_iter = null_context_list_iterator;

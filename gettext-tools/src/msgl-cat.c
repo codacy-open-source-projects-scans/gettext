@@ -160,10 +160,10 @@ catenate_msgdomain_list (string_list_ty *file_list,
                                 const char *filename = files[n];
                                 size_t filenamelen = strlen (filename);
 
-                                if (strcmp (charset, "CHARSET") == 0
+                                if (streq (charset, "CHARSET")
                                     && ((filenamelen >= 4
-                                         && memcmp (filename + filenamelen - 4,
-                                                    ".pot", 4) == 0)
+                                         && memeq (filename + filenamelen - 4,
+                                                   ".pot", 4))
                                         || is_ascii_message_list (mlp)))
                                   canon_charset = po_charset_ascii;
                                 else
@@ -395,7 +395,7 @@ catenate_msgdomain_list (string_list_ty *file_list,
          with spaces are present in the target encoding.  */
       if (has_filenames_with_spaces
           && !(canon_to_code == po_charset_utf8
-               || strcmp (canon_to_code, "GB18030") == 0))
+               || streq (canon_to_code, "GB18030")))
         error (EXIT_FAILURE, 0,
                _("Cannot write the control characters that protect file names with spaces in the %s encoding"),
                canon_to_code);
@@ -427,7 +427,7 @@ catenate_msgdomain_list (string_list_ty *file_list,
                     else if (canon_charsets[n][k] != first && second == NULL)
                       second = canon_charsets[n][k];
 
-                    if (strcmp (canon_charsets[n][k], "UTF-8") == 0)
+                    if (streq (canon_charsets[n][k], "UTF-8"))
                       with_UTF8 = true;
 
                     if (!po_charset_ascii_compatible (canon_charsets[n][k]))
@@ -467,7 +467,7 @@ To select a different output encoding, use the --to-code option.\n\
           /* A conversion is needed.  Warn the user since he hasn't asked
              for it and might be surprised.  */
           if (first != NULL
-              && (first == po_charset_utf8 || strcmp (first, "GB18030") == 0))
+              && (first == po_charset_utf8 || streq (first, "GB18030")))
             canon_to_code = first;
           else
             canon_to_code = po_charset_utf8;
@@ -620,6 +620,7 @@ UTF-8 encoded from the beginning, i.e. already in your source code files.\n"),
                     size_t i = tmp->alternative_count;
                     size_t nbytes = (i + 1) * sizeof (struct altstr);
                     tmp->alternative = xrealloc (tmp->alternative, nbytes);
+                    tmp->alternative_count = i + 1;
                     tmp->alternative[i].msgstr = mp->msgstr;
                     tmp->alternative[i].msgstr_len = mp->msgstr_len;
                     tmp->alternative[i].msgstr_end =
@@ -627,7 +628,6 @@ UTF-8 encoded from the beginning, i.e. already in your source code files.\n"),
                     tmp->alternative[i].comment = mp->comment;
                     tmp->alternative[i].comment_dot = mp->comment_dot;
                     tmp->alternative[i].id = id;
-                    tmp->alternative_count = i + 1;
                   }
 
                   for (size_t i = 0; i < mp->filepos_count; i++)
@@ -681,8 +681,8 @@ UTF-8 encoded from the beginning, i.e. already in your source code files.\n"),
               bool all_equal = true;
               for (size_t i = 0; i < tmp->alternative_count; i++)
                 if (!(tmp->alternative[i].msgstr_len == first->msgstr_len
-                      && memcmp (tmp->alternative[i].msgstr, first->msgstr,
-                                 first->msgstr_len) == 0))
+                      && memeq (tmp->alternative[i].msgstr, first->msgstr,
+                                first->msgstr_len)))
                   {
                     all_equal = false;
                     break;

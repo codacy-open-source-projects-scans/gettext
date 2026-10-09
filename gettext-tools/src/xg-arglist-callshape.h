@@ -23,6 +23,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "attribute.h"
+#include "flexmember.h"
 #include "str-list.h"
 #include "mem-hash-map.h"
 
@@ -47,13 +49,30 @@ struct callshape
 extern void split_keywordspec (const char *spec, const char **endp,
                                struct callshape *shapep);
 
+/* Test whether the preceding split_keywordspec call was successful,
+   assuming a programming language in which a keyword cannot contain
+   colons.  */
+extern bool split_keywordspec_ok (const char *keyword, size_t keyword_len);
+
+/* Test whether the preceding split_keywordspec call was successful,
+   assuming a programming language in which a keyword cannot contain colons,
+   except in pairs (such as e.g. in C++).  */
+extern bool split_keywordspec_ok2 (const char *keyword, size_t keyword_len);
+
+/* Test whether the preceding split_keywordspec call was successful,
+   assuming a programming language in which a keyword cannot contain colons,
+   except a single colon or a pair of colons (such as e.g. in Common Lisp).  */
+extern bool split_keywordspec_ok_lisp (const char *keyword, size_t keyword_len);
+
 /* Set of alternative calling conventions for a given keyword.  */
 struct callshapes
 {
-  const char *keyword;          /* the keyword, not NUL terminated */
   size_t keyword_len;           /* the keyword's length */
+  const char *keyword           /* the keyword, not NUL terminated */
+    COUNTED_BY (keyword_len);
   size_t nshapes;
-  struct callshape shapes[1];   /* actually nshapes elements */
+  struct callshape shapes[FLEXIBLE_ARRAY_MEMBER]
+    COUNTED_BY (nshapes);
 };
 
 /* Insert a (keyword, callshape) pair into a hash table mapping keyword to

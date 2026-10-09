@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <stdbool.h>
+#include <stdcountof.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,8 +46,6 @@
 #include "gettext.h"
 
 #define _(s) gettext(s)
-
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 
 /* The sh syntax is defined in POSIX:2001, see
@@ -101,11 +100,9 @@ x_sh_keyword (const char *name)
       const char *end;
       struct callshape shape;
       split_keywordspec (name, &end, &shape);
-
-      /* The characters between name and end should form a valid C identifier.
-         A colon means an invalid parse in split_keywordspec().  */
-      const char *colon = strchr (name, ':');
-      if (colon == NULL || colon >= end)
+      if (split_keywordspec_ok (name, end - name))
+        /* The characters between name and end should form a valid
+           C identifier.  */
         insert_keyword_callshape (&keywords, name, end - name, &shape);
     }
 }
@@ -235,7 +232,7 @@ phase1_ungetc (int c)
       FALLTHROUGH;
 
     default:
-      if (phase1_pushback_length == SIZEOF (phase1_pushback))
+      if (phase1_pushback_length == countof (phase1_pushback))
         abort ();
       phase1_pushback[phase1_pushback_length++] = c;
       break;
@@ -645,7 +642,7 @@ phase2_ungetc (int c)
       FALLTHROUGH;
 
     default:
-      if (phase2_pushback_length == SIZEOF (phase2_pushback))
+      if (phase2_pushback_length == countof (phase2_pushback))
         abort ();
       phase2_pushback[phase2_pushback_length++] = c;
       break;
@@ -1349,7 +1346,7 @@ read_command (int looking_for, flag_region_ty *outer_region)
                     mixed_string_contents_free1 (
                       mixed_string_buffer_cloned_result (inner.token));
 
-                  if (strcmp (function_name, "env") == 0)
+                  if (streq (function_name, "env"))
                     {
                       /* The 'env' command just introduces more assignments.
                          Ignore it.  */
@@ -1387,18 +1384,18 @@ read_command (int looking_for, flag_region_ty *outer_region)
                 {
                   bool accepts_context =
                     ((argparser->keyword_len == 7
-                      && memcmp (argparser->keyword, "gettext", 7) == 0)
+                      && memeq (argparser->keyword, "gettext", 7))
                      || (argparser->keyword_len == 8
-                         && memcmp (argparser->keyword, "ngettext", 8) == 0)
+                         && memeq (argparser->keyword, "ngettext", 8))
                      || (argparser->keyword_len == 14
-                         && memcmp (argparser->keyword, "printf_gettext", 14) == 0)
+                         && memeq (argparser->keyword, "printf_gettext", 14))
                      || (argparser->keyword_len == 15
-                         && memcmp (argparser->keyword, "printf_ngettext", 15) == 0));
+                         && memeq (argparser->keyword, "printf_ngettext", 15)));
                   bool accepts_expand =
                     ((argparser->keyword_len == 7
-                      && memcmp (argparser->keyword, "gettext", 7) == 0)
+                      && memeq (argparser->keyword, "gettext", 7))
                      || (argparser->keyword_len == 8
-                         && memcmp (argparser->keyword, "ngettext", 8) == 0));
+                         && memeq (argparser->keyword, "ngettext", 8)));
                   if (accepts_context && argparser->next_is_msgctxt)
                     {
                       mixed_string_ty *ms = mixed_string_buffer_cloned_result (inner.token);
@@ -1444,7 +1441,7 @@ read_command (int looking_for, flag_region_ty *outer_region)
                           char *s = mixed_string_contents (ms);
                           bool expands_backslash_c =
                             (argparser->keyword_len == 7
-                             && memcmp (argparser->keyword, "gettext", 7) == 0);
+                             && memeq (argparser->keyword, "gettext", 7));
                           bool backslash_c = false;
                           char *expanded =
                             (char *)

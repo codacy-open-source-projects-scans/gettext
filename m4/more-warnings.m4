@@ -1,6 +1,6 @@
 # more-warnings.m4
-# serial 5 (gettext-0.25)
-dnl Copyright (C) 2023-2025 Free Software Foundation, Inc.
+# serial 8 (gettext-1.1)
+dnl Copyright (C) 2023-2026 Free Software Foundation, Inc.
 dnl This file is free software, distributed under the terms of the GNU
 dnl General Public License.  As a special exception to the GNU General
 dnl Public License, this file may be distributed as part of a program
@@ -49,6 +49,13 @@ AS_HELP_STRING([[--disable-more-warnings]], [obey exactly the warning options sp
     dnl These warnings enforce a certain programming style that is not ours.
     nw="$nw -Wempty-body"
     nw="$nw -Wvla"
+    AC_PREPROC_IFELSE([AC_LANG_PROGRAM([[
+      #if __GNUC__ < 14
+      #error "Option did not exist"
+      #endif
+      ]])],
+      [nw="$nw -Wuseless-cast"
+      ])
     dnl All warnings produced by these options (in gcc 13) have been false
     dnl alarms.
     nw="$nw -Wanalyzer-double-fclose"
@@ -69,6 +76,10 @@ AS_HELP_STRING([[--disable-more-warnings]], [obey exactly the warning options sp
     dnl We use computed format strings in a number of places, and glibc's
     dnl <bits/error.h> does it as well.
     nw="$nw -Wformat-nonliteral"
+    dnl Defining a macro with the same name as a keyword is not dangerous;
+    dnl it merely makes the code a bit harder to understand. Also, older code
+    dnl is overriding 'alignof' or 'inline' for good reasons.
+    nw="$nw -Wkeyword-macro"
     dnl We define a few functions for binary backward compatibility only.
     dnl These functions are not declared on purpose: So that they cannot be
     dnl accidentally used in new code.
@@ -82,7 +93,7 @@ AS_HELP_STRING([[--disable-more-warnings]], [obey exactly the warning options sp
     dnl are worth eliminating; see below.
     nw="$nw -Wshadow"
     dnl Too many warnings. We often use signed types like 'int' or 'idx_t'
-    dnl for counter variables, yet SIZEOF(array) is an unsigned value.
+    dnl for counter variables, yet countof(array) is an unsigned value.
     nw="$nw -Wsign-compare"
     dnl This warning is based on older ISO C standards. It warns, in particular,
     dnl about function definitions that are valid in ISO C 23 (static and
@@ -145,7 +156,7 @@ AS_HELP_STRING([[--disable-more-warnings]], [obey exactly the warning options sp
     dnl length buffer [-Wstack-protector]".
     nw="$nw -Wstack-protector"
     dnl With GCC 11 and older, these warnings are pointless:
-    dnl "[-Wanalyzer-use-after-free], "[-Wanalyzer-free-of-non-heap]".
+    dnl "[-Wanalyzer-use-after-free]", "[-Wanalyzer-free-of-non-heap]".
     AC_PREPROC_IFELSE([AC_LANG_PROGRAM([[
       #if __GNUC__ > 11
       #error "You are lucky"

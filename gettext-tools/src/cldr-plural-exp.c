@@ -18,6 +18,7 @@
 
 #include <config.h>
 
+#include <stdcountof.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,8 +52,11 @@ cldr_plural_range_free (struct cldr_plural_range_ty *range)
 void
 cldr_plural_range_list_free (struct cldr_plural_range_list_ty *ranges)
 {
-  while (ranges->nitems-- > 0)
-    cldr_plural_range_free (ranges->items[ranges->nitems]);
+  while (ranges->nitems > 0)
+    {
+      cldr_plural_range_free (ranges->items[ranges->nitems - 1]);
+      ranges->nitems--;
+    }
   free (ranges->items);
   free (ranges);
 }
@@ -90,8 +94,11 @@ cldr_plural_rule_free (struct cldr_plural_rule_ty *rule)
 void
 cldr_plural_rule_list_free (struct cldr_plural_rule_list_ty *rules)
 {
-  while (rules->nitems-- > 0)
-    cldr_plural_rule_free (rules->items[rules->nitems]);
+  while (rules->nitems > 0)
+    {
+      cldr_plural_rule_free (rules->items[rules->nitems - 1]);
+      rules->nitems--;
+    }
   free (rules->items);
   free (rules);
 }
@@ -545,8 +552,6 @@ static print_condition_function_ty print_condition_functions[] =
     print_condition_greater
   };
 
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
-
 void
 cldr_plural_rule_list_print (struct cldr_plural_rule_list_ty *rules, FILE *fp)
 {
@@ -608,7 +613,10 @@ cldr_plural_rule_list_print (struct cldr_plural_rule_list_ty *rules, FILE *fp)
       free (values);
 
       while (i < rules->nitems)
-        cldr_plural_rule_free (rules->items[--rules->nitems]);
+        {
+          cldr_plural_rule_free (rules->items[rules->nitems - 1]);
+          rules->nitems--;
+        }
     }
 
   size_t nplurals = 1;
@@ -632,7 +640,7 @@ cldr_plural_rule_list_print (struct cldr_plural_rule_list_ty *rules, FILE *fp)
           break;
 
       struct cldr_plural_condition_ty *condition = rules->items[i]->condition;
-      for (size_t j = 0; j < SIZEOF (print_condition_functions); j++)
+      for (size_t j = 0; j < countof (print_condition_functions); j++)
         if (print_condition_functions[j] (condition, fp))
           return;
     }

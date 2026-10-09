@@ -62,27 +62,24 @@ static struct expression *
 new_exp (int nargs, enum expression_operator op,
 	 struct expression * const *args)
 {
-  int i;
-  struct expression *newp;
-
   /* If any of the argument could not be malloc'ed, just return NULL.  */
-  for (i = nargs - 1; i >= 0; i--)
+  for (int i = nargs - 1; i >= 0; i--)
     if (args[i] == NULL)
       goto fail;
 
   /* Allocate a new expression.  */
-  newp = (struct expression *) malloc (sizeof (*newp));
+  struct expression *newp = (struct expression *) malloc (sizeof (*newp));
   if (newp != NULL)
     {
       newp->nargs = nargs;
       newp->operation = op;
-      for (i = nargs - 1; i >= 0; i--)
+      for (int i = nargs - 1; i >= 0; i--)
 	newp->val.args[i] = args[i];
       return newp;
     }
 
  fail:
-  for (i = nargs - 1; i >= 0; i--)
+  for (int i = nargs - 1; i >= 0; i--)
     FREE_EXPRESSION (args[i]);
 
   return NULL;
@@ -97,9 +94,8 @@ new_exp_0 (enum expression_operator op)
 static inline struct expression *
 new_exp_1 (enum expression_operator op, struct expression *right)
 {
-  struct expression *args[1];
+  struct expression *args[1] = { right };
 
-  args[0] = right;
   return new_exp (1, op, args);
 }
 
@@ -107,10 +103,8 @@ static struct expression *
 new_exp_2 (enum expression_operator op, struct expression *left,
 	   struct expression *right)
 {
-  struct expression *args[2];
+  struct expression *args[2] = { left, right };
 
-  args[0] = left;
-  args[1] = right;
   return new_exp (2, op, args);
 }
 
@@ -118,11 +112,8 @@ static inline struct expression *
 new_exp_3 (enum expression_operator op, struct expression *bexp,
 	   struct expression *tbranch, struct expression *fbranch)
 {
-  struct expression *args[3];
+  struct expression *args[3] = { bexp, tbranch, fbranch };
 
-  args[0] = bexp;
-  args[1] = tbranch;
-  args[2] = fbranch;
   return new_exp (3, op, args);
 }
 
@@ -235,7 +226,6 @@ static int
 yylex (YYSTYPE *lval, struct parse_args *arg)
 {
   const char *exp = arg->cp;
-  int result;
 
   while (1)
     {
@@ -251,7 +241,7 @@ yylex (YYSTYPE *lval, struct parse_args *arg)
       ++exp;
     }
 
-  result = *exp++;
+  int result = *exp++;
   switch (result)
     {
     case '0': case '1': case '2': case '3': case '4':

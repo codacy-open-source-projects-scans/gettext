@@ -23,8 +23,8 @@
 ;; Keywords: i18n gettext
 ;; Created: 1995
 ;; Package-Requires: ((emacs "23"))
-;; Version: 2.32
-(defconst po-mode-version-string "2.32" "Version number of this version of po-mode.el.")
+;; Version: 2.33
+(defconst po-mode-version-string "2.33" "Version number of this version of po-mode.el.")
 
 ;;; Commentary:
 
@@ -49,6 +49,13 @@
 ;;
 ;; You may also adjust some variables, below, by defining them in your
 ;; '.emacs' file, either directly or through command 'M-x customize'.
+
+;; To test, during development:
+;; 1. Run 'emacs -q'.
+;; 2. M-x load-file, specify this file.
+;; 3. Open an existing PO file.
+;; 4. M-x po-mode
+;; 5. Do some editing.
 
 ;; TODO:
 ;; Plural form editing:
@@ -1004,14 +1011,6 @@ all reachable through 'M-x customize', in group 'Emacs.Editing.I18n.Po'."
   (run-mode-hooks 'po-mode-hook)
   (message (_"You may type 'h' or '?' for a short PO mode reminder.")))
 
-(define-derived-mode po-subedit-mode text-mode
-  ; The mode name is taken from the menu string in po-subedit-mode-menu-layout.
-  "PO-Edit"
-  "PO subedit mode."
-  :group 'po
-  (easy-menu-define po-subedit-mode-menu po-subedit-mode-map ""
-    po-subedit-mode-menu-layout))
-
 (defvar po-subedit-mode-map
   ;; Use (make-keymap) because (make-sparse-keymap) does not work on Demacs.
   (let ((po-subedit-mode-map (make-keymap)))
@@ -1021,6 +1020,14 @@ all reachable through 'M-x customize', in group 'Emacs.Editing.I18n.Po'."
     (define-key po-subedit-mode-map "\C-c\C-k" 'po-subedit-abort)
     po-subedit-mode-map)
   "Keymap while editing a PO mode entry (or the full PO file).")
+
+(define-derived-mode po-subedit-mode text-mode
+  ; The mode name is taken from the menu string in po-subedit-mode-menu-layout.
+  "PO-Edit"
+  "PO subedit mode."
+  :group 'po
+  (easy-menu-define po-subedit-mode-menu po-subedit-mode-map ""
+    po-subedit-mode-menu-layout))
 
 ;;; Window management.
 

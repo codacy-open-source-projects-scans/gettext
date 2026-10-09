@@ -320,7 +320,7 @@ There is NO WARRANTY, to the extent permitted by law.\n\
     error (EXIT_FAILURE, 0, _("too many arguments"));
 
   /* Check --species option.  */
-  if (strcmp (species, "ollama") != 0)
+  if (!streq (species, "ollama"))
     error (EXIT_FAILURE, 0, _("invalid value for %s option: %s"),
            "--species", species);
 
@@ -368,7 +368,7 @@ There is NO WARRANTY, to the extent permitted by law.\n\
                   size_t len = strcspn (language, " \t\n");
                   if (len > 0)
                     {
-                      char *memory = (char *) malloc (len + 1);
+                      char *memory = (char *) xmalloc (len + 1);
                       memcpy (memory, language, len);
                       memory[len] = '\0';
 

@@ -22,8 +22,10 @@
 #include "x-smalltalk.h"
 
 #include <errno.h>
+#include <stdcountof.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define SB_NO_APPENDF
 #include <error.h>
@@ -37,8 +39,6 @@
 #include "gettext.h"
 
 #define _(s) gettext(s)
-
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 
 /* The relevant parts of the Smalltalk syntax are:
@@ -427,7 +427,7 @@ phase2_unget (token_ty *tp)
 {
   if (tp->type != token_type_eof)
     {
-      if (phase2_pushback_length == SIZEOF (phase2_pushback))
+      if (phase2_pushback_length == countof (phase2_pushback))
         abort ();
       phase2_pushback[phase2_pushback_length++] = *tp;
     }
@@ -474,7 +474,7 @@ phase3_unget (token_ty *tp)
 {
   if (tp->type != token_type_eof)
     {
-      if (phase3_pushback_length == SIZEOF (phase3_pushback))
+      if (phase3_pushback_length == countof (phase3_pushback))
         abort ();
       phase3_pushback[phase3_pushback_length++] = *tp;
     }
@@ -521,7 +521,7 @@ phase4_get (token_ty *tp)
           phase3_get (&token2);
 
           if (token2.type == token_type_symbol
-              && strcmp (token2.string, ",") == 0)
+              && streq (token2.string, ","))
             {
               token_ty token3;
               phase3_get (&token3);
@@ -549,7 +549,7 @@ phase4_unget (token_ty *tp)
 {
   if (tp->type != token_type_eof)
     {
-      if (phase4_pushback_length == SIZEOF (phase4_pushback))
+      if (phase4_pushback_length == countof (phase4_pushback))
         abort ();
       phase4_pushback[phase4_pushback_length++] = *tp;
     }
@@ -613,10 +613,10 @@ extract_smalltalk (FILE *f,
         switch (token.type)
           {
           case token_type_symbol:
-            state = (strcmp (token.string, "NLS") == 0 ? 1 :
-                     strcmp (token.string, "?") == 0 && state == 1 ? 2 :
-                     strcmp (token.string, "at:") == 0 && state == 1 ? 3 :
-                     strcmp (token.string, "plural:") == 0 && state == 4 ? 5 :
+            state = (streq (token.string, "NLS") ? 1 :
+                     streq (token.string, "?") && state == 1 ? 2 :
+                     streq (token.string, "at:") && state == 1 ? 3 :
+                     streq (token.string, "plural:") && state == 4 ? 5 :
                      0);
             free_token (&token);
             break;
@@ -645,7 +645,7 @@ extract_smalltalk (FILE *f,
                 plural_mp =
                   remember_a_message (mlp, NULL, token.string, false,
                                       token2.type == token_type_symbol
-                                      && strcmp (token.string, "plural:") == 0,
+                                      && streq (token.string, "plural:"),
                                       null_context_region (), &pos,
                                       NULL, token.comment, false);
 

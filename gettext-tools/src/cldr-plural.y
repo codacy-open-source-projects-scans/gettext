@@ -99,7 +99,8 @@ add_range (struct cldr_plural_range_list_ty *ranges,
                                 sizeof (struct cldr_plural_range_ty *)
                                 * ranges->nitems_max);
     }
-  ranges->items[ranges->nitems++] = range;
+  size_t item_index = ranges->nitems++;
+  ranges->items[item_index] = range;
   return ranges;
 }
 
@@ -187,7 +188,8 @@ rule:   KEYWORD ':' condition samples
                                         sizeof (struct cldr_plural_rule_ty *)
                                         * result->nitems_max);
             }
-          result->items[result->nitems++] = rule;
+          size_t item_index = result->nitems++;
+          result->items[item_index] = rule;
         }
         | OTHER ':' samples
         ;
@@ -440,13 +442,13 @@ yylex (YYSTYPE *lval, struct cldr_plural_parse_args *arg)
           }
 
         /* Keywords.  */
-        if (strcmp (ident, "and") == 0)
+        if (streq (ident, "and"))
           {
             arg->cp = exp;
             sb_free (&buffer);
             return AND;
           }
-        else if (strcmp (ident, "or") == 0)
+        else if (streq (ident, "or"))
           {
             arg->cp = exp;
             sb_free (&buffer);

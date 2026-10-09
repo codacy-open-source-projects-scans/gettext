@@ -34,8 +34,6 @@
 # endif
 #endif
 
-/* @@ end of prolog @@ */
-
 
 int
 _nl_explode_name (char *name,
@@ -43,9 +41,6 @@ _nl_explode_name (char *name,
 		  const char **territory, const char **codeset,
 		  const char **normalized_codeset)
 {
-  char *cp;
-  int mask;
-
   *modifier = NULL;
   *territory = NULL;
   *codeset = NULL;
@@ -64,12 +59,12 @@ _nl_explode_name (char *name,
      where script is a four-letter code for a script, per ISO 15924.
    */
 
-  mask = 0;
+  int mask = 0;
 
   /* First look for the language.  Termination symbols are `_', '.', and `@'.  */
   *language = name;
 
-  cp = name;
+  char *cp = name;
   while (cp[0] != '\0' && cp[0] != '_' && cp[0] != '@' && cp[0] != '.')
     ++cp;
 
@@ -84,13 +79,9 @@ _nl_explode_name (char *name,
 	  *cp++ = '\0';
 #if defined _AIX
 	  /* Lowercase the language.  */
-	  {
-	    char *lcp;
-
-	    for (lcp = name; lcp < cp; lcp++)
-	      if (*lcp >= 'A' && *lcp <= 'Z')
-		*lcp += 'a' - 'A';
-	  }
+	  for (char *lcp = name; lcp < cp; lcp++)
+	    if (*lcp >= 'A' && *lcp <= 'Z')
+	      *lcp += 'a' - 'A';
 
 	  /* Next is the script or the territory.  It depends on whether
 	     there is another '_'.  */

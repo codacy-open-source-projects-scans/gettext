@@ -38,6 +38,7 @@
 #include <textstyle.h>
 
 #include <error.h>
+#include "attribute.h"
 #include "options.h"
 #include "noreturn.h"
 #include "closeout.h"
@@ -83,8 +84,9 @@ static string_list_ty *domain_names;
 struct grep_task {
   matcher_t *matcher;
   size_t pattern_count;
-  char *patterns;
   size_t patterns_size;
+  char *patterns
+    COUNTED_BY (patterns_size);
   bool case_insensitive;
   void *compiled_patterns;
 };
@@ -213,12 +215,12 @@ main (int argc, char **argv)
             struct grep_task *gt = &grep_task[grep_pass];
             /* Append optarg and a newline to gt->patterns.  */
             size_t len = strlen (optarg);
-            gt->patterns =
-              (char *) xrealloc (gt->patterns, gt->patterns_size + len + 1);
-            memcpy (gt->patterns + gt->patterns_size, optarg, len);
-            gt->patterns_size += len;
-            *(gt->patterns + gt->patterns_size) = '\n';
-            gt->patterns_size += 1;
+            size_t old_patterns_size = gt->patterns_size;
+            size_t new_patterns_size = old_patterns_size + len + 1;
+            gt->patterns = (char *) xrealloc (gt->patterns, new_patterns_size);
+            gt->patterns_size = new_patterns_size;
+            memcpy (gt->patterns + old_patterns_size, optarg, len);
+            *(gt->patterns + old_patterns_size + len) = '\n';
             gt->pattern_count++;
           }
           break;
@@ -255,20 +257,24 @@ main (int argc, char **argv)
                     break;
                   }
 
+                size_t old_patterns_size = gt->patterns_size;
+                size_t new_patterns_size = old_patterns_size + count;
                 gt->patterns =
-                  (char *) xrealloc (gt->patterns, gt->patterns_size + count);
-                memcpy (gt->patterns + gt->patterns_size, buf, count);
-                gt->patterns_size += count;
+                  (char *) xrealloc (gt->patterns, new_patterns_size);
+                gt->patterns_size = new_patterns_size;
+                memcpy (gt->patterns + old_patterns_size, buf, count);
               }
 
             /* Append a final newline if file ended in a non-newline.  */
             if (gt->patterns_size > 0
                 && *(gt->patterns + gt->patterns_size - 1) != '\n')
               {
+                size_t old_patterns_size = gt->patterns_size;
+                size_t new_patterns_size = old_patterns_size + 1;
                 gt->patterns =
-                  (char *) xrealloc (gt->patterns, gt->patterns_size + 1);
-                *(gt->patterns + gt->patterns_size) = '\n';
-                gt->patterns_size += 1;
+                  (char *) xrealloc (gt->patterns, new_patterns_size);
+                gt->patterns_size = new_patterns_size;
+                *(gt->patterns + old_patterns_size) = '\n';
               }
 
             fclose (fp);
@@ -715,10 +721,10 @@ is_message_selected_no_invert (const message_ty *mp)
     {
       const char *flag = sticky_flags->item[i];
       size_t flag_len = strlen (flag);
-      if (flag_len >= 7 && memcmp (flag + flag_len - 7, "-format", 7) == 0)
+      if (flag_len >= 7 && memeq (flag + flag_len - 7, "-format", 7))
         {
           flag_len -= 7;
-          bool has_no_prefix = (flag_len >= 3 && memcmp (flag, "no-", 3) == 0);
+          bool has_no_prefix = (flag_len >= 3 && memeq (flag, "no-", 3));
           if (has_no_prefix)
             {
               flag += 3;
@@ -726,7 +732,7 @@ is_message_selected_no_invert (const message_ty *mp)
             }
           for (size_t j = 0; j < NFORMATS; j++)
             if (strlen (format_language[j]) == flag_len
-                && memcmp (format_language[j], flag, flag_len) == 0)
+                && memeq (format_language[j], flag, flag_len))
               {
                 /* The value of the flag is stored in mp->is_format[j].  */
                 if (mp->is_format[j] == (has_no_prefix ? no : yes))

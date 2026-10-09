@@ -68,6 +68,53 @@ struct xerror_handler
 };
 typedef const struct xerror_handler *xerror_handler_ty;
 
+/* libgettextpo uses façade type names:
+     struct po_xerror_handler == struct xerror_handler
+     struct po_message == struct message_ty
+   This is necessary for good library design.  But with the clang UBSAN,
+   it causes runtime errors
+   "call to function ... through pointer to incorrect function type".
+   Silence them.  */
+#if IN_LIBGETTEXTPO && defined __clang__ && __clang_major__ >= 4
+# define INVOKES_XERROR_HANDLER_FN_PTR \
+    __attribute__ ((no_sanitize ("function")))
+#else
+# define INVOKES_XERROR_HANDLER_FN_PTR
+#endif
+
+/* Inline functions for invoking the member functions of an xerror_handler.  */
+
+static inline void
+xerror (xerror_handler_ty xeh,
+        int severity,
+        const struct message_ty *message,
+        const char *filename, size_t lineno, size_t column,
+        int multiline_p, const char *message_text)
+  INVOKES_XERROR_HANDLER_FN_PTR
+{
+  xeh->xerror (severity,
+               message, filename, lineno, column,
+               multiline_p, message_text);
+}
+
+static inline void
+xerror2 (xerror_handler_ty xeh,
+         int severity,
+         const struct message_ty *message1,
+         const char *filename1, size_t lineno1, size_t column1,
+         int multiline_p1, const char *message_text1,
+         const struct message_ty *message2,
+         const char *filename2, size_t lineno2, size_t column2,
+         int multiline_p2, const char *message_text2)
+  INVOKES_XERROR_HANDLER_FN_PTR
+{
+  xeh->xerror2 (severity,
+                message1, filename1, lineno1, column1,
+                multiline_p1, message_text1,
+                message2, filename2, lineno2, column2,
+                multiline_p2, message_text2);
+}
+
 /* The default xerror_handler, that uses the global variable error_message_count
    from <error.h>, and therefore is not multithread-safe.  */
 extern LIBGETTEXTSRC_DLL_VARIABLE const struct xerror_handler textmode_xerror_handler_struct;

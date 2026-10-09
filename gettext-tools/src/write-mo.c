@@ -24,6 +24,7 @@
 
 #include <errno.h>
 #include <stdbool.h>
+#include <stdcountof.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -67,8 +68,6 @@
 #  define roundup(x, y) ((((x)+((y)-1))/(y))*(y))
 # endif /* GNU CC2  */
 #endif /* roundup  */
-
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 
 /* True if no conversion to UTF-8 is desired.  */
@@ -505,8 +504,7 @@ write_table (FILE *output_file, message_list_ty *mlp)
                     size_t r;
                     for (r = 0; r < n_sysdep_segments; r++)
                       if (sysdep_segments[r].length == length
-                          && memcmp (sysdep_segments[r].pointer, pointer, length)
-                             == 0)
+                          && memeq (sysdep_segments[r].pointer, pointer, length))
                         break;
                     if (r == n_sysdep_segments)
                       {
@@ -574,7 +572,7 @@ write_table (FILE *output_file, message_list_ty *mlp)
 
       for (size_t ss = 0; ss < n_sysdep_strings; ss++)
         {
-          for (size_t u = 0; u < SIZEOF (useful_instantiation_rules); u++)
+          for (size_t u = 0; u < countof (useful_instantiation_rules); u++)
             {
               const struct sysdep_instantiation_rule *instrule =
                 &useful_instantiation_rules[u];
@@ -1114,7 +1112,7 @@ msgdomain_write_mo (message_list_ty *mlp,
          between builds in the same conditions.  */
       message_list_delete_header_field (mlp, "POT-Creation-Date:");
 
-      if (strcmp (domain_name, "-") == 0)
+      if (streq (domain_name, "-"))
         {
           FILE *output_file = stdout;
           SET_BINARY (fileno (output_file));

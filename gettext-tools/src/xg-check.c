@@ -21,6 +21,7 @@
 /* Specification.  */
 #include "xg-check.h"
 
+#include <stdcountof.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -39,8 +40,6 @@
 #include "gettext.h"
 
 #define _(str) gettext (str)
-
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 
 /* Function that implements a single syntax check.
@@ -66,7 +65,7 @@ string_has_ascii_ellipsis (const char *string)
       /* sentence_end doesn't treat '...' specially.  */
       const char *cp = end - (ending_char == '.' ? 2 : 3);
 
-      if (cp >= str && memcmp (cp, "...", 3) == 0)
+      if (cp >= str && memeq (cp, "...", 3))
         return true;
 
       str = end + 1;
@@ -118,14 +117,14 @@ string_has_space_ellipsis (const char *string)
         {
           /* sentence_end doesn't treat '...' specially.  */
           const char *cp = end - 2;
-          if (cp >= str && memcmp (cp, "...", 3) == 0)
+          if (cp >= str && memeq (cp, "...", 3))
             ellipsis = cp;
         }
       else
         {
           /* Look for a '...'.  */
           const char *cp = end - 3;
-          if (cp >= str && memcmp (cp, "...", 3) == 0)
+          if (cp >= str && memeq (cp, "...", 3))
             ellipsis = cp;
           else
             {
@@ -246,7 +245,7 @@ struct bullet_ty
 
 struct bullet_stack_ty
 {
-  struct bullet_ty *items;
+  struct bullet_ty *items /* not COUNTED_BY (nitems) ! */;
   size_t nitems;
   size_t nitems_max;
 };
@@ -372,7 +371,7 @@ string_has_url (const char *string)
     "irc://", "ircs://"
   };
 
-  for (size_t i = 0; i < SIZEOF (patterns); i++)
+  for (size_t i = 0; i < countof (patterns); i++)
     {
       const char *pattern = patterns[i];
       /* msgid and msgid_plural are typically entirely ASCII.  Therefore here

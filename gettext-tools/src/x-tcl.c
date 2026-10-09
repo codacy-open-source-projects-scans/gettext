@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <stdbool.h>
+#include <stdcountof.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,8 +50,6 @@
 #include "gettext.h"
 
 #define _(s) gettext(s)
-
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 
 /* The Tcl syntax is defined in the Tcl.n manual page, see
@@ -100,13 +99,15 @@ x_tcl_keyword (const char *name)
       const char *end;
       struct callshape shape;
       split_keywordspec (name, &end, &shape);
+      if (split_keywordspec_ok2 (name, end - name))
+        {
+          /* The characters between name and end should form a valid Tcl
+             function name.  A leading "::" is redundant.  */
+          if (end - name >= 2 && name[0] == ':' && name[1] == ':')
+            name += 2;
 
-      /* The characters between name and end should form a valid Tcl
-         function name.  A leading "::" is redundant.  */
-      if (end - name >= 2 && name[0] == ':' && name[1] == ':')
-        name += 2;
-
-      insert_keyword_callshape (&keywords, name, end - name, &shape);
+          insert_keyword_callshape (&keywords, name, end - name, &shape);
+        }
     }
 }
 
@@ -223,7 +224,7 @@ phase1_ungetc (int c)
       FALLTHROUGH;
 
     default:
-      if (phase1_pushback_length == SIZEOF (phase1_pushback))
+      if (phase1_pushback_length == countof (phase1_pushback))
         abort ();
       phase1_pushback[phase1_pushback_length++] = c;
       break;
@@ -309,7 +310,7 @@ phase2_ungetc (int c)
           ++brace_depth;
           break;
         }
-      if (phase2_pushback_length == SIZEOF (phase2_pushback))
+      if (phase2_pushback_length == countof (phase2_pushback))
         abort ();
       phase2_pushback[phase2_pushback_length++] = c;
     }

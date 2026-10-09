@@ -140,8 +140,7 @@
 #include "x-appdata.h"
 
 
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
-#define ENDOF(a) ((a) + SIZEOF(a))
+#define ENDOF(a) ((a) + countof (a))
 
 
 /* If true, add all comments immediately preceding one of the keywords. */
@@ -721,7 +720,7 @@ main (int argc, char *argv[])
             size_t i;
             for (i = 0; i < NSYNTAXCHECKS; i++)
               {
-                if (strcmp (optarg, syntax_check_name[i]) == 0)
+                if (streq (optarg, syntax_check_name[i]))
                   {
                     default_syntax_check[i] = yes;
                     break;
@@ -737,7 +736,7 @@ main (int argc, char *argv[])
             size_t i;
             for (i = 0; i < NSYNTAXCHECKS; i++)
               {
-                if (strcmp (optarg, syntax_check_name[i]) == 0)
+                if (streq (optarg, syntax_check_name[i]))
                   {
                     default_syntax_check[i] = no;
                     break;
@@ -749,9 +748,9 @@ main (int argc, char *argv[])
           break;
 
         case CHAR_MAX + 19: /* --sentence-end */
-          if (strcmp (optarg, "single-space") == 0)
+          if (streq (optarg, "single-space"))
             sentence_end_required_spaces = 1;
-          else if (strcmp (optarg, "double-space") == 0)
+          else if (streq (optarg, "double-space"))
             sentence_end_required_spaces = 2;
           else
             error (EXIT_FAILURE, 0, _("sentence end type '%s' unknown"), optarg);
@@ -826,7 +825,7 @@ There is NO WARRANTY, to the extent permitted by law.\n\
     error (EXIT_FAILURE, 0, _("%s and %s are mutually exclusive"),
            "--kde", "--boost");
 
-  if (join_existing && strcmp (default_domain, "-") == 0)
+  if (join_existing && streq (default_domain, "-"))
     error (EXIT_FAILURE, 0,
            _("--join-existing cannot be used when output is written to stdout"));
 
@@ -885,14 +884,14 @@ xgettext cannot work without keywords to look for"));
        the special name "-" we write to stdout.  */
     if (output_file)
       {
-        if (IS_RELATIVE_FILE_NAME (output_file) && strcmp (output_file, "-") != 0)
+        if (IS_RELATIVE_FILE_NAME (output_file) && !streq (output_file, "-"))
           /* Please do NOT add a .po suffix! */
           file_name =
             xconcatenated_filename (defaulted_output_dir, output_file, NULL);
         else
           file_name = xstrdup (output_file);
       }
-    else if (strcmp (default_domain, "-") == 0)
+    else if (streq (default_domain, "-"))
       file_name = "-";
     else
       file_name =
@@ -903,7 +902,7 @@ xgettext cannot work without keywords to look for"));
   string_list_ty *file_list;
   if (files_from != NULL)
     {
-      if (strcmp (files_from, "-") != 0)
+      if (!streq (files_from, "-"))
         string_list_append (&files_for_vc_mtime, files_from);
       file_list = read_names_from_file (files_from);
     }
@@ -990,7 +989,7 @@ xgettext cannot work without keywords to look for"));
           char *reduced = xstrdup (base);
           /* Remove a trailing ".in" - it's a generic suffix.  */
           while (strlen (reduced) >= 3
-                 && memcmp (reduced + strlen (reduced) - 3, ".in", 3) == 0)
+                 && memeq (reduced + strlen (reduced) - 3, ".in", 3))
             reduced[strlen (reduced) - 3] = '\0';
 
           /* If no language is specified with -L, deduce it the extension.  */
@@ -1016,7 +1015,7 @@ xgettext cannot work without keywords to look for"));
           /* If language is not determined from the file name
              extension, check ITS locating rules.  */
           if (language_from_extension == NULL
-              && strcmp (filename, "-") != 0)
+              && !streq (filename, "-"))
             {
               const char *its_basename =
                 locating_rule_list_locate (its_locating_rules,
@@ -1577,7 +1576,7 @@ xgettext_record_flag (const char *optionstring)
     /* Analyze the flag part.  */
     {
       bool pass = false;
-      if (flag_end - flag_start >= 5 && memcmp (flag_start, "pass-", 5) == 0)
+      if (flag_end - flag_start >= 5 && memeq (flag_start, "pass-", 5))
         {
           pass = true;
           flag_start += 5;
@@ -1586,31 +1585,31 @@ xgettext_record_flag (const char *optionstring)
       /* Unlike parse_comment_special(), we don't accept "fuzzy",
          "wrap", or "check" here - it has no sense.  */
       if (flag_end - flag_start >= 7
-          && memcmp (flag_end - 7, "-format", 7) == 0)
+          && memeq (flag_end - 7, "-format", 7))
         {
           const char *p = flag_start;
           size_t n = flag_end - flag_start - 7;
 
           enum is_format value;
-          if (n >= 3 && memcmp (p, "no-", 3) == 0)
+          if (n >= 3 && memeq (p, "no-", 3))
             {
               p += 3;
               n -= 3;
               value = no;
             }
-          else if (n >= 9 && memcmp (p, "possible-", 9) == 0)
+          else if (n >= 9 && memeq (p, "possible-", 9))
             {
               p += 9;
               n -= 9;
               value = possible;
             }
-          else if (n >= 11 && memcmp (p, "impossible-", 11) == 0)
+          else if (n >= 11 && memeq (p, "impossible-", 11))
             {
               p += 11;
               n -= 11;
               value = impossible;
             }
-          else if (n >= 10 && memcmp (p, "undecided-", 10) == 0)
+          else if (n >= 10 && memeq (p, "undecided-", 10))
             {
               p += 10;
               n -= 10;
@@ -1621,7 +1620,7 @@ xgettext_record_flag (const char *optionstring)
 
           for (size_t type = 0; type < NFORMATS; type++)
             if (strlen (format_language[type]) == n
-                && memcmp (format_language[type], p, n) == 0)
+                && memeq (format_language[type], p, n))
               {
                 /* This dispatch does the reverse mapping of all the SCANNERS_*
                    macros defined in the x-*.h files.  For example,
@@ -1636,14 +1635,14 @@ xgettext_record_flag (const char *optionstring)
                 switch (type)
                   {
                   case format_c:
-                    if (backend == NULL || strcmp (backend, "C") == 0
-                        || strcmp (backend, "C++") == 0)
+                    if (backend == NULL || streq (backend, "C")
+                        || streq (backend, "C++"))
                       {
                         flag_context_list_table_insert (&flag_table_c, XFORMAT_PRIMARY,
                                                         name_start, name_end,
                                                         argnum, value, pass);
                       }
-                    if (backend == NULL || strcmp (backend, "C++") == 0)
+                    if (backend == NULL || streq (backend, "C++"))
                       {
                         flag_context_list_table_insert (&flag_table_cxx_qt, XFORMAT_PRIMARY,
                                                         name_start, name_end,
@@ -1655,19 +1654,19 @@ xgettext_record_flag (const char *optionstring)
                                                         name_start, name_end,
                                                         argnum, value, pass);
                       }
-                    if (backend == NULL || strcmp (backend, "ObjectiveC") == 0)
+                    if (backend == NULL || streq (backend, "ObjectiveC"))
                       {
                         flag_context_list_table_insert (&flag_table_objc, XFORMAT_PRIMARY,
                                                         name_start, name_end,
                                                         argnum, value, pass);
                       }
-                    if (backend == NULL || strcmp (backend, "D") == 0)
+                    if (backend == NULL || streq (backend, "D"))
                       {
                         flag_context_list_table_insert (&flag_table_d, XFORMAT_PRIMARY,
                                                         name_start, name_end,
                                                         argnum, value, pass);
                       }
-                    if (backend == NULL || strcmp (backend, "Vala") == 0)
+                    if (backend == NULL || streq (backend, "Vala"))
                       {
                         flag_context_list_table_insert (&flag_table_vala, XFORMAT_PRIMARY,
                                                         name_start, name_end,
@@ -2038,7 +2037,7 @@ xgettext_open (const char *fn,
   char *logical_file_name;
   char *new_name;
 
-  if (strcmp (fn, "-") == 0)
+  if (streq (fn, "-"))
     {
       new_name = xstrdup (_("standard input"));
       logical_file_name = xstrdup (new_name);
@@ -2549,21 +2548,21 @@ language_to_extractor (const char *name)
         /* Handle --qt.  It's preferrable to handle this facility here rather
            than through an option --language=C++/Qt because the latter would
            conflict with the language "C++" regarding the file extensions.  */
-        if (recognize_format_qt && strcmp (tp->name, "C++") == 0)
+        if (recognize_format_qt && streq (tp->name, "C++"))
           {
             result.flag_table = &flag_table_cxx_qt;
             result.formatstring_parser[XFORMAT_TERTIARY] = &formatstring_qt;
             result.formatstring_parser[XFORMAT_FOURTH]   = &formatstring_qt_plural;
           }
         /* Likewise for --kde.  */
-        if (recognize_format_kde && strcmp (tp->name, "C++") == 0)
+        if (recognize_format_kde && streq (tp->name, "C++"))
           {
             result.flag_table = &flag_table_cxx_kde;
             result.formatstring_parser[XFORMAT_TERTIARY] = &formatstring_kde;
             result.formatstring_parser[XFORMAT_FOURTH]   = &formatstring_kde_kuit;
           }
         /* Likewise for --boost.  */
-        if (recognize_format_boost && strcmp (tp->name, "C++") == 0)
+        if (recognize_format_boost && streq (tp->name, "C++"))
           {
             result.flag_table = &flag_table_cxx_boost;
             result.formatstring_parser[XFORMAT_TERTIARY] = &formatstring_boost;
@@ -2631,7 +2630,7 @@ extension_to_language (const char *extension)
   };
 
   for (table_ty *tp = table; tp < ENDOF(table); ++tp)
-    if (strcmp (extension, tp->extension) == 0)
+    if (streq (extension, tp->extension))
       return tp->language;
   return NULL;
 }

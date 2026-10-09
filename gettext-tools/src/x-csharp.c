@@ -23,6 +23,7 @@
 
 #include <errno.h>
 #include <stdbool.h>
+#include <stdcountof.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,8 +52,6 @@
 #include "gettext.h"
 
 #define _(s) gettext(s)
-
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 
 /* The C# syntax is defined in ECMA-334, second edition.
@@ -91,12 +90,9 @@ x_csharp_keyword (const char *name)
       const char *end;
       struct callshape shape;
       split_keywordspec (name, &end, &shape);
-
-      /* The characters between name and end should form a valid C#
-         identifier sequence with dots.
-         A colon means an invalid parse in split_keywordspec().  */
-      const char *colon = strchr (name, ':');
-      if (colon == NULL || colon >= end)
+      if (split_keywordspec_ok (name, end - name))
+        /* The characters between name and end should form a valid C#
+           identifier sequence with dots.  */
         insert_keyword_callshape (&keywords, name, end - name, &shape);
     }
 }
@@ -180,7 +176,7 @@ phase1_ungetc (int c)
     {
       if (c == '\n')
         --line_number;
-      if (phase1_pushback_length == SIZEOF (phase1_pushback))
+      if (phase1_pushback_length == countof (phase1_pushback))
         abort ();
       phase1_pushback[phase1_pushback_length++] = c;
     }
@@ -434,7 +430,7 @@ phase2_ungetc (int c)
 {
   if (c != UEOF)
     {
-      if (phase2_pushback_length == SIZEOF (phase2_pushback))
+      if (phase2_pushback_length == countof (phase2_pushback))
         abort ();
       phase2_pushback[phase2_pushback_length++] = c;
     }
@@ -510,7 +506,7 @@ phase3_ungetc (int c)
     {
       if (c == UNL)
         --logical_line_number;
-      if (phase3_pushback_length == SIZEOF (phase3_pushback))
+      if (phase3_pushback_length == countof (phase3_pushback))
         abort ();
       phase3_pushback[phase3_pushback_length++] = c;
     }
@@ -1229,7 +1225,7 @@ phase5_ungetc (int c)
 {
   if (c != UEOF)
     {
-      if (phase5_pushback_length == SIZEOF (phase5_pushback))
+      if (phase5_pushback_length == countof (phase5_pushback))
         abort ();
       phase5_pushback[phase5_pushback_length++] = c;
     }
@@ -1774,7 +1770,7 @@ phase6_unget (token_ty *tp)
 {
   if (tp->type != token_type_eof)
     {
-      if (phase6_pushback_length == SIZEOF (phase6_pushback))
+      if (phase6_pushback_length == countof (phase6_pushback))
         abort ();
       phase6_pushback[phase6_pushback_length++] = *tp;
     }
@@ -1844,7 +1840,7 @@ phase7_unget (token_ty *tp)
 {
   if (tp->type != token_type_eof)
     {
-      if (phase7_pushback_length == SIZEOF (phase7_pushback))
+      if (phase7_pushback_length == countof (phase7_pushback))
         abort ();
       phase7_pushback[phase7_pushback_length++] = *tp;
     }
@@ -1931,7 +1927,7 @@ extract_parenthesized (message_list_ty *mlp, token_type_ty terminator,
         {
         case token_type_symbol:
           {
-            /* Combine symbol1 . ... . symbolN to a single strings, so that
+            /* Combine symbol1 . ... . symbolN to a single string, so that
                we can recognize static function calls like
                GettextResource.gettext.  The information present for
                symbolI.....symbolN has precedence over the information for

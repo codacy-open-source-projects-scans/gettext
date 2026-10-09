@@ -20,6 +20,7 @@
 # include <config.h>
 #endif
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,8 +43,6 @@
 #endif
 
 #include "flexmember.h"
-
-/* @@ end of prolog @@ */
 
 
 /* Names for the libintl functions are a problem.  They must not clash
@@ -74,9 +73,6 @@ set_binding_values (const char *domainname,
 		    const char **dirnamep, const wchar_t **wdirnamep,
 		    const char **codesetp)
 {
-  struct binding *binding;
-  int modified;
-
   /* Some sanity checks.  */
   if (domainname == NULL || domainname[0] == '\0')
     {
@@ -93,7 +89,9 @@ set_binding_values (const char *domainname,
 
   gl_rwlock_wrlock (_nl_state_lock);
 
-  modified = 0;
+  bool modified = false;
+
+  struct binding *binding;
 
   for (binding = _nl_domain_bindings; binding != NULL; binding = binding->next)
     {
@@ -142,7 +140,7 @@ set_binding_values (const char *domainname,
 		      binding->wdirname = NULL;
 #endif
 
-		      modified = 1;
+		      modified = true;
 		    }
 		}
 	      *dirnamep = result;
@@ -176,7 +174,7 @@ set_binding_values (const char *domainname,
 		      free (binding->wdirname);
 		      binding->wdirname = result;
 
-		      modified = 1;
+		      modified = true;
 		    }
 		}
 	      *wdirnamep = result;
@@ -205,7 +203,7 @@ set_binding_values (const char *domainname,
 		      free (binding->codeset);
 
 		      binding->codeset = result;
-		      modified = 1;
+		      modified = true;
 		    }
 		}
 	      *codesetp = result;
@@ -336,7 +334,7 @@ set_binding_values (const char *domainname,
 	  binding->next = new_binding;
 	}
 
-      modified = 1;
+      modified = true;
 
       /* Here we deal with memory allocation failures.  */
       if (0)

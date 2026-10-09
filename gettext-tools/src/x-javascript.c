@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <stdcountof.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,8 +57,6 @@
 #include "gettext.h"
 
 #define _(s) gettext(s)
-
-#define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
 
 /* The JavaScript aka ECMA-Script syntax is defined in ECMA-262
    specification:
@@ -101,11 +100,9 @@ x_javascript_keyword (const char *name)
       const char *end;
       struct callshape shape;
       split_keywordspec (name, &end, &shape);
-
-      /* The characters between name and end should form a valid C identifier.
-         A colon means an invalid parse in split_keywordspec().  */
-      const char *colon = strchr (name, ':');
-      if (colon == NULL || colon >= end)
+      if (split_keywordspec_ok (name, end - name))
+        /* The characters between name and end should form a valid
+           C identifier.  */
         insert_keyword_callshape (&keywords, name, end - name, &shape);
     }
 }
@@ -204,7 +201,7 @@ gnome_step1 (string_list_ty *parts)
 static tag_step1_fn
 get_tag_step1_fn (const char *format)
 {
-  if (strcmp (format, "javascript-gnome-format") == 0)
+  if (streq (format, "javascript-gnome-format"))
     return gnome_step1;
   /* ... More formats can be added here ...  */
   return NULL;
@@ -294,7 +291,7 @@ phase1_ungetc (int c)
       if (c == '\n')
         --line_number;
 
-      if (phase1_pushback_length == SIZEOF (phase1_pushback))
+      if (phase1_pushback_length == countof (phase1_pushback))
         abort ();
       phase1_pushback[phase1_pushback_length++] = c;
     }
@@ -543,7 +540,7 @@ phase2_ungetc (int c)
 {
   if (c != UEOF)
     {
-      if (phase2_pushback_length == SIZEOF (phase2_pushback))
+      if (phase2_pushback_length == countof (phase2_pushback))
         abort ();
       phase2_pushback[phase2_pushback_length++] = c;
     }
@@ -1213,7 +1210,7 @@ phase5_scan_xml_markup (token_ty *tp)
       { "?", "?" }
     };
 
-  for (int i = 0; i < SIZEOF (markers); i++)
+  for (int i = 0; i < countof (markers); i++)
     {
       const char *start = markers[i].start;
       const char *end = markers[i].end;
@@ -1222,7 +1219,7 @@ phase5_scan_xml_markup (token_ty *tp)
       /* Look for a start marker.  */
       for (j = 0; start[j] != '\0'; j++)
         {
-          assert (phase2_pushback_length + j < SIZEOF (phase2_pushback));
+          assert (phase2_pushback_length + j < countof (phase2_pushback));
           int c = phase2_getc ();
           if (c == UEOF)
             goto eof;
@@ -1245,7 +1242,7 @@ phase5_scan_xml_markup (token_ty *tp)
           {
             for (j = 0; end[j] != '\0'; j++)
               {
-                assert (phase2_pushback_length + 1 < SIZEOF (phase2_pushback));
+                assert (phase2_pushback_length + 1 < countof (phase2_pushback));
                 int c = phase2_getc ();
                 if (c == UEOF)
                   goto eof;
@@ -1386,8 +1383,8 @@ phase5_get (token_ty *tp)
                 break;
               }
             tp->string = sb_xdupfree_c (&buffer);
-            if (strcmp (tp->string, "return") == 0
-                || strcmp (tp->string, "else") == 0)
+            if (streq (tp->string, "return")
+                || streq (tp->string, "else"))
               tp->type = last_token_type = token_type_keyword;
             else
               tp->type = last_token_type = token_type_symbol;
@@ -1704,7 +1701,7 @@ phase5_unget (token_ty *tp)
 {
   if (tp->type != token_type_eof)
     {
-      if (phase5_pushback_length == SIZEOF (phase5_pushback))
+      if (phase5_pushback_length == countof (phase5_pushback))
         abort ();
       phase5_pushback[phase5_pushback_length++] = *tp;
     }
